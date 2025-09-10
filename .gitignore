@@ -2,3 +2,5 @@
 .vscode/
 kfs.bin
 kfs.iso
+Documents/*.pdf
+Documents/*.rst
