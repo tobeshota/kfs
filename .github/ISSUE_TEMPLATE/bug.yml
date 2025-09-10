@@ -1,0 +1,39 @@
+name: Bug Report
+description: A bug in the system
+title: "[Bug]: "
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Describe the issue
+      description: What happened, and what did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the issue?
+    validations:
+      required: true
+  - type: textarea
+    id: cosense
+    attributes:
+      label: Cosense
+      description: Please post the Cosense URL.
+    validations:
+      required: true
+  - type: textarea
+    id: pr
+    attributes:
+      label: Pull request
+      description: If you can, please provide a link to the pull request that introduced the issue.
+    validations:
+      required: false
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here.
+    validations:
+      required: false

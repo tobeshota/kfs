@@ -1,0 +1,32 @@
+name: Feature Request
+description: Propose a new feature.
+title: "[FR]: "
+body:
+  - type: textarea
+    id: why
+    attributes:
+      label: Why do you need this feature?
+      description: State why this feature is needed and why it cannot be substituted by an existing feature.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Describe the proposal.
+      description: Describe the feature you would like to see implemented.
+    validations:
+      required: true
+  - type: textarea
+    id: cosense
+    attributes:
+      label: Cosense
+      description: Please post the Cosense URL.
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context.
+      description: Add any other context or screenshots about the feature request here.
+    validations:
+      required: false

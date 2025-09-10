@@ -1,0 +1,19 @@
+name: Check PR Branch
+
+on: pull_request
+
+jobs:
+  check-pr-branch:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Check PR target branch
+      run: |
+        # Check if the source branch name begins with FR, BUG, or REF
+        if [[ "${{ github.head_ref }}" =~ ^(FR|BUG|REF) ]]; then
+          # Error if target branch is not develop
+          if [[ "${{ github.base_ref }}" != "develop" ]]; then
+            echo "Error: PR from '${{ github.head_ref }}' can only target 'develop' branch."
+            exit 1
+          fi
+        fi
+        echo "PR from '${{ github.head_ref }}' targeting '${{ github.base_ref }}' is allowed."

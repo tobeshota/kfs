@@ -1,0 +1,32 @@
+name: Refactoring Proposal
+description: Propose a refactoring.
+title: "[REF]: "
+body:
+  - type: textarea
+    id: why
+    attributes:
+      label: Why do you need this refactoring?
+      description: State why this refactoring is needed and why it cannot be substituted by an existing feature.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Describe the proposal.
+      description: Describe the refactoring you would like to see implemented.
+    validations:
+      required: true
+  - type: textarea
+    id: cosense
+    attributes:
+      label: Cosense
+      description: Please post the Cosense URL.
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context.
+      description: Add any other context or screenshots about the refactoring proposal here.
+    validations:
+      required: false
