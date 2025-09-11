@@ -1,5 +1,3 @@
-# kfs.bin(カーネル) と kfs.iso(ブート可能ISO) をDocker上で作成する
-
 # ===== User-facing targets =====
 # - make          : kfs.iso まで作成
 # - make bin      : kfs.bin まで作成
@@ -16,18 +14,18 @@ DOCKER_RUN = $(DOCKER) run --rm -v "$(PWD)":/work -w /work $(IMAGE)
 # ===== Toolchain (used inside container) =====
 CROSS   ?= i686-elf
 CC      := $(CROSS)-gcc
-CFLAGS  := -std=gnu99 -ffreestanding -O2 -Wall -Wextra -m32
-LDFLAGS := -T arch/i386/boot/linker.ld -ffreestanding -O2 -nostdlib -m32
+CFLAGS  := -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
+LDFLAGS := -T arch/i386/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
 LDLIBS  := -lgcc
 
-OBJS := \
-  arch/i386/boot/boot.o \
-  init/main.o
+# Sources and objects
+SRCS := $(shell find arch init -name '*.c' -o -name '*.S')
+OBJS := $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(SRCS)))
 
 KERNEL := kfs.bin
 ISO    := kfs.iso
 
-.PHONY: all bin iso run run-bin clean check ensure-image docker-fallback \
+.PHONY: all bin iso run run-bin clean fclean check ensure-image docker-fallback \
 	test docker-clean
 
 # ===== Default =====
@@ -50,10 +48,11 @@ ifeq ($(IN_DOCKER),1)
 $(KERNEL): $(OBJS) arch/i386/boot/linker.ld
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
 
-arch/i386/boot/boot.o: arch/i386/boot/boot.S
+# Compile rules (inside container)
+%.o: %.S
 	$(CC) $(CFLAGS) -c $< -o $@
 
-init/main.o: init/main.c
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 bin: $(KERNEL)
@@ -64,16 +63,13 @@ iso: bin grub.cfg
 	cp grub.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o $(ISO) isodir
 
-check: $(KERNEL)
-	@command -v grub-file >/dev/null 2>&1 && \
-	  grub-file --is-x86-multiboot $(KERNEL) && echo "multiboot confirmed" || \
-	  echo "(grub-file not found or not multiboot)" || true
-
 clean:
 	rm -rf isodir $(ISO)
 
 fclean: clean
 	rm -f $(KERNEL) $(OBJS)
+
+re: fclean all
 
 else
 
@@ -84,14 +80,13 @@ bin: ensure-image
 iso: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso'
 
-check: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make check'
-
 clean:
 	@rm -rf isodir $(OBJS)
 
 fclean: clean
 	@rm -f $(KERNEL) $(ISO)
+
+re: fclean all
 
 endif
 
