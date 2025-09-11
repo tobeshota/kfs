@@ -16,7 +16,6 @@ CROSS   ?= i686-elf
 CC      := $(CROSS)-gcc
 CFLAGS  := -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
 LDFLAGS := -T arch/i386/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
-LDLIBS  := -lgcc
 
 # Sources and objects
 SRCS := $(shell find arch init -name '*.c' -o -name '*.S')
@@ -46,7 +45,7 @@ ifeq ($(IN_DOCKER),1)
 
 # --- Build inside container ---
 $(KERNEL): $(OBJS) arch/i386/boot/linker.ld
-	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	$(CC) -o $@ $(OBJS) $(LDFLAGS)
 
 # Compile rules (inside container)
 %.o: %.S
