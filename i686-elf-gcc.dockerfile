@@ -17,61 +17,60 @@ RUN apt-get update \
 
 RUN mkdir -p ${SRC_DIR}
 
-# binutils
-WORKDIR ${SRC_DIR}
+# binutils + i686-elf-gcc (C only) in a single layer
 RUN set -eu; \
+        # download binutils
+		cd ${SRC_DIR}; \
 		TAR=binutils-${BINUTILS_VERSION}.tar.xz; \
 		for url in \
-			"https://sourceware.org/pub/binutils/releases/${TAR}" \
-			"https://ftpmirror.gnu.org/binutils/${TAR}" \
-			"https://ftp.gnu.org/gnu/binutils/${TAR}"; do \
+				"https://sourceware.org/pub/binutils/releases/${TAR}" \
+				"https://ftpmirror.gnu.org/binutils/${TAR}" \
+				"https://ftp.gnu.org/gnu/binutils/${TAR}"; do \
 				echo "Downloading: $url"; \
 				wget -q "$url" && break || true; \
-			done; \
+		done; \
+        # install binutils
 		test -f "$TAR"; \
 		tar -Jxf "$TAR" --no-same-owner --no-same-permissions; \
 		rm -f "$TAR"; \
-		mkdir build-binutils
-
-WORKDIR ${SRC_DIR}/build-binutils
-RUN ../binutils-${BINUTILS_VERSION}/configure \
-	  --target=${TARGET} \
-	  --prefix=${PREFIX} \
-	  --with-sysroot \
-	  --disable-nls \
-	  --disable-werror \
-	&& make -j ${JOBS} \
-	&& make install
-
-# i686-elf-gcc (C only)
-WORKDIR ${SRC_DIR}
-RUN set -eu; \
+		mkdir build-binutils; \
+		cd build-binutils; \
+		../binutils-${BINUTILS_VERSION}/configure \
+			--target=${TARGET} \
+			--prefix=${PREFIX} \
+			--with-sysroot \
+			--disable-nls \
+			--disable-werror; \
+		make -j ${JOBS}; \
+		make install; \
+        # download i686-elf-gcc
+		cd ${SRC_DIR}; \
 		TAR=gcc-${GCC_VERSION}.tar.xz; \
 		for url in \
-			"https://ftpmirror.gnu.org/gcc/gcc-${GCC_VERSION}/${TAR}" \
-			"https://ftp.gnu.org/gnu/gcc/gcc-${GCC_VERSION}/${TAR}"; do \
+				"https://ftpmirror.gnu.org/gcc/gcc-${GCC_VERSION}/${TAR}" \
+				"https://ftp.gnu.org/gnu/gcc/gcc-${GCC_VERSION}/${TAR}"; do \
 				echo "Downloading: $url"; \
 				wget -q "$url" && break || true; \
-			done; \
+		done; \
+        # install i686-elf-gcc
 		test -f "$TAR"; \
 		tar -Jxf "$TAR" --no-same-owner --no-same-permissions; \
 		rm -f "$TAR"; \
-		mkdir build-gcc
-
-WORKDIR ${SRC_DIR}/build-gcc
-RUN ../gcc-${GCC_VERSION}/configure \
-	  --target=${TARGET} \
-	  --prefix=${PREFIX} \
-	  --disable-nls \
-	  --enable-languages=c \
-	  --without-headers \
-	&& make -j ${JOBS} all-gcc \
-	&& make -j ${JOBS} all-target-libgcc \
-	&& make install-gcc \
-	&& make install-target-libgcc
-
-# cleanup build sources to reduce size
-RUN rm -rf ${SRC_DIR}
+		mkdir build-gcc; \
+		cd build-gcc; \
+		../gcc-${GCC_VERSION}/configure \
+			--target=${TARGET} \
+			--prefix=${PREFIX} \
+			--disable-nls \
+			--enable-languages=c \
+			--without-headers; \
+		make -j ${JOBS} all-gcc; \
+		make -j ${JOBS} all-target-libgcc; \
+		make install-gcc; \
+		make install-target-libgcc; \
+		cd /; \
+        # cleanup source and build dirs
+		rm -rf ${SRC_DIR}
 
 # final settings
 ENV PATH="/usr/local/bin:${PATH}"
