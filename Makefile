@@ -2,3 +2,5 @@
 
 test:
 	@ make test -C test/
+
+.PHONY: test
