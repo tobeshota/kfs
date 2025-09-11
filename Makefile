@@ -1,9 +1,9 @@
 # ===== User-facing targets =====
 # - make          : kfs.iso まで作成
-# - make bin      : kfs.bin まで作成
+# - make kernel      : kfs.bin まで作成
 # - make iso      : ISO を作成
 # - make run      : qemu-system-i386 -cdrom kfs.iso を実行
-# - make run-bin  : qemu-system-i386 -kernel kfs.bin を実行
+# - make run-kernel  : qemu-system-i386 -kernel kfs.bin を実行
 
 # ===== Docker image settings =====
 IMAGE ?= smizuoch/kfs:1.0.1
@@ -23,9 +23,6 @@ OBJS := $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(SRCS)))
 
 KERNEL := kfs.bin
 ISO    := kfs.iso
-
-.PHONY: all bin iso run run-bin clean fclean check ensure-image docker-fallback \
-	test docker-clean
 
 # ===== Default =====
 all: iso
@@ -54,9 +51,9 @@ $(KERNEL): $(OBJS) arch/i386/boot/linker.ld
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-bin: $(KERNEL)
+kernel: $(KERNEL)
 
-iso: bin grub.cfg
+iso: kernel grub.cfg
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/kfs.bin
 	cp grub.cfg isodir/boot/grub/grub.cfg
@@ -73,8 +70,8 @@ re: fclean all
 else
 
 # --- Wrapper: run the same targets inside Docker ---
-bin: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make bin'
+kernel: ensure-image
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make kernel'
 
 iso: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso'
@@ -90,7 +87,9 @@ re: fclean all
 endif
 
 # ===== Run with QEMU (prefer host, fallback to container) =====
-run: $(ISO)
+run: run-iso
+
+run-iso: $(ISO)
 	@if command -v qemu-system-i386 >/dev/null 2>&1; then \
 	  qemu-system-i386 -cdrom $(ISO) -serial stdio; \
 	else \
@@ -98,7 +97,7 @@ run: $(ISO)
 	  $(DOCKER_RUN) qemu-system-i386 -cdrom $(ISO) -serial stdio; \
 	fi
 
-run-bin: $(KERNEL)
+run-kernel: $(KERNEL)
 	@if command -v qemu-system-i386 >/dev/null 2>&1; then \
 	  qemu-system-i386 -kernel $(KERNEL) -serial stdio; \
 	else \
@@ -109,3 +108,5 @@ run-bin: $(KERNEL)
 # ===== Tests passthrough =====
 test:
 	@ make -C test/
+
+.PHONY: all kernel iso run run-iso run-kernel clean fclean re ensure-image test
