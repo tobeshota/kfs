@@ -2,12 +2,13 @@
 # - make          : kfs.iso まで作成
 # - make kernel      : kfs.bin まで作成
 # - make iso      : ISO を作成
-# - make run      : qemu-system-i386 -cdrom kfs.iso を実行
-# - make run-kernel  : qemu-system-i386 -kernel kfs.bin を実行
+# - make run      : qemu-system-$(ISA) -cdrom kfs.iso を実行
+# - make run-kernel  : qemu-system-$(ISA) -kernel kfs.bin を実行
 
 # ===== Docker image settings =====
 IMAGE ?= smizuoch/kfs:1.0.1
 DOCKER ?= docker
+ISA	?= i386
 PWD := $(shell pwd)
 DOCKER_RUN = $(DOCKER) run --rm -v "$(PWD)":/work -w /work $(IMAGE)
 
@@ -15,7 +16,7 @@ DOCKER_RUN = $(DOCKER) run --rm -v "$(PWD)":/work -w /work $(IMAGE)
 CROSS   ?= i686-elf
 CC      := $(CROSS)-gcc
 CFLAGS  := -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
-LDFLAGS := -T arch/i386/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
+LDFLAGS := -T arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
 
 # Sources and objects
 SRCS := $(shell find arch init -name '*.c' -o -name '*.S')
@@ -32,8 +33,8 @@ ensure-image:
 	@set -e; \
 	if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
 		( $(DOCKER) pull $(IMAGE) >/dev/null 2>&1 ) || \
-		( echo "Pull failed. Building local image from i686-elf-gcc.dockerfile..."; \
-		  $(DOCKER) build -f i686-elf-gcc.dockerfile -t $(IMAGE) . ); \
+		( echo "Pull failed. Building local image from arch/$(ISA)/compile.dockerfile..."; \
+		  $(DOCKER) build -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) . ); \
 	fi; \
 	echo "Using Docker image: $(IMAGE)"
 
@@ -41,7 +42,7 @@ ensure-image:
 ifeq ($(IN_DOCKER),1)
 
 # --- Build inside container ---
-$(KERNEL): $(OBJS) arch/i386/boot/linker.ld
+$(KERNEL): $(OBJS) arch/$(ISA)/boot/linker.ld
 	$(CC) -o $@ $(OBJS) $(LDFLAGS)
 
 # Compile rules (inside container)
@@ -90,19 +91,19 @@ endif
 run: run-iso
 
 run-iso: $(ISO)
-	@if command -v qemu-system-i386 >/dev/null 2>&1; then \
-	  qemu-system-i386 -cdrom $(ISO) -serial stdio; \
+	@if command -v qemu-system-$(ISA) >/dev/null 2>&1; then \
+	  qemu-system-$(ISA) -cdrom $(ISO) -serial stdio; \
 	else \
-	  echo "qemu-system-i386 not found on host. Trying in Docker..."; \
-	  $(DOCKER_RUN) qemu-system-i386 -cdrom $(ISO) -serial stdio; \
+	  echo "qemu-system-$(ISA) not found on host. Trying in Docker..."; \
+	  $(DOCKER_RUN) qemu-system-$(ISA) -cdrom $(ISO) -serial stdio; \
 	fi
 
 run-kernel: $(KERNEL)
-	@if command -v qemu-system-i386 >/dev/null 2>&1; then \
-	  qemu-system-i386 -kernel $(KERNEL) -serial stdio; \
+	@if command -v qemu-system-$(ISA) >/dev/null 2>&1; then \
+	  qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio; \
 	else \
-	  echo "qemu-system-i386 not found on host. Trying in Docker..."; \
-	  $(DOCKER_RUN) qemu-system-i386 -kernel $(KERNEL) -serial stdio; \
+	  echo "qemu-system-$(ISA) not found on host. Trying in Docker..."; \
+	  $(DOCKER_RUN) qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio; \
 	fi
 
 # ===== Tests passthrough =====
