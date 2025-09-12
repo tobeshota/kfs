@@ -1,32 +1,29 @@
-CC ?= gcc
-CFLAGS = -I../include -I. -Wall -Wextra -O0 -m32
-TEST_SRCS = $(shell find ../ -name '*.c')
-TEST_OBJS = $(TEST_SRCS:.c=.o)
-TEST_BIN = ./unit_test
+CC			?=	gcc
+CFLAGS		= -I../include -I. -Wall -Wextra -O0 -m32
+UNIT_SRCS	= $(shell find ../ -name '*.c')
+UNIT_OBJS	= $(UNIT_SRCS:.c=.o)
+UNIT_BIN	= ./unit_test
 
 all: test
 
 test: unit integration
 
-$(TEST_BIN): $(TEST_OBJS)
-	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
 unit:
-	docker run -it -v ../:/work i386/ubuntu bash -c \
-		"apt update \
-		&& apt install -y gcc-multilib make \
-		&& cd /work/test \
-		&& make ./unit_test \
-		&& ./unit_test"
+	docker build --platform linux/386 -f ./unit_test.dockerfile -t i386/ubuntu ../
+	docker run --platform linux/386 -it -v $(realpath ../):/work i386/ubuntu bash -c \
+	"cd /work/test && make ./unit_test && ./unit_test"
 
 integration:
 	@echo "integration test" && \
 	bash -eu ./integration_test.sh
 
 clean:
-	rm -rf build $(TEST_OBJS)
+	rm -rf build $(UNIT_OBJS)
+
+$(UNIT_BIN): $(UNIT_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(UNIT_OBJS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 .PHONY: all test unit integration clean
