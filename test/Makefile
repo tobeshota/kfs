@@ -8,6 +8,7 @@ unit:
 	@echo "unit test"
 
 integration:
-	@echo "integration test"
+	@echo "integration test" && \
+	bash -eu ./integration_test.sh
 
 .PHONY: test unit integration
