@@ -4,4 +4,5 @@ kfs.bin
 kfs.iso
 Documentation/*.pdf
 Documentation/*.rst
+Documentation/*.md
 *.o
