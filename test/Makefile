@@ -1,3 +1,4 @@
+ISA			?= i386
 CC			?=	gcc
 CFLAGS		= -I../include -I. -Wall -Wextra -O0 -m32
 UNIT_SRCS	= $(shell find ../ -name '*.c')
@@ -9,7 +10,7 @@ all: test
 test: unit integration
 
 unit:
-	docker build --platform linux/386 -f ./unit_test.dockerfile -t i386/ubuntu ../
+	docker build --platform linux/386 -f ./arch/$(ISA)/compile.dockerfile -t i386/ubuntu ../
 	docker run --platform linux/386 -it -v $(realpath ../):/work i386/ubuntu bash -c \
 	"cd /work/test && make ./unit_test && ./unit_test"
 
