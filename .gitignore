@@ -6,3 +6,4 @@ Documentation/*.pdf
 Documentation/*.rst
 Documentation/*.md
 *.o
+test/_artifacts
