@@ -119,7 +119,9 @@ test:
 	@ make -C test/
 
 fmt:
-	@ clang-format -i -style=Google $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H)
-	@ shfmt -w $(TEST_SRCS_SH)
+	docker run -it -v ./:/work -w /work ubuntu:22.04 bash -c \
+	'apt-get update && apt-get install -y make clang-format shfmt \
+	&& clang-format -i -style="{BasedOnStyle: Microsoft, IndentWidth: 4, TabWidth: 4, UseTab: Always}" $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H) \
+	&& shfmt -w $(TEST_SRCS_SH)'
 
 .PHONY: all kernel iso run run-iso run-kernel clean fclean re ensure-image test
