@@ -7,3 +7,4 @@ Documentation/*.rst
 Documentation/*.md
 *.o
 test/_artifacts
+test/unit_test.bin
