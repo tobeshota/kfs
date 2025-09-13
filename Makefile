@@ -19,8 +19,16 @@ CFLAGS  := -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-pro
 LDFLAGS := -T arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
 
 # Sources and objects
-SRCS := $(shell find arch init -name '*.c' -o -name '*.S')
-OBJS := $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(SRCS)))
+KERNEL_SRCS_C := $(shell find ./ -path ./test -prune -o -name '*.c' -print)
+KERNEL_SRCS_H := $(shell find ./ -path ./test -prune -o -name '*.h' -print)
+KERNEL_SRCS_S := $(shell find ./ -path ./test -prune -o -name '*.S' -print)
+TEST_SRCS_C   := $(shell find ./test -name '*.c' -print)
+TEST_SRCS_H   := $(shell find ./test -name '*.h' -print)
+TEST_SRCS_SH  := $(shell find ./test -name '*.sh' -print)
+
+KERNEL_SRCS := $(KERNEL_SRCS_C) $(KERNEL_SRCS_H) $(KERNEL_SRCS_S)
+TEST_SRCS := $(TEST_SRCS_C) $(TEST_SRCS_H) $(TEST_SRCS_SH)
+KERNEL_OBJS := $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(KERNEL_SRCS)))
 
 KERNEL := kfs.bin
 ISO    := kfs.iso
@@ -42,8 +50,8 @@ ensure-image:
 ifeq ($(IN_DOCKER),1)
 
 # --- Build inside container ---
-$(KERNEL): $(OBJS) arch/$(ISA)/boot/linker.ld
-	$(CC) -o $@ $(OBJS) $(LDFLAGS)
+$(KERNEL): $(KERNEL_OBJS) arch/$(ISA)/boot/linker.ld
+	$(CC) -o $@ $(KERNEL_OBJS) $(LDFLAGS)
 
 # Compile rules (inside container)
 %.o: %.S
@@ -64,7 +72,7 @@ clean:
 	rm -rf isodir $(ISO)
 
 fclean: clean
-	rm -f $(KERNEL) $(OBJS)
+	rm -f $(KERNEL) $(KERNEL_OBJS)
 
 re: fclean all
 
@@ -78,7 +86,7 @@ iso: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso'
 
 clean:
-	@rm -rf isodir $(OBJS)
+	@rm -rf isodir $(KERNEL_OBJS)
 
 fclean: clean
 	@rm -f $(KERNEL) $(ISO)
@@ -109,5 +117,9 @@ run-kernel: $(KERNEL)
 # ===== Tests passthrough =====
 test:
 	@ make -C test/
+
+fmt:
+	@ clang-format -i -style=Google $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H)
+	@ shfmt -w $(TEST_SRCS_SH)
 
 .PHONY: all kernel iso run run-iso run-kernel clean fclean re ensure-image test
