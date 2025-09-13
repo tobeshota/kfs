@@ -5,13 +5,16 @@ UNIT_SRCS	= $(shell find ../ -name '*.c')
 UNIT_OBJS	= $(UNIT_SRCS:.c=.o)
 UNIT_BIN	= ./unit_test.bin
 
+include ../.env
+export
+
 all: test
 
 test: unit integration
 
 unit:
-	docker build --platform linux/amd64 -f ./arch/$(ISA)/compile.dockerfile -t i386/ubuntu ../
-	docker run --platform linux/amd64 -it -v $(realpath ../):/work -w /work/test i386/ubuntu bash -c \
+	docker build --platform $(DOCKER_PLATFORM) -f ./arch/$(ISA)/compile.dockerfile -t i386/ubuntu ../
+	docker run --platform $(DOCKER_PLATFORM) -it -v $(realpath ../):/work -w /work/test i386/ubuntu bash -c \
 	"make ./unit_test.bin && ./unit_test.bin"
 
 integration:
