@@ -8,8 +8,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Install clang-format
-        run: sudo apt-get update && sudo apt-get install clang-format
+      - name: Install formatters
+        run: sudo apt-get update && sudo apt-get install clang-format shfmt
       - name: Check format
         run: |
           make fmt
