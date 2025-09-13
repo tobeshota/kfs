@@ -1,6 +1,6 @@
 ISA			?= i386
 CC			?=	gcc
-CFLAGS		= -I../include -I. -Wall -Wextra -O0 -m32
+CFLAGS		= -I../include -I./unit -Wall -Wextra -O0 -m32
 UNIT_SRCS	= $(shell find ../ -name '*.c')
 UNIT_OBJS	= $(UNIT_SRCS:.c=.o)
 UNIT_BIN	= ./unit_test.bin
