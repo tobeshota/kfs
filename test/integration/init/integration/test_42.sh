@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Assertion-only integration test.
-# Expects the integration test runner to have set LOG_FILE pointing
-# to the captured serial output of a kernel boot.
-
 if [[ -z "${LOG_FILE:-}" ]]; then
 	echo "ERROR: LOG_FILE not set (must be provided by integration_test.sh)" >&2
 	exit 2
