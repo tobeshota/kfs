@@ -49,14 +49,14 @@ run_kernel_capture() {
 	rm -f "$tmp_log"
 }
 
-echo "[integration] Running tests in $SCRIPT_DIR/init/integration"
+echo "[integration] Running tests in $SCRIPT_DIR"
 
 shopt -s nullglob
-tests=("$SCRIPT_DIR"/init/integration/test_*.sh)
+tests=("$SCRIPT_DIR"/test_*.sh)
 shopt -u nullglob
 
 if ((${#tests[@]} == 0)); then
-	echo "No integration tests found under $SCRIPT_DIR/init/integration"
+	echo "No integration tests found under $SCRIPT_DIR"
 	exit 1
 fi
 
