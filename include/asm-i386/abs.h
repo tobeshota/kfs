@@ -3,4 +3,4 @@
 
 int kfs_abs(int x);
 
-#endif // KFS_ABS_H
+#endif  // KFS_ABS_H
