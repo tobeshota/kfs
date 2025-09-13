@@ -9,7 +9,7 @@ include .env
 export
 
 # ===== Docker image settings =====
-IMAGE ?= smizuoch/kfs:1.0.1
+IMAGE ?= smizuoch/kfs:1.0.2
 DOCKER ?= docker
 ISA	?= i386
 PWD := $(shell pwd)
