@@ -16,7 +16,7 @@ unit:
 
 integration:
 	@echo "integration test" && \
-	bash -eu ./integration_test.sh
+	bash -eu ./integration/integration_test.sh
 
 clean:
 	rm -rf build $(UNIT_OBJS)
