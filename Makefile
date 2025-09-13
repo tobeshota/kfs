@@ -5,12 +5,15 @@
 # - make run      : qemu-system-$(ISA) -cdrom kfs.iso を実行
 # - make run-kernel  : qemu-system-$(ISA) -kernel kfs.bin を実行
 
+include .env
+export
+
 # ===== Docker image settings =====
 IMAGE ?= smizuoch/kfs:1.0.1
 DOCKER ?= docker
 ISA	?= i386
 PWD := $(shell pwd)
-DOCKER_RUN = $(DOCKER) run --rm -v "$(PWD)":/work -w /work $(IMAGE)
+DOCKER_RUN = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(PWD)":/work -w /work $(IMAGE)
 
 # ===== Toolchain (used inside container) =====
 CROSS   ?= i686-elf
@@ -42,7 +45,7 @@ ensure-image:
 	if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
 		( $(DOCKER) pull $(IMAGE) >/dev/null 2>&1 ) || \
 		( echo "Pull failed. Building local image from arch/$(ISA)/compile.dockerfile..."; \
-		  $(DOCKER) build -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) . ); \
+		  $(DOCKER) build --platform $(DOCKER_PLATFORM) -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) . ); \
 	fi; \
 	echo "Using Docker image: $(IMAGE)"
 

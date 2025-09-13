@@ -5,6 +5,9 @@ UNIT_SRCS	= $(shell find ../ -name '*.c')
 UNIT_OBJS	= $(UNIT_SRCS:.c=.o)
 UNIT_BIN	= ./unit_test.bin
 
+include ../.env
+export
+
 all: test
 
 test: unit integration
