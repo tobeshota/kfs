@@ -29,8 +29,8 @@ TEST_SRCS_C   := $(shell find ./test -name '*.c' -print)
 TEST_SRCS_H   := $(shell find ./test -name '*.h' -print)
 TEST_SRCS_SH  := $(shell find ./test -name '*.sh' -print)
 
-KERNEL_SRCS := $(KERNEL_SRCS_C) $(KERNEL_SRCS_H) $(KERNEL_SRCS_S)
-TEST_SRCS := $(TEST_SRCS_C) $(TEST_SRCS_H) $(TEST_SRCS_SH)
+KERNEL_SRCS := $(KERNEL_SRCS_C) $(KERNEL_SRCS_S)
+TEST_SRCS := $(TEST_SRCS_C) $(TEST_SRCS_SH)
 KERNEL_OBJS := $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(KERNEL_SRCS)))
 
 KERNEL := kfs.bin
