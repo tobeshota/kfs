@@ -11,8 +11,8 @@ test: unit integration
 
 unit:
 	docker build --platform linux/386 -f ./arch/$(ISA)/compile.dockerfile -t i386/ubuntu ../
-	docker run --platform linux/386 -it -v $(realpath ../):/work i386/ubuntu bash -c \
-	"cd /work/test && make ./unit_test.bin && ./unit_test.bin"
+	docker run --platform linux/386 -it -v $(realpath ../):/work -w /work/test i386/ubuntu bash -c \
+	"make ./unit_test.bin && ./unit_test.bin"
 
 integration:
 	@echo "integration test" && \
