@@ -10,7 +10,7 @@ IMAGE ?= smizuoch/kfs:1.0.1
 DOCKER ?= docker
 ISA	?= i386
 PWD := $(shell pwd)
-DOCKER_RUN = $(DOCKER) run --rm -v "$(PWD)":/work -w /work $(IMAGE)
+DOCKER_RUN = $(DOCKER) run --platform linux/amd64 --rm -v "$(PWD)":/work -w /work $(IMAGE)
 
 # ===== Toolchain (used inside container) =====
 CROSS   ?= i686-elf
@@ -42,7 +42,7 @@ ensure-image:
 	if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
 		( $(DOCKER) pull $(IMAGE) >/dev/null 2>&1 ) || \
 		( echo "Pull failed. Building local image from arch/$(ISA)/compile.dockerfile..."; \
-		  $(DOCKER) build -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) . ); \
+		  $(DOCKER) build --platform linux/amd64 -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) . ); \
 	fi; \
 	echo "Using Docker image: $(IMAGE)"
 
