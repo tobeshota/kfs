@@ -11,7 +11,7 @@ test: unit integration
 
 unit:
 	docker build --platform linux/386 -f ./arch/$(ISA)/compile.dockerfile -t i386/ubuntu ../
-	docker run --platform linux/386 -it -v $(realpath ../):/work -w /work/test i386/ubuntu bash -c \
+	docker run --platform linux/386 -v $(realpath ../):/work -w /work/test i386/ubuntu bash -c \
 	"make ./unit_test.bin && ./unit_test.bin"
 
 integration:
