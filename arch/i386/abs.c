@@ -2,5 +2,7 @@
 // 名前衝突（libc の abs）を避けるため kfs_abs にリネーム
 int kfs_abs(int x)
 {
-	return (x < 0) ? -x : x;
+	if (x < 0)
+		return -x;
+	return x;
 }
