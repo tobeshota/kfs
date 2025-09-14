@@ -69,7 +69,7 @@ iso: kernel grub.cfg
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/kfs.bin
 	cp grub.cfg isodir/boot/grub/grub.cfg
-	grub-mkrescue -o $(ISO) isodir
+	grub-mkrescue -o $(ISO) isodir --modules="multiboot normal configfile" --compress=xz
 
 clean:
 	rm -rf isodir $(ISO)
