@@ -6,5 +6,7 @@ Documentation/*.pdf
 Documentation/*.rst
 Documentation/*.md
 *.o
-test/integration/_artifacts/
+*.gcda
+*.gcno
+test/_artifacts/
 test/unit_test.bin

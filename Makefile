@@ -121,6 +121,9 @@ run-kernel: $(KERNEL)
 test:
 	@ make -C test/
 
+coverage:
+	@ make coverage -C test/
+
 fmt:
 	docker run -v ./:/work -w /work ubuntu:22.04 bash -c \
 	'apt-get update && apt-get install -y make clang-format shfmt \
