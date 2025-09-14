@@ -14,7 +14,7 @@ jobs:
         run: make coverage
       - name: Check if branch coverage is 80%
         run: |
-          BRANCH_COVERAGE=$(cd ./test/build && lcov --summary coverage.filtered.info --rc "lcov_branch_coverage=1" | grep "branches" | awk '{print $2}' | tr -d '%')
+          BRANCH_COVERAGE=$(cd ./test/_artifacts/coverage && lcov --summary coverage.filtered.info --rc "lcov_branch_coverage=1" | grep "branches" | awk '{print $2}' | tr -d '%')
           result=$(echo "$BRANCH_COVERAGE >= 80" | bc)
           if [ "$result" -eq 1 ]; then \
               echo "Branch coverage is sufficient: $BRANCH_COVERAGE%"
