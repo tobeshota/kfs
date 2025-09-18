@@ -10,7 +10,12 @@ LCOV			= lcov --rc lcov_branch_coverage=1
 GENHTML			= genhtml --rc lcov_branch_coverage=1
 # 単体テスト対象ソース: テストコード + テストしたいカーネルコード最小限
 TEST_SRCS		= $(shell find ../test/unit -name '*.c')
-KERNEL_SRCS	= ../init/main.c ../drivers/video/terminal.c ../drivers/char/serial.c ../arch/$(ISA)/abs.c
+KERNEL_SRCS	= ../init/main.c \
+		../drivers/video/terminal.c \
+		../drivers/char/serial.c \
+		../drivers/tty/keyboard.c \
+		../kernel/printk.c \
+		../arch/$(ISA)/abs.c
 UNIT_SRCS		= $(TEST_SRCS) $(KERNEL_SRCS)
 
 # Build & coverage directories
