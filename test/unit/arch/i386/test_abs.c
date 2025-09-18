@@ -23,7 +23,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST(test_abs_negative),
 };
 
-int register_host_tests(struct kfs_test_case **out)
+int register_host_tests_abs(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));
