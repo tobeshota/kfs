@@ -10,4 +10,5 @@ Documentation/*.md
 *.gcda
 *.gcno
 test/_artifacts/
+test/integration/_artifacts
 test/unit_test.bin
