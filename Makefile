@@ -18,8 +18,8 @@ DOCKER_RUN = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(PWD)":/work 
 # ===== Toolchain (used inside container) =====
 CROSS   ?= i686-elf
 CC      := $(CROSS)-gcc
-CFLAGS  := -Iinclude -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
-LDFLAGS := -T arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
+CFLAGS  := -Iinclude -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc
+LDFLAGS := -T arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc
 
 # Sources and objects
 # Explicit kernel C sources (collect then filter out legacy *_test_shim.c that must not ship)
