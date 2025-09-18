@@ -1,6 +1,6 @@
 #include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
-#include <linux/terminal.h>
+#include <kfs/kfs1_bonus.h>
 #include <stdint.h>
 
 /* Provide weak symbol overrides & terminal buffer injection to execute kernel_main */
@@ -18,9 +18,11 @@ KFS_TEST(test_kernel_main_writes_messages)
 {
 	kfs_terminal_set_buffer(term_stub);
 	kernel_main();
-	/* Expect first line begins with '4','2' and second line with 'H','e' of Hello (capital H) */
-	KFS_ASSERT_EQ((long long)cell('4', 7), (long long)term_stub[0]);
-	KFS_ASSERT_EQ((long long)cell('2', 7), (long long)term_stub[1]);
+	uint8_t green = kfs_vga_make_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+	uint8_t normal = kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+	KFS_ASSERT_EQ((long long)cell('4', green), (long long)term_stub[0]);
+	KFS_ASSERT_EQ((long long)cell('2', green), (long long)term_stub[1]);
+	KFS_ASSERT_EQ((long long)cell('A', normal), (long long)term_stub[KFS_VGA_WIDTH * 1 + 0]);
 }
 
 static struct kfs_test_case cases[] = {

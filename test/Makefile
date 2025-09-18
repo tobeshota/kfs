@@ -3,14 +3,19 @@ export
 
 ISA				?= i386
 CC				?= gcc
-CFLAGS			= -I../include -I./unit -Wall -Wextra -O0 -g -m32 --coverage
+CFLAGS			= -I../include -I./unit -Wall -Wextra -O0 -g -m32 --coverage -DWAITING_FOR_INPUT
 DOCKER_RUN		= docker run --platform linux/386 -v $(realpath ../):/work -w /work/test unit_test_image
 DOCKER_SH		= $(DOCKER_RUN) bash -euxo pipefail -c
 LCOV			= lcov --rc lcov_branch_coverage=1
 GENHTML			= genhtml --rc lcov_branch_coverage=1
 # 単体テスト対象ソース: テストコード + テストしたいカーネルコード最小限
 TEST_SRCS		= $(shell find ../test/unit -name '*.c')
-KERNEL_SRCS	= ../init/main.c ../drivers/video/terminal.c ../drivers/char/serial.c ../arch/$(ISA)/abs.c
+KERNEL_SRCS	= ../init/main.c \
+		../drivers/video/terminal.c \
+		../drivers/char/serial.c \
+		../drivers/tty/keyboard.c \
+		../kernel/printk.c \
+		../arch/$(ISA)/abs.c
 UNIT_SRCS		= $(TEST_SRCS) $(KERNEL_SRCS)
 
 # Build & coverage directories
