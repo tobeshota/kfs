@@ -1,12 +1,7 @@
 #include "host_test_framework.h"
 /* Updated to production terminal */
+#include "../support/terminal_test_support.h"
 #include <linux/terminal.h>
-
-void kfs_terminal_set_buffer(uint16_t *buf);
-size_t kfs_terminal_get_row(void);
-size_t kfs_terminal_get_col(void);
-uint8_t kfs_terminal_get_color(void);
-uint16_t *kfs_terminal_get_buffer(void);
 
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
