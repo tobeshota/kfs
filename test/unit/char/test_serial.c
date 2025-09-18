@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "../support/io_stub_control.h"
+
 /* I/O logging symbols provided by a shared stub (serial_io_stub.c) */
 struct io_log_entry
 {
@@ -10,12 +12,12 @@ struct io_log_entry
 	uint8_t val;
 	int is_out;
 };
-extern struct io_log_entry kfs_io_log_entries[1024];
+extern struct io_log_entry kfs_io_log_entries[];
 extern int kfs_io_log_count;
 
 static void reset_log()
 {
-	kfs_io_log_count = 0;
+	kfs_stub_reset_io();
 }
 static int find_sequence(const uint8_t *seq, int n)
 {
@@ -71,10 +73,20 @@ KFS_TEST(test_serial_write_string)
 	KFS_ASSERT_EQ(1, (long long)find_sequence(seq, 5));
 }
 
+KFS_TEST(test_serial_waits_for_ready)
+{
+	reset_log();
+	const uint8_t statuses[] = {0x00, 0x20, 0x00, 0x20};
+	kfs_stub_set_serial_status_sequence(statuses, sizeof(statuses), 0x20);
+	serial_write("A\n", 2);
+	KFS_ASSERT_EQ(0, (long long)kfs_stub_serial_status_remaining());
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST(test_serial_init_sequence),
 	KFS_REGISTER_TEST(test_serial_write_inserts_cr_before_lf),
 	KFS_REGISTER_TEST(test_serial_write_string),
+	KFS_REGISTER_TEST(test_serial_waits_for_ready),
 };
 
 int register_host_tests_serial(struct kfs_test_case **out)
