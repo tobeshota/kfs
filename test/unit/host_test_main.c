@@ -1,5 +1,4 @@
 #include "host_test_framework.h"
-#include <stdio.h>
 
 int kfs_test_failures = 0;
 
