@@ -1,14 +1,9 @@
 #include "host_test_framework.h"
 /* Updated to use production terminal implementation directly via
  * buffer injection + accessors (kfs_terminal_*). */
+#include "../support/terminal_test_support.h"
 #include <linux/terminal.h>
 #include <stdint.h>
-
-void kfs_terminal_set_buffer(uint16_t *buf);
-uint16_t *kfs_terminal_get_buffer(void);
-size_t kfs_terminal_get_row(void);
-size_t kfs_terminal_get_col(void);
-uint8_t kfs_terminal_get_color(void);
 
 // 画面寸法 (main.c と同期) ※テスト内重複を避けるなら共有ヘッダ化検討
 #define VGA_WIDTH 80

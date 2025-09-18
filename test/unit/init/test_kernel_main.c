@@ -1,9 +1,9 @@
+#include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
 #include <linux/terminal.h>
 #include <stdint.h>
 
 /* Provide weak symbol overrides & terminal buffer injection to execute kernel_main */
-void kfs_terminal_set_buffer(uint16_t *buf);
 extern void kernel_main(void);
 
 /* Serial I/O overrides provided by shared stub (serial_io_stub.c) */

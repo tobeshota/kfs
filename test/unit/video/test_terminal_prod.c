@@ -1,3 +1,4 @@
+#include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
 #include <linux/terminal.h>
 #include <stdint.h>
@@ -6,10 +7,7 @@
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
 
-/* We reuse production terminal code by injecting a stub buffer via
- * kfs_terminal_set_buffer (non-public symbol). Declare it here. */
-void kfs_terminal_set_buffer(uint16_t *buf);
-uint16_t *kfs_terminal_get_buffer(void);
+/* Production terminal code reused via injected buffer (support header). */
 
 static uint16_t stub[VGA_WIDTH * VGA_HEIGHT];
 static inline uint16_t make_cell(char c, uint8_t color)
