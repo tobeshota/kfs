@@ -18,11 +18,13 @@ DOCKER_RUN = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(PWD)":/work 
 # ===== Toolchain (used inside container) =====
 CROSS   ?= i686-elf
 CC      := $(CROSS)-gcc
-CFLAGS  := -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
+CFLAGS  := -Iinclude -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
 LDFLAGS := -T arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
 
 # Sources and objects
-KERNEL_SRCS_C := $(shell find ./ -path ./test -prune -o -name '*.c' -print)
+# Explicit kernel C sources (collect then filter out legacy *_test_shim.c that must not ship)
+RAW_KERNEL_SRCS_C := $(shell find ./ -path ./test -prune -o -name '*.c' -print)
+KERNEL_SRCS_C := $(filter-out %_test_shim.c,$(RAW_KERNEL_SRCS_C))
 KERNEL_SRCS_H := $(shell find ./ -path ./test -prune -o -name '*.h' -print)
 KERNEL_SRCS_S := $(shell find ./ -path ./test -prune -o -name '*.S' -print)
 TEST_SRCS_C   := $(shell find ./test -name '*.c' -print)
@@ -31,7 +33,8 @@ TEST_SRCS_SH  := $(shell find ./test -name '*.sh' -print)
 
 KERNEL_SRCS := $(KERNEL_SRCS_C) $(KERNEL_SRCS_S)
 TEST_SRCS := $(TEST_SRCS_C) $(TEST_SRCS_SH)
-KERNEL_OBJS := $(patsubst %.S,%.o,$(patsubst %.c,%.o,$(KERNEL_SRCS)))
+BUILD_DIR   := build/obj
+KERNEL_OBJS := $(patsubst %.S,$(BUILD_DIR)/%.o,$(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SRCS)))
 
 KERNEL := kfs.bin
 ISO    := kfs.iso
@@ -57,10 +60,12 @@ $(KERNEL): $(KERNEL_OBJS) arch/$(ISA)/boot/linker.ld
 	$(CC) -o $@ $(KERNEL_OBJS) $(LDFLAGS)
 
 # Compile rules (inside container)
-%.o: %.S
+$(BUILD_DIR)/%.o: %.S
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-%.o: %.c
+$(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 kernel: $(KERNEL)
@@ -72,10 +77,10 @@ iso: kernel grub.cfg
 	grub-mkrescue -o $(ISO) isodir --modules="multiboot normal configfile" --compress=xz
 
 clean:
-	rm -rf isodir $(ISO)
+	rm -rf isodir $(ISO) $(BUILD_DIR)
 
 fclean: clean
-	rm -f $(KERNEL) $(KERNEL_OBJS)
+	rm -f $(KERNEL)
 
 re: fclean all
 
@@ -89,7 +94,7 @@ iso: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso'
 
 clean:
-	@rm -rf isodir $(KERNEL_OBJS)
+	@rm -rf isodir $(BUILD_DIR)
 
 fclean: clean
 	@rm -f $(KERNEL) $(ISO)
