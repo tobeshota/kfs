@@ -1,5 +1,6 @@
 .DS_Store/
 .vscode/
+./isodir/
 kfs.bin
 kfs.iso
 Documentation/*.pdf
