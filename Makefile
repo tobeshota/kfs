@@ -22,15 +22,11 @@ CFLAGS  := -Iinclude -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno
 LDFLAGS := -T arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs
 
 # Sources and objects
-# Explicit kernel C sources (test shims intentionally excluded)
-KERNEL_SRCS_C := \
-	init/main.c \
-	drivers/video/terminal.c \
-	drivers/char/serial.c \
-	arch/$(ISA)/abs.c \
-	lib/string.c
+# Explicit kernel C sources (collect then filter out legacy *_test_shim.c that must not ship)
+RAW_KERNEL_SRCS_C := $(shell find ./ -path ./test -prune -o -name '*.c' -print)
+KERNEL_SRCS_C := $(filter-out %_test_shim.c,$(RAW_KERNEL_SRCS_C))
 KERNEL_SRCS_H := $(shell find ./ -path ./test -prune -o -name '*.h' -print)
-KERNEL_SRCS_S := arch/$(ISA)/boot/boot.S
+KERNEL_SRCS_S := $(shell find ./ -path ./test -prune -o -name '*.S' -print)
 TEST_SRCS_C   := $(shell find ./test -name '*.c' -print)
 TEST_SRCS_H   := $(shell find ./test -name '*.h' -print)
 TEST_SRCS_SH  := $(shell find ./test -name '*.sh' -print)
