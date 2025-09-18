@@ -12,7 +12,7 @@ void kernel_main(void)
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
 	printk("Alt+F1..F4 switch consoles; keyboard echo ready.\n");
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK));
-#ifndef KFS_HOST_TEST
+#ifndef WAITING_FOR_INPUT
 	for (;;)
 		kfs_keyboard_poll();
 #else
