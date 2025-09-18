@@ -96,7 +96,8 @@ void terminal_write(const char *data, size_t size)
 }
 void terminal_writestring(const char *s)
 {
-	serial_write(s, strlen(s)); //Required to capture VGA output during integration testing. Remove once the mechanism is in place.
+	// Required to capture VGA output during integration testing. Remove once the mechanism is in place.
+	serial_write(s, strlen(s));
 	terminal_write(s, strlen(s));
 }
 
