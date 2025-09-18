@@ -1,5 +1,5 @@
-#include <linux/terminal.h>
 #include <linux/string.h> /* strlen */
+#include <linux/terminal.h>
 #include <stddef.h>
 #include <stdint.h>
 

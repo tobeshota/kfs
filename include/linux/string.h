@@ -5,11 +5,12 @@
 #include <stddef.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-char *strcpy(char *dst, const char *src);
-size_t strlen(const char *s);
+	char *strcpy(char *dst, const char *src);
+	size_t strlen(const char *s);
 
 #ifdef __cplusplus
 }
