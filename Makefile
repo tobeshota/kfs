@@ -125,7 +125,7 @@ run-kernel: $(KERNEL)
 
 # ===== Tests passthrough =====
 test:
-	@ make -C test/
+	@ make test -C test/
 
 coverage:
 	@ make coverage -C test/
