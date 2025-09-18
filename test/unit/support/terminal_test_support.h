@@ -13,8 +13,7 @@ extern uint16_t *kfs_terminal_buffer;
 static inline void kfs_terminal_set_buffer(uint16_t *buf)
 {
 	extern uint16_t *kfs_terminal_buffer; /* redundancy safe */
-	if (buf)
-		kfs_terminal_buffer = buf;
+	kfs_terminal_buffer = buf;
 }
 static inline uint16_t *kfs_terminal_get_buffer(void)
 {
