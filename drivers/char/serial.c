@@ -9,6 +9,10 @@ __attribute__((weak)) void kfs_io_outb(uint16_t port, uint8_t val)
 {
 	__asm__ volatile("outb %0, %1" : : "a"(val), "Nd"(port));
 }
+/*
+kfs_io_inb(PS2_DATA_PORT); は「I/O ポート 0x60 (PS/2 コントローラのデータポート) から 1
+バイト読み取る」ための低レベル入力命令ラッパ呼び出しです。
+*/
 __attribute__((weak)) uint8_t kfs_io_inb(uint16_t port)
 {
 	uint8_t r;
