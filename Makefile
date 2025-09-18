@@ -94,6 +94,7 @@ iso: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso'
 
 clean:
+	@make clean -C test/
 	@rm -rf isodir $(BUILD_DIR)
 
 fclean: clean
