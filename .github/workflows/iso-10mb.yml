@@ -13,10 +13,9 @@ jobs:
         run: |
           make iso
           [ -f kfs.iso ] || { echo "kfs.iso not found"; exit 1; }
+          echo "kfs.iso size: $(du -h kfs.iso | cut -f1)"
       - name: Check if kfs.iso is 10MB or less
         run: |
           [ $(stat -c%s kfs.iso) -le $((10 * 1024 * 1024)) ] || {
             echo "kfs.iso is larger than 10MB"; exit 1;
           }
-          echo "kfs.iso size:"
-          du -h kfs.iso
