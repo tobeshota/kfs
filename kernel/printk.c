@@ -2,8 +2,13 @@
 #include <linux/string.h>
 #include <stdarg.h>
 
-static int printk_console_loglevel = KFS_LOGLEVEL_DEFAULT;
-static int printk_default_loglevel = KFS_LOGLEVEL_DEFAULT;
+int console_printk[4] = {
+	KFS_LOGLEVEL_DEFAULT, /* console_loglevel */
+	KFS_LOGLEVEL_DEFAULT, /* default_message_loglevel */
+	KFS_LOGLEVEL_ALERT,	  /* minimum_console_loglevel */
+	KFS_LOGLEVEL_DEBUG,	  /* default_console_loglevel */
+};
+
 static int printk_last_loglevel = KFS_LOGLEVEL_DEFAULT;
 static int printk_last_emitted = 1;
 
@@ -14,6 +19,10 @@ static void append_char(char **dst, size_t *remaining, size_t *written, char c)
 		**dst = c;
 		(*dst)++;
 		(*remaining)--;
+	}
+	else if (*remaining == 1)
+	{
+		*remaining = 0;
 	}
 	(*written)++;
 }
@@ -30,7 +39,7 @@ static void append_string(char **dst, size_t *remaining, size_t *written, const 
 }
 
 static void append_unsigned(char **dst, size_t *remaining, size_t *written, unsigned int value, unsigned int base,
-							int uppercase)
+						int uppercase)
 {
 	char buf[32];
 	int idx = 0;
@@ -40,7 +49,7 @@ static void append_unsigned(char **dst, size_t *remaining, size_t *written, unsi
 	}
 	else
 	{
-		while (value > 0 && idx < (int)sizeof(buf))
+		while (value > 0)
 		{
 			unsigned int digit = value % base;
 			value /= base;
@@ -129,8 +138,8 @@ int kfs_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 
 static int clamp_loglevel(int level)
 {
-	if (level < KFS_LOGLEVEL_EMERG)
-		return KFS_LOGLEVEL_EMERG;
+	if (level < minimum_console_loglevel)
+		return minimum_console_loglevel;
 	if (level > KFS_LOGLEVEL_DEBUG)
 		return KFS_LOGLEVEL_DEBUG;
 	return level;
@@ -148,7 +157,7 @@ int kfs_snprintf(char *buf, size_t size, const char *fmt, ...)
 static int vprintk_internal(const char *fmt, va_list ap)
 {
 	const char *msg_fmt = fmt;
-	int level = printk_default_loglevel;
+	int level = default_message_loglevel;
 	int is_cont = 0;
 	while (msg_fmt[0] == '\001')
 	{
@@ -162,7 +171,7 @@ static int vprintk_internal(const char *fmt, va_list ap)
 		}
 		if (code == 'd')
 		{
-			level = printk_default_loglevel;
+			level = default_message_loglevel;
 			is_cont = 0;
 			msg_fmt += 2;
 			continue;
@@ -180,21 +189,20 @@ static int vprintk_internal(const char *fmt, va_list ap)
 	va_copy(copy, ap);
 	int len = kfs_vsnprintf(buffer, sizeof(buffer), msg_fmt, copy);
 	va_end(copy);
-	size_t out_len = (len >= 0 && len < (int)sizeof(buffer)) ? (size_t)len : sizeof(buffer) - 1;
+	size_t out_len = (size_t)len;
+	if (out_len >= sizeof(buffer))
+		out_len = sizeof(buffer) - 1;
 	int emit = 0;
 	if (is_cont)
 	{
-		if (len >= 0)
-		{
-			level = printk_last_loglevel;
-			emit = printk_last_emitted;
-		}
+		level = printk_last_loglevel;
+		emit = printk_last_emitted;
 	}
 	else
 	{
 		level = clamp_loglevel(level);
 		printk_last_loglevel = level;
-		emit = (level <= printk_console_loglevel);
+		emit = (level <= console_loglevel);
 	}
 	if (out_len > 0 && emit)
 	{
@@ -218,15 +226,15 @@ int printk(const char *fmt, ...)
 
 void kfs_printk_set_console_loglevel(int level)
 {
-	printk_console_loglevel = clamp_loglevel(level);
+	console_loglevel = clamp_loglevel(level);
 }
 
 int kfs_printk_get_console_loglevel(void)
 {
-	return printk_console_loglevel;
+	return console_loglevel;
 }
 
 int kfs_printk_get_default_loglevel(void)
 {
-	return printk_default_loglevel;
+	return default_console_loglevel;
 }
