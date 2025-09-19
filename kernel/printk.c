@@ -39,7 +39,7 @@ static void append_string(char **dst, size_t *remaining, size_t *written, const 
 }
 
 static void append_unsigned(char **dst, size_t *remaining, size_t *written, unsigned int value, unsigned int base,
-						int uppercase)
+							int uppercase)
 {
 	char buf[32];
 	int idx = 0;
