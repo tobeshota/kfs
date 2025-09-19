@@ -12,6 +12,8 @@ int register_host_tests_printk(struct kfs_test_case **out);
 int register_host_tests_keyboard(struct kfs_test_case **out);
 int register_host_tests_string(struct kfs_test_case **out);
 
+#define KFS_MAX_TESTS 256
+
 // すべてのテストケースを一つにまとめる
 static struct kfs_test_case *all_cases = 0;
 static int all_count = 0;
@@ -42,27 +44,27 @@ int register_host_tests(struct kfs_test_case **out)
 		struct kfs_test_case *cases_string = 0;
 		int count_string = register_host_tests_string(&cases_string);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
-		static struct kfs_test_case merged[64];
+		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
-		for (int i = 0; i < count_abs && idx < 64; i++)
+		for (int i = 0; i < count_abs && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_abs[i];
-		for (int i = 0; i < count_init && idx < 64; i++)
+		for (int i = 0; i < count_init && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_init[i];
-		for (int i = 0; i < count_term_edge && idx < 64; i++)
+		for (int i = 0; i < count_term_edge && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_term_edge[i];
-		for (int i = 0; i < count_term_prod && idx < 64; i++)
+		for (int i = 0; i < count_term_prod && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_term_prod[i];
-		for (int i = 0; i < count_term_bonus && idx < 64; i++)
+		for (int i = 0; i < count_term_bonus && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_term_bonus[i];
-		for (int i = 0; i < count_serial && idx < 64; i++)
+		for (int i = 0; i < count_serial && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_serial[i];
-		for (int i = 0; i < count_kernel && idx < 64; i++)
+		for (int i = 0; i < count_kernel && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_kernel[i];
-		for (int i = 0; i < count_printk && idx < 64; i++)
+		for (int i = 0; i < count_printk && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_printk[i];
-		for (int i = 0; i < count_keyboard && idx < 64; i++)
+		for (int i = 0; i < count_keyboard && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_keyboard[i];
-		for (int i = 0; i < count_string && idx < 64; i++)
+		for (int i = 0; i < count_string && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_string[i];
 		all_cases = merged;
 		all_count = idx;
