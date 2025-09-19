@@ -3,7 +3,8 @@ export
 
 ISA				?= i386
 CC				?= gcc
-CFLAGS			= -I../include -I./unit -Wall -Wextra -O0 -g -m32 --coverage -DWAITING_FOR_INPUT
+# -freestanding: 自分たちが定義した標準ライブラリを使用したいため(memcpyとか)
+CFLAGS			= -I../include -I./unit -Wall -Wextra -O0 -g -m32 --coverage -DWAITING_FOR_INPUT -ffreestanding
 DOCKER_RUN		= docker run --platform linux/386 -v $(realpath ../):/work -w /work/test unit_test_image
 DOCKER_SH		= $(DOCKER_RUN) bash -euxo pipefail -c
 LCOV			= lcov --rc lcov_branch_coverage=1
