@@ -1,0 +1,22 @@
+name: Check ISO Size
+
+on:
+  push:
+
+jobs:
+  ISO-10MB:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Build ISO
+        run: |
+          make iso
+          [ -f kfs.iso ] || { echo "kfs.iso not found"; exit 1; }
+      - name: Check if kfs.iso is 10MB or less
+        run: |
+          KFS_ISO_SIZE=$(stat -c%s kfs.iso)
+          [ $KFS_ISO_SIZE -le $((10 * 1024 * 1024)) ] || {
+            echo "kfs.iso is larger than 10MB"; exit 1;
+          }
+          echo "kfs.iso size is $KFS_ISO_SIZE bytes"
