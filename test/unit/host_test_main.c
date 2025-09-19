@@ -7,7 +7,7 @@ int kfs_test_failures = 0;
 int main(void)
 {
 	extern int register_host_tests(struct kfs_test_case * *out);
-	struct kfs_test_case *cases = NULL;
+	struct kfs_test_case *cases = 0;
 	int count = register_host_tests(&cases);
 	return kfs_run_all_tests(cases, count);
 }
