@@ -15,13 +15,6 @@ static inline uint16_t make_cell(char c, uint8_t color)
 	return (uint16_t)c | (uint16_t)color << 8;
 }
 
-static void clear_stub(uint8_t color)
-{
-	for (int y = 0; y < VGA_HEIGHT; y++)
-		for (int x = 0; x < VGA_WIDTH; x++)
-			stub[y * VGA_WIDTH + x] = make_cell(' ', color);
-}
-
 static void setup(void)
 {
 	kfs_terminal_set_buffer(stub);
