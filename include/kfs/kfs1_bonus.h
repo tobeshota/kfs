@@ -42,6 +42,13 @@ extern "C"
 		KFS_LOGLEVEL_DEFAULT = KFS_LOGLEVEL_WARNING,
 	};
 
+	extern int console_printk[4];
+
+#define console_loglevel (console_printk[0])
+#define default_message_loglevel (console_printk[1])
+#define minimum_console_loglevel (console_printk[2])
+#define default_console_loglevel (console_printk[3])
+
 	uint8_t kfs_vga_make_color(enum vga_color fg, enum vga_color bg);
 	uint16_t kfs_vga_make_entry(char c, uint8_t color);
 

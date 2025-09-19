@@ -129,6 +129,15 @@ KFS_TEST(test_printk_snprintf_size_zero)
 	KFS_ASSERT_EQ('x', buf[0]);
 }
 
+KFS_TEST(test_printk_snprintf_truncates_and_terminates)
+{
+	char buf[4] = {0};
+	int len = kfs_snprintf(buf, sizeof(buf), "hello");
+	KFS_ASSERT_EQ(5, (long long)len);
+	KFS_ASSERT_EQ('h', buf[0]);
+	KFS_ASSERT_EQ('\0', buf[3]);
+}
+
 KFS_TEST(test_printk_respects_console_loglevel)
 {
 	kfs_terminal_set_buffer(stub);
@@ -178,10 +187,29 @@ KFS_TEST(test_printk_default_loglevel_restored)
 	KFS_ASSERT_TRUE(kfs_io_log_count > 0);
 }
 
+KFS_TEST(test_printk_handles_unknown_prefix_codes)
+{
+	kfs_terminal_set_buffer(stub);
+	terminal_initialize();
+	reset_io_log();
+	printk(KFS_KERN_SOH "/unknown");
+	char captured[32];
+	size_t n = capture_serial(captured, sizeof(captured));
+	KFS_ASSERT_TRUE(n > 1);
+	KFS_ASSERT_EQ(1, (long long)captured[0]);
+	KFS_ASSERT_EQ('/', captured[1]);
+	reset_io_log();
+	printk(KFS_KERN_SOH "xtrail");
+	n = capture_serial(captured, sizeof(captured));
+	KFS_ASSERT_TRUE(n > 1);
+	KFS_ASSERT_EQ(1, (long long)captured[0]);
+	KFS_ASSERT_EQ('x', captured[1]);
+}
+
 KFS_TEST(test_printk_clamps_console_loglevel)
 {
 	kfs_printk_set_console_loglevel(-5);
-	KFS_ASSERT_EQ(KFS_LOGLEVEL_EMERG, kfs_printk_get_console_loglevel());
+	KFS_ASSERT_EQ(minimum_console_loglevel, kfs_printk_get_console_loglevel());
 	kfs_printk_set_console_loglevel(42);
 	KFS_ASSERT_EQ(KFS_LOGLEVEL_DEBUG, kfs_printk_get_console_loglevel());
 	/* restore default */
@@ -195,9 +223,11 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST(test_printk_zero_values_and_empty_message),
 	KFS_REGISTER_TEST(test_printk_truncates_long_output),
 	KFS_REGISTER_TEST(test_printk_snprintf_size_zero),
+	KFS_REGISTER_TEST(test_printk_snprintf_truncates_and_terminates),
 	KFS_REGISTER_TEST(test_printk_respects_console_loglevel),
 	KFS_REGISTER_TEST(test_printk_continuation_honours_previous_output),
 	KFS_REGISTER_TEST(test_printk_default_loglevel_restored),
+	KFS_REGISTER_TEST(test_printk_handles_unknown_prefix_codes),
 	KFS_REGISTER_TEST(test_printk_clamps_console_loglevel),
 };
 
