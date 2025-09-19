@@ -10,6 +10,7 @@ int register_host_tests_serial(struct kfs_test_case **out);
 int register_host_tests_kernel_main(struct kfs_test_case **out);
 int register_host_tests_printk(struct kfs_test_case **out);
 int register_host_tests_keyboard(struct kfs_test_case **out);
+int register_host_tests_string(struct kfs_test_case **out);
 
 // すべてのテストケースを一つにまとめる
 static struct kfs_test_case *all_cases = 0;
@@ -38,6 +39,8 @@ int register_host_tests(struct kfs_test_case **out)
 		int count_printk = register_host_tests_printk(&cases_printk);
 		struct kfs_test_case *cases_keyboard = 0;
 		int count_keyboard = register_host_tests_keyboard(&cases_keyboard);
+		struct kfs_test_case *cases_string = 0;
+		int count_string = register_host_tests_string(&cases_string);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[64];
 		int idx = 0;
@@ -59,6 +62,8 @@ int register_host_tests(struct kfs_test_case **out)
 			merged[idx++] = cases_printk[i];
 		for (int i = 0; i < count_keyboard && idx < 64; i++)
 			merged[idx++] = cases_keyboard[i];
+		for (int i = 0; i < count_string && idx < 64; i++)
+			merged[idx++] = cases_string[i];
 		all_cases = merged;
 		all_count = idx;
 	}
