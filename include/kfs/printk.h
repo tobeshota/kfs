@@ -1,5 +1,5 @@
-#ifndef LINUX_PRINTK_H
-#define LINUX_PRINTK_H
+#ifndef KFS_PRINTK_H
+#define KFS_PRINTK_H
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -56,4 +56,4 @@ extern "C"
 }
 #endif
 
-#endif /* LINUX_PRINTK_H */
+#endif /* KFS_PRINTK_H */
