@@ -1,5 +1,5 @@
-#ifndef LINUX_VGA_H
-#define LINUX_VGA_H
+#ifndef KFS_VGA_H
+#define KFS_VGA_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -37,4 +37,4 @@ extern "C"
 }
 #endif
 
-#endif /* LINUX_VGA_H */
+#endif /* KFS_VGA_H */

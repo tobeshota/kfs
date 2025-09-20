@@ -1,5 +1,5 @@
-#ifndef LINUX_CONSOLE_H
-#define LINUX_CONSOLE_H
+#ifndef KFS_CONSOLE_H
+#define KFS_CONSOLE_H
 
 /* console.h: VGA テキストモード端末/仮想コンソール関連の公開インタフェース。
  * 既存実装(drivers/video/terminal.c)から宣言のみ抽出。機能追加なし。
@@ -42,4 +42,4 @@ extern "C"
 }
 #endif
 
-#endif /* LINUX_CONSOLE_H */
+#endif /* KFS_CONSOLE_H */

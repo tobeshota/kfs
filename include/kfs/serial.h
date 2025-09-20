@@ -1,5 +1,5 @@
-#ifndef LINUX_SERIAL_H
-#define LINUX_SERIAL_H
+#ifndef KFS_SERIAL_H
+#define KFS_SERIAL_H
 
 /* serial.h: シリアルポート初期化/出力公開 API (drivers/char/serial.c)。 */
 
@@ -17,4 +17,4 @@ extern "C"
 }
 #endif
 
-#endif /* LINUX_SERIAL_H */
+#endif /* KFS_SERIAL_H */

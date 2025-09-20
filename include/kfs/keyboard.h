@@ -1,5 +1,5 @@
-#ifndef LINUX_KEYBOARD_H
-#define LINUX_KEYBOARD_H
+#ifndef KFS_KEYBOARD_H
+#define KFS_KEYBOARD_H
 
 /* keyboard.h: キーボードドライバ公開インタフェース (drivers/tty/keyboard.c)。機能追加なし。 */
 
@@ -19,4 +19,4 @@ extern "C"
 }
 #endif
 
-#endif /* LINUX_KEYBOARD_H */
+#endif /* KFS_KEYBOARD_H */
