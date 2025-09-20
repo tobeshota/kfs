@@ -1,7 +1,7 @@
 #include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
-#include <linux/console.h>
-#include <linux/printk.h>
+#include <kfs/console.h>
+#include <kfs/printk.h>
 
 #include <stdint.h>
 

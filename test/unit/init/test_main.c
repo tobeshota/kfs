@@ -2,7 +2,7 @@
 /* Updated to use production terminal implementation directly via
  * buffer injection + accessors (kfs_terminal_*). */
 #include "../support/terminal_test_support.h"
-#include <linux/console.h>
+#include <kfs/console.h>
 #include <stdint.h>
 
 // 画面寸法 (main.c と同期) ※テスト内重複を避けるなら共有ヘッダ化検討

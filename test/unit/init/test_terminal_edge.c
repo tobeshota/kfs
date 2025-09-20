@@ -1,7 +1,7 @@
 #include "host_test_framework.h"
 /* Updated to production terminal */
 #include "../support/terminal_test_support.h"
-#include <linux/console.h>
+#include <kfs/console.h>
 
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25

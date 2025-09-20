@@ -1,8 +1,8 @@
 /* Minimal kernel entry using new driver layout */
-#include <linux/console.h>
-#include <linux/keyboard.h>
-#include <linux/printk.h>
-#include <linux/serial.h>
+#include <kfs/console.h>
+#include <kfs/keyboard.h>
+#include <kfs/printk.h>
+#include <kfs/serial.h>
 
 void kernel_main(void)
 {

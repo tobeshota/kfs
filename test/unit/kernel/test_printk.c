@@ -1,10 +1,10 @@
 #include "../support/io_stub_control.h"
 #include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
-#include <linux/console.h>
-#include <linux/printk.h>
+#include <kfs/console.h>
+#include <kfs/printk.h>
 
-#include <linux/string.h>
+#include <kfs/string.h>
 #include <string.h>
 
 struct io_log_entry

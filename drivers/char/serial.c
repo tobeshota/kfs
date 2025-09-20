@@ -1,5 +1,5 @@
 #include <asm-i386/io.h>
-#include <linux/serial.h>
+#include <kfs/serial.h>
 #include <stddef.h>
 #include <stdint.h>
 
