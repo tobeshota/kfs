@@ -4,14 +4,15 @@
 #ifndef LINUX_TERMINAL_H
 #define LINUX_TERMINAL_H
 
+#include <linux/vga.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <linux/vga.h>
 
 /* NOTE: VGA color enum moved to <linux/vga.h>. */
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 	/* Serial */

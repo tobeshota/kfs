@@ -1,7 +1,7 @@
+#include <asm-i386/io.h>
 #include <linux/serial.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <asm-i386/io.h>
 
 #define COM1_PORT 0x3F8
 
@@ -9,12 +9,18 @@
 /* weak シンボルはテストで差し替え可能な I/O 間接層。
  * 将来: kfs_io_outb/inb は asm-i386/io.h の outb/inb に薄く委譲する別コンパイルユニットへ抽出可。
  */
-__attribute__((weak)) void kfs_io_outb(uint16_t port, uint8_t val) { outb(port, val); }
+__attribute__((weak)) void kfs_io_outb(uint16_t port, uint8_t val)
+{
+	outb(port, val);
+}
 /*
 kfs_io_inb(PS2_DATA_PORT); は「I/O ポート 0x60 (PS/2 コントローラのデータポート) から 1
 バイト読み取る」ための低レベル入力命令ラッパ呼び出しです。
 */
-__attribute__((weak)) uint8_t kfs_io_inb(uint16_t port) { return inb(port); }
+__attribute__((weak)) uint8_t kfs_io_inb(uint16_t port)
+{
+	return inb(port);
+}
 
 static int serial_transmit_empty(void)
 {

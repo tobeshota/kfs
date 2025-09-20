@@ -1,5 +1,5 @@
-#include <linux/keyboard.h>
 #include <linux/console.h>
+#include <linux/keyboard.h>
 #include <linux/printk.h>
 
 #include <linux/printk.h> /* TODO: umbrella 削除後は個別ヘッダに整理 */

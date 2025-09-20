@@ -4,7 +4,6 @@
 #include <linux/printk.h>
 #include <linux/serial.h>
 
-
 void kernel_main(void)
 {
 	serial_init();

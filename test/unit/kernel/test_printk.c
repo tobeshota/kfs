@@ -1,8 +1,8 @@
 #include "../support/io_stub_control.h"
 #include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
-#include <linux/printk.h>
 #include <linux/console.h>
+#include <linux/printk.h>
 
 #include <linux/string.h>
 #include <string.h>

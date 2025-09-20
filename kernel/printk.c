@@ -1,8 +1,7 @@
-#include <linux/printk.h>
-#include <linux/string.h>
-#include <linux/printk.h>
 #include <linux/console.h>
+#include <linux/printk.h>
 #include <linux/serial.h>
+#include <linux/string.h>
 
 #include <stdarg.h>
 
