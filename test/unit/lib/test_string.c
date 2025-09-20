@@ -1,5 +1,5 @@
 #include "host_test_framework.h"
-#include "linux/string.h"
+#include "kfs/string.h"
 
 KFS_TEST(test_strnlen_clamps)
 {
