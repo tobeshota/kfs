@@ -1,6 +1,6 @@
 #include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
-#include <linux/console.h>
+#include <kfs/console.h>
 #include <stdint.h>
 #include <string.h>
 

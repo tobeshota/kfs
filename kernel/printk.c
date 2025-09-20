@@ -1,7 +1,7 @@
-#include <linux/console.h>
-#include <linux/printk.h>
-#include <linux/serial.h>
-#include <linux/string.h>
+#include <kfs/console.h>
+#include <kfs/printk.h>
+#include <kfs/serial.h>
+#include <kfs/string.h>
 
 #include <stdarg.h>
 

@@ -1,4 +1,4 @@
-#include "linux/string.h"
+#include <kfs/string.h>
 
 size_t strlen(const char *s)
 {

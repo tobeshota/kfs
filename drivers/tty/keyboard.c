@@ -1,8 +1,8 @@
-#include <linux/console.h>
-#include <linux/keyboard.h>
-#include <linux/printk.h>
+#include <kfs/console.h>
+#include <kfs/keyboard.h>
+#include <kfs/printk.h>
 
-#include <linux/printk.h> /* TODO: umbrella 削除後は個別ヘッダに整理 */
+#include <kfs/printk.h> /* TODO: umbrella 削除後は個別ヘッダに整理 */
 #include <stddef.h>
 #include <stdint.h>
 
