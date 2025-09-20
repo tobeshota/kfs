@@ -1,13 +1,17 @@
-#include <linux/terminal.h>
+#include <asm-i386/io.h>
+#include <linux/serial.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #define COM1_PORT 0x3F8
 
 /* I/O indirection layer (weak so tests can override) */
+/* weak シンボルはテストで差し替え可能な I/O 間接層。
+ * 将来: kfs_io_outb/inb は asm-i386/io.h の outb/inb に薄く委譲する別コンパイルユニットへ抽出可。
+ */
 __attribute__((weak)) void kfs_io_outb(uint16_t port, uint8_t val)
 {
-	__asm__ volatile("outb %0, %1" : : "a"(val), "Nd"(port));
+	outb(port, val);
 }
 /*
 kfs_io_inb(PS2_DATA_PORT); は「I/O ポート 0x60 (PS/2 コントローラのデータポート) から 1
@@ -15,9 +19,7 @@ kfs_io_inb(PS2_DATA_PORT); は「I/O ポート 0x60 (PS/2 コントローラの�
 */
 __attribute__((weak)) uint8_t kfs_io_inb(uint16_t port)
 {
-	uint8_t r;
-	__asm__ volatile("inb %1, %0" : "=a"(r) : "Nd"(port));
-	return r;
+	return inb(port);
 }
 
 static int serial_transmit_empty(void)

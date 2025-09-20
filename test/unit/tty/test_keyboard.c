@@ -1,7 +1,9 @@
 #include "../support/io_stub_control.h"
 #include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
-#include <kfs/kfs1_bonus.h>
+#include <linux/console.h>
+#include <linux/keyboard.h>
+#include <linux/printk.h>
 
 static uint16_t stub[KFS_VGA_WIDTH * KFS_VGA_HEIGHT];
 

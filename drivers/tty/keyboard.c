@@ -1,4 +1,8 @@
-#include <kfs/kfs1_bonus.h>
+#include <linux/console.h>
+#include <linux/keyboard.h>
+#include <linux/printk.h>
+
+#include <linux/printk.h> /* TODO: umbrella 削除後は個別ヘッダに整理 */
 #include <stddef.h>
 #include <stdint.h>
 

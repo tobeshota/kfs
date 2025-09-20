@@ -1,5 +1,8 @@
-#include <kfs/kfs1_bonus.h>
+#include <linux/console.h>
+#include <linux/printk.h>
+#include <linux/serial.h>
 #include <linux/string.h>
+
 #include <stdarg.h>
 
 int console_printk[4] = {
@@ -156,6 +159,10 @@ int kfs_snprintf(char *buf, size_t size, const char *fmt, ...)
 
 static int vprintk_internal(const char *fmt, va_list ap)
 {
+	/* TODO(console abstraction):
+	 * 今後 terminal_write / serial_write の直接呼び出しを console_drivers[] によるループへ置換し
+	 * 出力先を動的登録可能にする (early serial, vga console, future log buffer 等)。
+	 */
 	const char *msg_fmt = fmt;
 	int level = default_message_loglevel;
 	int is_cont = 0;

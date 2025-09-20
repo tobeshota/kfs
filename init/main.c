@@ -1,5 +1,8 @@
 /* Minimal kernel entry using new driver layout */
-#include <kfs/kfs1_bonus.h>
+#include <linux/console.h>
+#include <linux/keyboard.h>
+#include <linux/printk.h>
+#include <linux/serial.h>
 
 void kernel_main(void)
 {
