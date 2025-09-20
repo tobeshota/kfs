@@ -27,7 +27,7 @@ _start:
     mov $stack_top, %esp
 
     /* Enter high-level kernel */
-    call kernel_main
+    call start_kernel
 
     /* If returns, halt forever */
     cli

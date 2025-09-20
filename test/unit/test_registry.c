@@ -6,7 +6,7 @@ int register_host_tests_terminal_edge(struct kfs_test_case **out);
 int register_host_tests_terminal_prod(struct kfs_test_case **out);
 int register_host_tests_terminal_bonus(struct kfs_test_case **out);
 int register_host_tests_serial(struct kfs_test_case **out);
-int register_host_tests_kernel_main(struct kfs_test_case **out);
+int register_host_tests_start_kernel(struct kfs_test_case **out);
 int register_host_tests_printk(struct kfs_test_case **out);
 int register_host_tests_keyboard(struct kfs_test_case **out);
 int register_host_tests_string(struct kfs_test_case **out);
@@ -33,7 +33,7 @@ int register_host_tests(struct kfs_test_case **out)
 		struct kfs_test_case *cases_serial = 0;
 		int count_serial = register_host_tests_serial(&cases_serial);
 		struct kfs_test_case *cases_kernel = 0;
-		int count_kernel = register_host_tests_kernel_main(&cases_kernel);
+		int count_kernel = register_host_tests_start_kernel(&cases_kernel);
 		struct kfs_test_case *cases_printk = 0;
 		int count_printk = register_host_tests_printk(&cases_printk);
 		struct kfs_test_case *cases_keyboard = 0;
