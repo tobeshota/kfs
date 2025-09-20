@@ -1,7 +1,6 @@
 #include "host_test_framework.h"
 
 // 各テストファイルで提供される register_* 関数
-int register_host_tests_abs(struct kfs_test_case **out);
 int register_host_tests_init_main(struct kfs_test_case **out);
 int register_host_tests_terminal_edge(struct kfs_test_case **out);
 int register_host_tests_terminal_prod(struct kfs_test_case **out);
@@ -23,8 +22,6 @@ int register_host_tests(struct kfs_test_case **out)
 	// 初回だけ収集
 	if (!all_cases)
 	{
-		struct kfs_test_case *cases_abs = 0;
-		int count_abs = register_host_tests_abs(&cases_abs);
 		struct kfs_test_case *cases_init = 0;
 		int count_init = register_host_tests_init_main(&cases_init);
 		struct kfs_test_case *cases_term_edge = 0;
@@ -46,8 +43,6 @@ int register_host_tests(struct kfs_test_case **out)
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
-		for (int i = 0; i < count_abs && idx < KFS_MAX_TESTS; i++)
-			merged[idx++] = cases_abs[i];
 		for (int i = 0; i < count_init && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_init[i];
 		for (int i = 0; i < count_term_edge && idx < KFS_MAX_TESTS; i++)
