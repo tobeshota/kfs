@@ -1,5 +1,5 @@
 #include "host_test_framework.h"
-#include <linux/terminal.h>
+#include <linux/serial.h>
 #include <stdint.h>
 #include <string.h>
 

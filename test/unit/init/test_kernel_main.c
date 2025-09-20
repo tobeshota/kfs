@@ -1,6 +1,8 @@
 #include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
-#include <kfs/kfs1_bonus.h>
+#include <linux/console.h>
+#include <linux/printk.h>
+
 #include <stdint.h>
 
 /* Provide weak symbol overrides & terminal buffer injection to execute kernel_main */
