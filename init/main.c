@@ -4,7 +4,7 @@
 #include <kfs/printk.h>
 #include <kfs/serial.h>
 
-void kernel_main(void)
+void start_kernel(void)
 {
 	serial_init();
 	terminal_initialize();
