@@ -1,7 +1,12 @@
 #ifndef KFS_KFS1_BONUS_H
 #define KFS_KFS1_BONUS_H
 
+/* Transitional umbrella header.
+ * TODO(phase4): 分割完了後、利用側を個別ヘッダ(terminal.h / printk.h / keyboard.h / vga.h 等)へ移行し廃止予定。
+ */
 #include <linux/terminal.h>
+#include <linux/vga.h>
+#include <linux/printk.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -11,7 +16,11 @@ extern "C"
 {
 #endif
 
+/* printk.h へ移行済マクロ（後方互換のため暫定二重定義回避） */
+#ifndef KFS_KERN_SOH
 #define KFS_KERN_SOH "\001"
+#endif
+#ifndef KERN_SOH
 #define KERN_SOH KFS_KERN_SOH
 #define KERN_EMERG KFS_KERN_SOH "0"
 #define KERN_ALERT KFS_KERN_SOH "1"
@@ -23,24 +32,13 @@ extern "C"
 #define KERN_DEBUG KFS_KERN_SOH "7"
 #define KERN_DEFAULT KFS_KERN_SOH "d"
 #define KERN_CONT KFS_KERN_SOH "c"
+#endif
 
 #define KFS_VGA_WIDTH 80
 #define KFS_VGA_HEIGHT 25
 #define KFS_VIRTUAL_CONSOLE_COUNT 4
 
-	enum kfs_printk_loglevel
-	{
-		KFS_LOGLEVEL_EMERG = 0,
-		KFS_LOGLEVEL_ALERT = 1,
-		KFS_LOGLEVEL_CRIT = 2,
-		KFS_LOGLEVEL_ERR = 3,
-		KFS_LOGLEVEL_WARNING = 4,
-		KFS_LOGLEVEL_NOTICE = 5,
-		KFS_LOGLEVEL_INFO = 6,
-		KFS_LOGLEVEL_DEBUG = 7,
-		KFS_LOGLEVEL_CONT = 8,
-		KFS_LOGLEVEL_DEFAULT = KFS_LOGLEVEL_WARNING,
-	};
+/* enum kfs_printk_loglevel は <linux/printk.h> に移動済。 */
 
 	extern int console_printk[4];
 
