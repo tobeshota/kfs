@@ -1,11 +1,10 @@
 #include <kfs/console.h>
 #include <kfs/printk.h>
 #include <kfs/serial.h>
-#include <stddef.h>
-#include <kfs/printk.h>
 #include <kfs/string.h>
-#include <video/vga.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <video/vga.h>
 
 #define VGA_WIDTH KFS_VGA_WIDTH
 #define VGA_HEIGHT KFS_VGA_HEIGHT

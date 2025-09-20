@@ -5,9 +5,9 @@
  * 既存実装(drivers/video/terminal.c)から宣言のみ抽出。機能追加なし。
  */
 
-#include <video/vga.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <video/vga.h>
 
 #ifdef __cplusplus
 extern "C"
