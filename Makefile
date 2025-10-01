@@ -1,8 +1,8 @@
 # ===== User-facing targets =====
-# - make          : kfs.iso まで作成
+# - make             : make iso と同じ
 # - make kernel      : kfs.bin まで作成
-# - make iso      : ISO を作成
-# - make run      : qemu-system-$(ISA) -cdrom kfs.iso を実行
+# - make iso         : kfs.iso まで作成
+# - make run         : qemu-system-$(ISA) -cdrom kfs.iso を実行
 # - make run-kernel  : qemu-system-$(ISA) -kernel kfs.bin を実行
 
 include .env
@@ -131,4 +131,4 @@ fmt:
 	&& clang-format -i -style="{BasedOnStyle: Microsoft, IndentWidth: 4, TabWidth: 4, UseTab: Always}" $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H) \
 	&& shfmt -w $(TEST_SRCS_SH)'
 
-.PHONY: all kernel iso run run-iso run-kernel clean fclean re ensure-image test
+.PHONY: all kernel iso run run-iso run-kernel clean fclean re ensure-image test coverage fmt
