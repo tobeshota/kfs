@@ -20,6 +20,7 @@ CROSS   ?= i686-elf
 CC      := $(CROSS)-gcc
 INCLUDE_DIRS := include include/kfs include/asm-i386
 CFLAGS  := $(addprefix -I,$(INCLUDE_DIRS)) -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc
+DEPFLAGS := -MMD -MP -MF $(BUILD_DIR)/$*.d
 LDFLAGS := -T arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc
 
 # Sources and objects
@@ -36,6 +37,7 @@ KERNEL_SRCS := $(KERNEL_SRCS_C) $(KERNEL_SRCS_S)
 TEST_SRCS := $(TEST_SRCS_C) $(TEST_SRCS_SH)
 BUILD_DIR   := build/obj
 KERNEL_OBJS := $(patsubst %.S,$(BUILD_DIR)/%.o,$(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SRCS)))
+KERNEL_DEPS := $(patsubst %.c,$(BUILD_DIR)/%.d,$(KERNEL_SRCS_C))
 
 KERNEL := kfs.bin
 ISO    := kfs.iso
@@ -66,8 +68,10 @@ $(BUILD_DIR)/%.o: %.S
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: %.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	@mkdir -p $(dir $@) $(dir $(BUILD_DIR)/$*.d)
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+-include $(KERNEL_DEPS)
 
 kernel: $(KERNEL)
 
