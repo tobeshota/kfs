@@ -9,7 +9,7 @@ ENV BINUTILS_VERSION=2.41 \
     DEBIAN_FRONTEND=noninteractive
 
 # Build deps only for binutils+gcc (C only) + ISO/QEMU tools for convenience
-ENV BUILD_DEPS="build-essential bison flex libgmp-dev libmpc-dev libmpfr-dev texinfo wget ca-certificates xz-utils grub-pc-bin grub-common xorriso mtools qemu-system-i386 qemu-utils make libmpc3 libmpfr6 libgmp10"
+ENV BUILD_DEPS="build-essential bison flex libgmp-dev libmpc-dev libmpfr-dev texinfo wget ca-certificates xz-utils grub-pc-bin grub-common xorriso mtools make libmpc3 libmpfr6 libgmp10"
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends ${BUILD_DEPS} \

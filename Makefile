@@ -109,20 +109,10 @@ endif
 run: run-iso
 
 run-iso: $(ISO)
-	@if command -v qemu-system-$(ISA) >/dev/null 2>&1; then \
-	  qemu-system-$(ISA) -cdrom $(ISO) -serial stdio; \
-	else \
-	  echo "qemu-system-$(ISA) not found on host. Trying in Docker..."; \
-	  $(DOCKER_RUN) qemu-system-$(ISA) -cdrom $(ISO) -serial stdio; \
-	fi
+	qemu-system-$(ISA) -cdrom $(ISO) -serial stdio
 
 run-kernel: $(KERNEL)
-	@if command -v qemu-system-$(ISA) >/dev/null 2>&1; then \
-	  qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio; \
-	else \
-	  echo "qemu-system-$(ISA) not found on host. Trying in Docker..."; \
-	  $(DOCKER_RUN) qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio; \
-	fi
+	qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio
 
 # ===== Tests passthrough =====
 test:
