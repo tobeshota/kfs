@@ -7,6 +7,7 @@ Documentation/*.pdf
 Documentation/*.rst
 Documentation/*.md
 *.o
+*.d
 *.gcda
 *.gcno
 test/_artifacts/
