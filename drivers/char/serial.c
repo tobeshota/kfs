@@ -27,15 +27,16 @@ static int serial_transmit_empty(void)
 	return kfs_io_inb(COM1_PORT + 5) & 0x20;
 }
 
+/* シリアル通信の初期化 */
 void serial_init(void)
 {
-	kfs_io_outb(COM1_PORT + 1, 0x00);
-	kfs_io_outb(COM1_PORT + 3, 0x80);
-	kfs_io_outb(COM1_PORT + 0, 0x03);
-	kfs_io_outb(COM1_PORT + 1, 0x00);
-	kfs_io_outb(COM1_PORT + 3, 0x03);
-	kfs_io_outb(COM1_PORT + 2, 0xC7);
-	kfs_io_outb(COM1_PORT + 4, 0x0B);
+	kfs_io_outb(COM1_PORT + 1, 0x00); /*割り込みを無効化*/
+	kfs_io_outb(COM1_PORT + 3, 0x80); /*ボーレート設定モード開始*/
+	kfs_io_outb(COM1_PORT + 0, 0x03); /*ボーレートを38400bpsにする (16ビットの下位ビット)*/
+	kfs_io_outb(COM1_PORT + 1, 0x00); /*ボーレートを38400bpsにする (16ビットの上位ビット)*/
+	kfs_io_outb(COM1_PORT + 3, 0x03); /*ボーレート設定モード終了する。また、シリアル接続のビットを8N1に設定する*/
+	kfs_io_outb(COM1_PORT + 2, 0xC7); /*FIFOを有効化, 受信用14バイトのバッファを設ける*/
+	kfs_io_outb(COM1_PORT + 4, 0x0B); /*RTS/DSRを有効化*/
 }
 
 void serial_write(const char *data, size_t size)
