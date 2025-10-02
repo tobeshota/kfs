@@ -17,7 +17,7 @@ extern void kfs_io_outb(uint16_t port, uint8_t val);
 size_t kfs_terminal_row;
 size_t kfs_terminal_column;
 uint8_t kfs_terminal_color;
-uint16_t *kfs_terminal_buffer = (uint16_t *)VGA_MEMORY;
+uint16_t *kfs_terminal_buffer = (uint16_t *)VGA_MEMORY; /* 画面に文字を書き込むアドレスのラッパ */
 
 struct kfs_console_state
 {
@@ -32,6 +32,7 @@ static struct kfs_console_state kfs_console_states[KFS_VIRTUAL_CONSOLE_COUNT];
 static size_t kfs_console_active;
 static int kfs_console_bootstrap_completed;
 
+/* 現在使用してるコンソールを取得 */
 static struct kfs_console_state *active_console(void)
 {
 	return &kfs_console_states[kfs_console_active];
@@ -42,6 +43,7 @@ static int console_is_active(const struct kfs_console_state *con)
 	return con == &kfs_console_states[kfs_console_active];
 }
 
+/* VGAに書き込む文字の前背色と後背色を定義する */
 uint8_t kfs_vga_make_color(enum vga_color fg, enum vga_color bg)
 {
 	return (uint8_t)(fg | (bg << 4));
@@ -52,6 +54,7 @@ uint16_t kfs_vga_make_entry(char c, uint8_t color)
 	return (uint16_t)c | ((uint16_t)color << 8);
 }
 
+/* シャドウバッファを初期化する(console_flush_to_hw()でコンソールを' '文字、背景黒で埋めるため) */
 static void console_fill_blank(struct kfs_console_state *con)
 {
 	uint16_t blank = kfs_vga_make_entry(' ', con->color);
@@ -59,6 +62,7 @@ static void console_fill_blank(struct kfs_console_state *con)
 		con->shadow[i] = blank;
 }
 
+/* シャドウバッファをVGAに書き込む */
 static void console_flush_to_hw(const struct kfs_console_state *con)
 {
 	if (!kfs_terminal_buffer)
@@ -75,6 +79,7 @@ static void console_capture_from_hw(struct kfs_console_state *con)
 		con->shadow[i] = kfs_terminal_buffer[i];
 }
 
+/* 全コンソールを' '文字、背景黒で埋める */
 static void ensure_console_bootstrap(void)
 {
 	if (kfs_console_bootstrap_completed)
@@ -87,12 +92,13 @@ static void ensure_console_bootstrap(void)
 		con->column = 0;
 		con->color = default_color;
 		con->initialized = 0;
-		console_fill_blank(con);
+		console_fill_blank(con); /* ' '文字、背景黒で埋める */
 	}
 	kfs_console_active = 0;
 	kfs_console_bootstrap_completed = 1;
 }
 
+/* VGAに出力するカーソルの位置をrow行目、column列目に設定する */
 static void terminal_update_hw_cursor(size_t row, size_t column)
 {
 	uint16_t pos = (uint16_t)(row * VGA_WIDTH + column);
@@ -102,6 +108,7 @@ static void terminal_update_hw_cursor(size_t row, size_t column)
 	kfs_io_outb(VGA_CRTC_DATA_PORT, (uint8_t)((pos >> 8) & 0xFF));
 }
 
+/* VGAに出力するカーソルの位置を書き込まれた文字の最後の位置に表示するようにする */
 static void sync_globals_from_console(const struct kfs_console_state *con)
 {
 	kfs_terminal_row = con->row;
@@ -124,13 +131,16 @@ static void console_activate_if_needed(struct kfs_console_state *con)
 	}
 }
 
+/* コンソールの初期化 */
 void terminal_initialize(void)
 {
 	ensure_console_bootstrap();
+
+	/* 現在使用してるコンソールを取得 */
 	struct kfs_console_state *con = active_console();
 	con->color = kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
-	con->row = 0;
-	con->column = 0;
+	con->row = 0;	 /* 0行目(直感的には画面最上部)から記述を開始する */
+	con->column = 0; /* 0列目(直感的には画面最左部)から記述を開始する */
 	con->initialized = 1;
 	console_fill_blank(con);
 	console_flush_to_hw(con);
