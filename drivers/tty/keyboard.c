@@ -185,9 +185,22 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		extended_prefix = 0;
 		return;
 	}
-	if (extended_prefix)
+	/* 拡張コード（0xE0）の後の特殊キー処理 */
+	if (extended_prefix == 0xE0)
 	{
 		extended_prefix = 0;
+		/* 矢印キーの処理 */
+		if (code == 0x48) /* 上矢印 */
+		{
+			kfs_terminal_scroll_up();
+			return;
+		}
+		else if (code == 0x50) /* 下矢印 */
+		{
+			kfs_terminal_scroll_down();
+			return;
+		}
+		/* その他の拡張コードは無視 */
 		return;
 	}
 	extended_prefix = 0;
