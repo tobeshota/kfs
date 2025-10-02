@@ -195,7 +195,7 @@ static int vprintk_internal(const char *fmt, va_list ap)
 		break;
 	}
 
-	char buffer[512];
+	char buffer[1024];
 	va_list copy;
 	va_copy(copy, ap);
 	int len = kfs_vsnprintf(buffer, sizeof(buffer), msg_fmt, copy);
