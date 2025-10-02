@@ -3,8 +3,8 @@
 // 各テストファイルで提供される register_* 関数
 int register_host_tests_init_main(struct kfs_test_case **out);
 int register_host_tests_terminal_edge(struct kfs_test_case **out);
-int register_host_tests_terminal_prod(struct kfs_test_case **out);
-int register_host_tests_terminal_bonus(struct kfs_test_case **out);
+int register_host_tests_terminal_io(struct kfs_test_case **out);
+int register_host_tests_terminal_console(struct kfs_test_case **out);
 int register_host_tests_serial(struct kfs_test_case **out);
 int register_host_tests_start_kernel(struct kfs_test_case **out);
 int register_host_tests_printk(struct kfs_test_case **out);
@@ -26,10 +26,10 @@ int register_host_tests(struct kfs_test_case **out)
 		int count_init = register_host_tests_init_main(&cases_init);
 		struct kfs_test_case *cases_term_edge = 0;
 		int count_term_edge = register_host_tests_terminal_edge(&cases_term_edge);
-		struct kfs_test_case *cases_term_prod = 0;
-		int count_term_prod = register_host_tests_terminal_prod(&cases_term_prod);
-		struct kfs_test_case *cases_term_bonus = 0;
-		int count_term_bonus = register_host_tests_terminal_bonus(&cases_term_bonus);
+		struct kfs_test_case *cases_term_io = 0;
+		int count_term_io = register_host_tests_terminal_io(&cases_term_io);
+		struct kfs_test_case *cases_term_console = 0;
+		int count_term_console = register_host_tests_terminal_console(&cases_term_console);
 		struct kfs_test_case *cases_serial = 0;
 		int count_serial = register_host_tests_serial(&cases_serial);
 		struct kfs_test_case *cases_kernel = 0;
@@ -47,10 +47,10 @@ int register_host_tests(struct kfs_test_case **out)
 			merged[idx++] = cases_init[i];
 		for (int i = 0; i < count_term_edge && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_term_edge[i];
-		for (int i = 0; i < count_term_prod && idx < KFS_MAX_TESTS; i++)
-			merged[idx++] = cases_term_prod[i];
-		for (int i = 0; i < count_term_bonus && idx < KFS_MAX_TESTS; i++)
-			merged[idx++] = cases_term_bonus[i];
+		for (int i = 0; i < count_term_io && idx < KFS_MAX_TESTS; i++)
+			merged[idx++] = cases_term_io[i];
+		for (int i = 0; i < count_term_console && idx < KFS_MAX_TESTS; i++)
+			merged[idx++] = cases_term_console[i];
 		for (int i = 0; i < count_serial && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_serial[i];
 		for (int i = 0; i < count_kernel && idx < KFS_MAX_TESTS; i++)
