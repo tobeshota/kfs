@@ -81,6 +81,7 @@ static void append_signed(char **dst, size_t *remaining, size_t *written, int va
 	append_unsigned(dst, remaining, written, magnitude, 10, 0);
 }
 
+/* vsnprintfの実装 */
 int kfs_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 {
 	char *out = buf;
@@ -166,7 +167,9 @@ static int vprintk_internal(const char *fmt, va_list ap)
 	const char *msg_fmt = fmt;
 	int level = default_message_loglevel;
 	int is_cont = 0;
-	while (msg_fmt[0] == '\001')
+
+	/* msg_fmtの先頭文字から出力する文字列のログレベルを取得する */
+	while (msg_fmt[0] == '\001') /* 001 = SOH (start of heading) . see man ascii */
 	{
 		char code = msg_fmt[1];
 		if (code >= '0' && code <= '7')
@@ -191,6 +194,7 @@ static int vprintk_internal(const char *fmt, va_list ap)
 		}
 		break;
 	}
+
 	char buffer[512];
 	va_list copy;
 	va_copy(copy, ap);

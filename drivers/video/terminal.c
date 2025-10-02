@@ -49,6 +49,7 @@ uint8_t kfs_vga_make_color(enum vga_color fg, enum vga_color bg)
 	return (uint8_t)(fg | (bg << 4));
 }
 
+/* 文字と色属性を組み合わせてVGAに書き込むエントリを作成する */
 uint16_t kfs_vga_make_entry(char c, uint8_t color)
 {
 	return (uint16_t)c | ((uint16_t)color << 8);
@@ -117,6 +118,7 @@ static void sync_globals_from_console(const struct kfs_console_state *con)
 	terminal_update_hw_cursor(kfs_terminal_row, kfs_terminal_column);
 }
 
+/* 非アクティブなコンソールをアクティブする */
 static void console_activate_if_needed(struct kfs_console_state *con)
 {
 	if (!con->initialized)
@@ -152,6 +154,7 @@ void terminal_setcolor(uint8_t color)
 	kfs_terminal_set_color(color);
 }
 
+/* 文字cをコンソールconのVGAの位置(x, y)に出力する */
 static void terminal_putentryat(struct kfs_console_state *con, char c, size_t x, size_t y)
 {
 	uint16_t entry = kfs_vga_make_entry(c, con->color);
@@ -160,10 +163,13 @@ static void terminal_putentryat(struct kfs_console_state *con, char c, size_t x,
 		kfs_terminal_buffer[y * VGA_WIDTH + x] = entry;
 }
 
+/* 必要に応じてスクロールする */
 static void terminal_scroll_if_needed(struct kfs_console_state *con)
 {
 	if (con->row < VGA_HEIGHT)
 		return;
+
+	/* VGAに書き込んだ各行を1行上に上げる */
 	int flush_hw = console_is_active(con) && kfs_terminal_buffer;
 	for (size_t y = 1; y < VGA_HEIGHT; y++)
 	{
@@ -175,6 +181,8 @@ static void terminal_scroll_if_needed(struct kfs_console_state *con)
 				kfs_terminal_buffer[(y - 1) * VGA_WIDTH + x] = value;
 		}
 	}
+
+	/* 最後の行を空白で埋める */
 	uint16_t blank = kfs_vga_make_entry(' ', con->color);
 	for (size_t x = 0; x < VGA_WIDTH; x++)
 	{
@@ -185,6 +193,7 @@ static void terminal_scroll_if_needed(struct kfs_console_state *con)
 	con->row = VGA_HEIGHT - 1;
 }
 
+/* 値cを現在のコンソールに出力する(MMIO) */
 void terminal_putchar(char c)
 {
 	ensure_console_bootstrap();
@@ -192,15 +201,15 @@ void terminal_putchar(char c)
 	console_activate_if_needed(con);
 	if (c == '\n')
 	{
-		con->column = 0;
-		con->row++;
+		con->column = 0; /* キャリッジリターン */
+		con->row++; /* ラインフィード */
 		terminal_scroll_if_needed(con);
 		sync_globals_from_console(con);
 		return;
 	}
 	if (c == '\r')
 	{
-		con->column = 0;
+		con->column = 0; /* キャリッジリターン */
 		sync_globals_from_console(con);
 		return;
 	}
@@ -214,6 +223,7 @@ void terminal_putchar(char c)
 	sync_globals_from_console(con);
 }
 
+/* メモリに値dataをsizeだけ書き込む(MMIO) */
 void terminal_write(const char *data, size_t size)
 {
 	for (size_t i = 0; i < size; i++)
