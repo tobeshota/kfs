@@ -5,6 +5,7 @@ ISA				?= i386
 CC				?= gcc
 # -freestanding: 自分たちが定義した標準ライブラリを使用したいため(memcpyとか)
 CFLAGS			= -I../include -I./unit -Wall -Wextra -O0 -g -m32 --coverage -DWAITING_FOR_INPUT -ffreestanding
+DEPFLAGS		= -MMD -MP -MF $(@:.o=.d)
 DOCKER_RUN		= docker run --platform linux/386 -v $(realpath ../):/work -w /work/test unit_test_image
 DOCKER_SH		= $(DOCKER_RUN) bash -euxo pipefail -c
 LCOV			= lcov --rc lcov_branch_coverage=1
@@ -20,6 +21,7 @@ COVERAGE_DIR	= _artifacts/coverage
 
 # Normalize object paths: ../foo/bar.c -> build/obj/foo/bar.o
 UNIT_OBJS		= $(patsubst ../%, $(BUILD_DIR)/%, $(UNIT_SRCS:.c=.o))
+UNIT_DEPS		= $(UNIT_OBJS:.o=.d)
 UNIT_BIN		= ./unit_test.bin
 
 # Coverage artifacts (searched only under BUILD_DIR)
@@ -59,6 +61,8 @@ $(UNIT_BIN): $(UNIT_OBJS)
 # Pattern rule for any ../foo/bar.c mapped into build/obj/foo/bar.o
 $(BUILD_DIR)/%.o: ../%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+-include $(UNIT_DEPS)
 
 .PHONY: all test docker-image unit coverage integration clean
