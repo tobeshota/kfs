@@ -42,7 +42,7 @@ coverage: unit
 	@ $(DOCKER_SH) "\
 		rm -rf $(COVERAGE_DIR) && mkdir -p $(COVERAGE_DIR)/html; \
 		$(LCOV) --capture --directory $(BUILD_DIR) --output-file $(COVERAGE_DIR)/coverage.info; \
-		$(LCOV) --remove $(COVERAGE_DIR)/coverage.info '/work/test/*' '/usr/*' --output-file $(COVERAGE_DIR)/coverage.filtered.info; \
+		$(LCOV) --remove $(COVERAGE_DIR)/coverage.info '/work/test/*' '/usr/*' '*.h' --output-file $(COVERAGE_DIR)/coverage.filtered.info; \
 		$(GENHTML) $(COVERAGE_DIR)/coverage.filtered.info --output-directory $(COVERAGE_DIR)/html; \
 		$(LCOV) --summary $(COVERAGE_DIR)/coverage.filtered.info"
 	@ echo "\nCoverage HTML:\n./test/$(COVERAGE_DIR)/html/index.html\n"
