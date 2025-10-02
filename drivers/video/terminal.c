@@ -249,6 +249,7 @@ void kfs_terminal_get_cursor(size_t *row, size_t *column)
 		*column = con->column;
 }
 
+/* 現在使用してるコンソールで出力する文字の色を設定 */
 void kfs_terminal_set_color(uint8_t color)
 {
 	ensure_console_bootstrap();
