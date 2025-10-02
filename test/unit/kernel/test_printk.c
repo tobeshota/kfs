@@ -109,18 +109,18 @@ KFS_TEST(test_printk_truncates_long_output)
 	kfs_terminal_set_buffer(stub);
 	terminal_initialize();
 	reset_io_log();
-	char payload[600];
-	for (int i = 0; i < 599; i++)
+	char payload[1100];
+	for (int i = 0; i < 1099; i++)
 		payload[i] = 'A';
-	payload[599] = '\0';
+	payload[1099] = '\0';
 	int len = printk("%s", payload);
-	char captured[520];
+	char captured[1030];
 	size_t n = capture_serial(captured, sizeof(captured));
 	KFS_ASSERT_TRUE(kfs_io_log_count > 0);
-	KFS_ASSERT_TRUE(len > 500);
-	KFS_ASSERT_EQ(511, (long long)n);
+	KFS_ASSERT_TRUE(len > 1000);
+	KFS_ASSERT_EQ(1023, (long long)n);
 	KFS_ASSERT_EQ('A', captured[0]);
-	KFS_ASSERT_EQ('A', captured[510]);
+	KFS_ASSERT_EQ('A', captured[1022]);
 }
 
 KFS_TEST(test_printk_snprintf_size_zero)
