@@ -6,14 +6,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define PS2_STATUS_PORT 0x64
-#define PS2_DATA_PORT 0x60
+/* @see https://wiki.osdev.org/I8042_PS/2_Controller */
+#define PS2_STATUS_PORT 0x64 /* PS/2 コントローラのペリフェラルから受け取るステータスレジスタのポート番号 */
+#define PS2_DATA_PORT 0x60 /* PS/2 コントローラのデータポート番号 */
 
 static int left_shift;
 static int right_shift;
 static int alt_pressed;
 static int caps_lock;
-static int extended_prefix;
+static int extended_prefix; /* 拡張コードプレフィックス。これと、この次に押下された値によって、意味が決まる */
 static int keyboard_initialized;
 
 extern uint8_t kfs_io_inb(uint16_t port);
@@ -37,11 +38,13 @@ static const char scancode_map_shift[128] = {
 	[0x2F] = 'V', [0x30] = 'B', [0x31] = 'N', [0x32] = 'M', [0x33] = '<', [0x34] = '>', [0x35] = '?',
 };
 
+/* シフトキーが押されているかどうかを判定する */
 static int shift_active(void)
 {
 	return left_shift || right_shift;
 }
 
+/* スキャンコードから対応するascii codeを取得する */
 static char translate_scancode(uint8_t code)
 {
 	char base = scancode_map_normal[code];
@@ -109,15 +112,28 @@ void kfs_keyboard_init(void)
 	}
 }
 
+/* キーボードからの入力値に対応するasciiコードをVGAに出力する
+ * @param scancode キーボードからの入力値(8bit)
+ *  - 上位1ビット: キーの押下(0)または解放(1)を示すフラグ
+ *  - 下位7ビット: 対応するキーコード
+ * @see https://homepages.cwi.nl/~aeb/linux/kbd/scancodes-7.html#kscancodes
+ */
 void kfs_keyboard_feed_scancode(uint8_t scancode)
 {
+	/* 0xE0, 0xE1 は拡張コードのプレフィックス
+	 * 拡張コードのプレフィックスは、それ単体では意味を持たないため、値を保持し処理を抜ける
+	 * @see https://homepages.cwi.nl/~aeb/linux/kbd/scancodes-1.html
+	 */
 	if (scancode == 0xE0 || scancode == 0xE1)
 	{
 		extended_prefix = scancode;
 		return;
 	}
-	int release = (scancode & 0x80) != 0;
-	uint8_t code = scancode & 0x7F;
+
+	int release = (scancode & 0x80) != 0; /* scancodeの上位1ビット。キーの押下(0)または解放(1)を示すフラグ */
+	uint8_t code = scancode & 0x7F; /* scancodeの下位7ビット。対応するキーコード */
+
+	/* 特殊キーの処理 */
 	switch (code)
 	{
 	case 0x2A:
@@ -175,11 +191,14 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		return;
 	}
 	extended_prefix = 0;
+
+	/* スキャンコードから対応するascii codeを取得しVGAに書き込む */
 	char ch = translate_scancode(code);
 	if (ch)
 		terminal_putchar(ch);
 }
 
+/* キーボードのポーリング処理 (割り込み未使用時に定期的に呼び出す) */
 void kfs_keyboard_poll(void)
 {
 	if (!keyboard_initialized)
@@ -187,9 +206,9 @@ void kfs_keyboard_poll(void)
 	for (;;)
 	{
 		uint8_t status = kfs_io_inb(PS2_STATUS_PORT);
-		if (!(status & 0x01))
+		if (!(status & 0x01)) /* キーボードからCPUへの出力バッファが空である(キーが押下されていない)ならば抜ける */
 			break;
-		uint8_t scancode = kfs_io_inb(PS2_DATA_PORT);
+		uint8_t scancode = kfs_io_inb(PS2_DATA_PORT); /* キーボードから押下された値をscancodeに格納する */
 		kfs_keyboard_feed_scancode(scancode);
 	}
 }
