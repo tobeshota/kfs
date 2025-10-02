@@ -126,7 +126,7 @@ KFS_TEST(test_printk_truncates_long_output)
 KFS_TEST(test_printk_snprintf_size_zero)
 {
 	char buf[4] = {'x', 'x', 'x', 'x'};
-	int len = kfs_snprintf(buf, 0, "abc");
+	int len = snprintf(buf, 0, "abc");
 	KFS_ASSERT_EQ(3, (long long)len);
 	KFS_ASSERT_EQ('x', buf[0]);
 }
@@ -134,7 +134,7 @@ KFS_TEST(test_printk_snprintf_size_zero)
 KFS_TEST(test_printk_snprintf_truncates_and_terminates)
 {
 	char buf[4] = {0};
-	int len = kfs_snprintf(buf, sizeof(buf), "hello");
+	int len = snprintf(buf, sizeof(buf), "hello");
 	KFS_ASSERT_EQ(5, (long long)len);
 	KFS_ASSERT_EQ('h', buf[0]);
 	KFS_ASSERT_EQ('\0', buf[3]);
