@@ -21,14 +21,14 @@ static void setup(void)
 	terminal_initialize(); /* uses injected buffer */
 }
 
-KFS_TEST(test_terminal_initialize_clears_screen_prod)
+KFS_TEST(test_terminal_initialize_clears_screen_io)
 {
 	setup();
 	for (int x = 0; x < 5; x++)
 		KFS_ASSERT_EQ((long long)make_cell(' ', 7), (long long)stub[x]);
 }
 
-KFS_TEST(test_terminal_basic_write_and_newline_prod)
+KFS_TEST(test_terminal_basic_write_and_newline_io)
 {
 	setup();
 	terminal_writestring("AB\nC");
@@ -37,7 +37,7 @@ KFS_TEST(test_terminal_basic_write_and_newline_prod)
 	KFS_ASSERT_EQ((long long)make_cell('C', 7), (long long)stub[80]);
 }
 
-KFS_TEST(test_terminal_wrap_and_scroll_prod)
+KFS_TEST(test_terminal_wrap_and_scroll_io)
 {
 	setup();
 	/* Fill exactly 25 lines (0..24) each ending with newline to cause one scroll when writing line 25 */
@@ -54,12 +54,12 @@ KFS_TEST(test_terminal_wrap_and_scroll_prod)
 }
 
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_terminal_initialize_clears_screen_prod),
-	KFS_REGISTER_TEST(test_terminal_basic_write_and_newline_prod),
-	KFS_REGISTER_TEST(test_terminal_wrap_and_scroll_prod),
+	KFS_REGISTER_TEST(test_terminal_initialize_clears_screen_io),
+	KFS_REGISTER_TEST(test_terminal_basic_write_and_newline_io),
+	KFS_REGISTER_TEST(test_terminal_wrap_and_scroll_io),
 };
 
-int register_host_tests_terminal_prod(struct kfs_test_case **out)
+int register_host_tests_terminal_io(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));
