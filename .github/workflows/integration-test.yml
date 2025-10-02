@@ -1,0 +1,12 @@
+name: Integration Test
+
+on: push
+
+jobs:
+  Ubuntu:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Run integration test
+        run: make integration -C test/

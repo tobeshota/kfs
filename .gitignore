@@ -1,0 +1,15 @@
+.DS_Store/
+.vscode/
+isodir/
+kfs.bin
+kfs.iso
+Documentation/*.pdf
+Documentation/*.rst
+Documentation/*.md
+*.o
+*.d
+*.gcda
+*.gcno
+test/_artifacts/
+test/integration/_artifacts
+test/unit_test.bin
