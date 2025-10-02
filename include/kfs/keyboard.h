@@ -5,18 +5,9 @@
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-	void kfs_keyboard_init(void);
-	void kfs_keyboard_reset(void);
-	void kfs_keyboard_feed_scancode(uint8_t scancode);
-	void kfs_keyboard_poll(void);
-
-#ifdef __cplusplus
-}
-#endif
+void kfs_keyboard_init(void);
+void kfs_keyboard_reset(void);
+void kfs_keyboard_feed_scancode(uint8_t scancode);
+void kfs_keyboard_poll(void);
 
 #endif /* KFS_KEYBOARD_H */

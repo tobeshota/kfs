@@ -1,18 +1,13 @@
 #ifndef KFS_HOST_TEST_FRAMEWORK_H
 #define KFS_HOST_TEST_FRAMEWORK_H
 
-#ifdef __cplusplus
-extern "C"
+typedef void (*kfs_test_fn)(void);
+
+struct kfs_test_case
 {
-#endif
-
-	typedef void (*kfs_test_fn)(void);
-
-	struct kfs_test_case
-	{
-		const char *name;
-		kfs_test_fn fn;
-	};
+	const char *name;
+	kfs_test_fn fn;
+};
 
 #define KFS_TEST(name) static void name(void)
 
@@ -41,43 +36,39 @@ extern "C"
 		}                                                                                                              \
 	} while (0)
 
-	extern int kfs_test_failures;
+extern int kfs_test_failures;
 
 #define KFS_REGISTER_TEST(fn)                                                                                          \
 	{                                                                                                                  \
 #fn, fn                                                                                                        \
 	}
 
-	static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count)
+static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count)
+{
+	int executed = 0;
+	for (int i = 0; i < count; ++i)
 	{
-		int executed = 0;
-		for (int i = 0; i < count; ++i)
+		__builtin_printf("[RUN ] %s\n", cases[i].name);
+		cases[i].fn();
+		if (kfs_test_failures == 0)
 		{
-			__builtin_printf("[RUN ] %s\n", cases[i].name);
-			cases[i].fn();
-			if (kfs_test_failures == 0)
-			{
-				__builtin_printf("[PASS] %s\n", cases[i].name);
-			}
-			else
-			{
-				/* failure already reported */
-			}
-			executed++;
-		}
-		if (kfs_test_failures)
-		{
-			__builtin_printf("== SUMMARY: %d tests, %d failed ==\n", executed, kfs_test_failures);
+			__builtin_printf("[PASS] %s\n", cases[i].name);
 		}
 		else
 		{
-			__builtin_printf("== SUMMARY: %d tests, all passed ==\n", executed);
+			/* failure already reported */
 		}
-		return kfs_test_failures == 0 ? 0 : 1;
+		executed++;
 	}
-
-#ifdef __cplusplus
+	if (kfs_test_failures)
+	{
+		__builtin_printf("== SUMMARY: %d tests, %d failed ==\n", executed, kfs_test_failures);
+	}
+	else
+	{
+		__builtin_printf("== SUMMARY: %d tests, all passed ==\n", executed);
+	}
+	return kfs_test_failures == 0 ? 0 : 1;
 }
-#endif
 
 #endif // KFS_HOST_TEST_FRAMEWORK_H
