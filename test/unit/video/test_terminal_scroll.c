@@ -134,7 +134,6 @@ KFS_TEST(test_multiple_scroll_up)
 KFS_TEST(test_scroll_down_at_bottom_is_noop)
 {
 	setup_terminal();
-	uint8_t color = kfs_terminal_get_color();
 
 	terminal_writestring("Test\n");
 
