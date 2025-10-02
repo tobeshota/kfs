@@ -148,7 +148,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST(test_terminal_write_tab_with_shift),
 };
 
-int register_host_tests_terminal_bonus(struct kfs_test_case **out)
+int register_host_tests_terminal_console(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));
