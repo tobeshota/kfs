@@ -3,6 +3,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Communication Port。
+ * カーネルのデバッグ用途として、現在communication portへの出力をQEMUがstdioにリダイレクトしている。
+ */
 #define COM1_PORT 0x3F8
 
 /* I/O indirection layer (weak so tests can override) */
@@ -22,8 +25,12 @@ __attribute__((weak)) uint8_t kfs_io_inb(uint16_t port)
 	return inb(port);
 }
 
+/* シリアルポートの送信バッファが空かどうかを調べる */
 static int serial_transmit_empty(void)
 {
+	/* 0x20 := Read "byte 0" from internal RAM.
+	 * @see https://wiki.osdev.org/I8042_PS/2_Controller
+	 */
 	return kfs_io_inb(COM1_PORT + 5) & 0x20;
 }
 
@@ -39,6 +46,7 @@ void serial_init(void)
 	kfs_io_outb(COM1_PORT + 4, 0x0B); /*RTS/DSRを有効化*/
 }
 
+/* シリアルポートに文字列を書き込む(PMIO) */
 void serial_write(const char *data, size_t size)
 {
 	for (size_t i = 0; i < size; i++)
