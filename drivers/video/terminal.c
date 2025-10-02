@@ -72,6 +72,7 @@ static void console_flush_to_hw(const struct kfs_console_state *con)
 		kfs_terminal_buffer[i] = con->shadow[i];
 }
 
+/* VGAに書き込まれた値をシャドウバッファに書き込む */
 static void console_capture_from_hw(struct kfs_console_state *con)
 {
 	if (!kfs_terminal_buffer)
@@ -280,11 +281,13 @@ size_t kfs_terminal_active_console(void)
 	return kfs_console_active;
 }
 
+/* 仮想コンソールの数を取得 */
 size_t kfs_terminal_console_count(void)
 {
 	return KFS_VIRTUAL_CONSOLE_COUNT;
 }
 
+/* 仮想コンソールをindexで指定したものに切り替える */
 void kfs_terminal_switch_console(size_t index)
 {
 	ensure_console_bootstrap();
