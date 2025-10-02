@@ -81,6 +81,7 @@ static void handle_backspace(void)
 	}
 }
 
+/* キーボード状態を初期化 (または初期状態へ戻す) ためのヘルパー関数 */
 void kfs_keyboard_reset(void)
 {
 	left_shift = 0;
@@ -91,13 +92,19 @@ void kfs_keyboard_reset(void)
 	keyboard_initialized = 0;
 }
 
+/* PS/2 キーボード制御の初期化ルーチン */
 void kfs_keyboard_init(void)
 {
 	kfs_keyboard_reset();
 	keyboard_initialized = 1;
-	/* Drain any pending bytes so we start from a clean state. */
+	/* キーボードからの出力バッファ(CPUにとっては入力バッファ)
+	 * の状態が1の間はポート 0x60 から 1バイト読んでやる処理
+	 * @see https://wiki.osdev.org/I8042_PS/2_Controller
+	 * まだ残っているキーボード入力を読み捨てる処理
+	 */
 	while (kfs_io_inb(PS2_STATUS_PORT) & 0x01)
 	{
+		/* FIFOなので1バイト読み捨てる */
 		(void)kfs_io_inb(PS2_DATA_PORT);
 	}
 }
