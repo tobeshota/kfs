@@ -40,8 +40,8 @@ extern int console_printk[4];
 #define default_console_loglevel (console_printk[3])
 
 int printk(const char *fmt, ...);
-int kfs_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap);
-int kfs_snprintf(char *buf, size_t size, const char *fmt, ...);
+int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap);
+int snprintf(char *buf, size_t size, const char *fmt, ...);
 
 void kfs_printk_set_console_loglevel(int level);
 int kfs_printk_get_console_loglevel(void);

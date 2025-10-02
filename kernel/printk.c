@@ -82,7 +82,7 @@ static void append_signed(char **dst, size_t *remaining, size_t *written, int va
 }
 
 /* vsnprintfの実装 */
-int kfs_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
+int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 {
 	char *out = buf;
 	size_t remaining = size ? size : 0;
@@ -149,11 +149,11 @@ static int clamp_loglevel(int level)
 	return level;
 }
 
-int kfs_snprintf(char *buf, size_t size, const char *fmt, ...)
+int snprintf(char *buf, size_t size, const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
-	int len = kfs_vsnprintf(buf, size, fmt, ap);
+	int len = vsnprintf(buf, size, fmt, ap);
 	va_end(ap);
 	return len;
 }
@@ -198,7 +198,7 @@ static int vprintk_internal(const char *fmt, va_list ap)
 	char buffer[1024];
 	va_list copy;
 	va_copy(copy, ap);
-	int len = kfs_vsnprintf(buffer, sizeof(buffer), msg_fmt, copy);
+	int len = vsnprintf(buffer, sizeof(buffer), msg_fmt, copy);
 	va_end(copy);
 	size_t out_len = (size_t)len;
 	if (out_len >= sizeof(buffer))
