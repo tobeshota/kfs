@@ -202,7 +202,7 @@ void terminal_putchar(char c)
 	if (c == '\n')
 	{
 		con->column = 0; /* キャリッジリターン */
-		con->row++; /* ラインフィード */
+		con->row++;		 /* ラインフィード */
 		terminal_scroll_if_needed(con);
 		sync_globals_from_console(con);
 		return;
