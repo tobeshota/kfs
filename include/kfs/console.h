@@ -33,4 +33,8 @@ size_t kfs_terminal_active_console(void);
 size_t kfs_terminal_console_count(void);
 void kfs_terminal_switch_console(size_t index);
 
+/* スクロール機能 */
+void kfs_terminal_scroll_up(void);
+void kfs_terminal_scroll_down(void);
+
 #endif /* KFS_CONSOLE_H */
