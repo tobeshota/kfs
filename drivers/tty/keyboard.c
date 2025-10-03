@@ -71,16 +71,16 @@ static void handle_backspace(void)
 	kfs_terminal_get_cursor(&row, &col);
 	if (col > 0)
 	{
+		/* カーソルを1つ左に移動してから削除 */
 		kfs_terminal_move_cursor(row, col - 1);
-		terminal_putchar(' ');
-		kfs_terminal_move_cursor(row, col - 1);
+		terminal_delete_char(); /* 挿入モード対応: 文字を削除して左シフト */
 	}
 	else if (row > 0)
 	{
+		/* 前の行の末尾に移動してから削除 */
 		size_t new_col = KFS_VGA_WIDTH - 1;
 		kfs_terminal_move_cursor(row - 1, new_col);
-		terminal_putchar(' ');
-		kfs_terminal_move_cursor(row - 1, new_col);
+		terminal_delete_char(); /* 挿入モード対応: 文字を削除して左シフト */
 	}
 }
 
@@ -198,6 +198,16 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		else if (code == 0x50) /* 下矢印 */
 		{
 			kfs_terminal_scroll_down();
+			return;
+		}
+		else if (code == 0x4B) /* 左矢印 */
+		{
+			kfs_terminal_cursor_left();
+			return;
+		}
+		else if (code == 0x4D) /* 右矢印 */
+		{
+			kfs_terminal_cursor_right();
 			return;
 		}
 		/* その他の拡張コードは無視 */

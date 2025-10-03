@@ -21,6 +21,8 @@ void terminal_initialize(void);
 
 /* 端末出力 API */
 void terminal_putchar(char c);
+void terminal_putchar_overwrite(char c); /* 上書きモード（バックスペース用） */
+void terminal_delete_char(void);		 /* カーソル位置の文字を削除（挿入モード対応） */
 void terminal_write(const char *data, size_t size);
 void terminal_writestring(const char *s);
 
@@ -36,5 +38,9 @@ void kfs_terminal_switch_console(size_t index);
 /* スクロール機能 */
 void kfs_terminal_scroll_up(void);
 void kfs_terminal_scroll_down(void);
+
+/* カーソル移動（左右の矢印キー用） */
+void kfs_terminal_cursor_left(void);
+void kfs_terminal_cursor_right(void);
 
 #endif /* KFS_CONSOLE_H */

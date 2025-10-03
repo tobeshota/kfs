@@ -48,6 +48,16 @@ static int console_is_active(const struct kfs_console_state *con)
 	return con == &kfs_console_states[kfs_console_active];
 }
 
+/* VGAハードウェアカーソルを更新 */
+static void update_hardware_cursor(void)
+{
+	uint16_t pos = kfs_terminal_row * VGA_WIDTH + kfs_terminal_column;
+	kfs_io_outb(VGA_CRTC_COMMAND_PORT, 0x0F);
+	kfs_io_outb(VGA_CRTC_DATA_PORT, (uint8_t)(pos & 0xFF));
+	kfs_io_outb(VGA_CRTC_COMMAND_PORT, 0x0E);
+	kfs_io_outb(VGA_CRTC_DATA_PORT, (uint8_t)((pos >> 8) & 0xFF));
+}
+
 /* VGAに書き込む文字の前背色と後背色を定義する */
 uint8_t kfs_vga_make_color(enum vga_color fg, enum vga_color bg)
 {
@@ -174,13 +184,42 @@ void terminal_setcolor(uint8_t color)
 	kfs_terminal_set_color(color);
 }
 
-/* 文字cをコンソールconのVGAの位置(x, y)に出力する */
+/* 文字cをコンソールconのVGAの位置(x, y)に出力する（上書きモード） */
 static void terminal_putentryat(struct kfs_console_state *con, char c, size_t x, size_t y)
 {
 	uint16_t entry = kfs_vga_make_entry(c, con->color);
 	con->shadow[y * VGA_WIDTH + x] = entry;
 	if (console_is_active(con) && kfs_terminal_buffer)
 		kfs_terminal_buffer[y * VGA_WIDTH + x] = entry;
+}
+
+/* カーソル位置に文字を挿入し、右側の文字列をシフトする（挿入モード） */
+static void terminal_insert_char_at(struct kfs_console_state *con, char c, size_t x, size_t y)
+{
+	/* 現在の行の末尾の文字を保存 */
+	uint16_t last_char = con->shadow[y * VGA_WIDTH + (VGA_WIDTH - 1)];
+
+	/* カーソル位置から行末まで1文字ずつ右にシフト */
+	for (size_t i = VGA_WIDTH - 1; i > x; i--)
+	{
+		con->shadow[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i - 1];
+		if (console_is_active(con) && kfs_terminal_buffer)
+			kfs_terminal_buffer[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i];
+	}
+
+	/* カーソル位置に新しい文字を挿入 */
+	uint16_t entry = kfs_vga_make_entry(c, con->color);
+	con->shadow[y * VGA_WIDTH + x] = entry;
+	if (console_is_active(con) && kfs_terminal_buffer)
+		kfs_terminal_buffer[y * VGA_WIDTH + x] = entry;
+
+	/* 行末を超えた文字を次の行の先頭に移動（空白文字でない場合のみ） */
+	char last_char_value = (char)(last_char & 0xFF);
+	if (last_char_value != ' ' && y + 1 < VGA_HEIGHT)
+	{
+		/* 次の行にも挿入モードで文字を追加 */
+		terminal_insert_char_at(con, last_char_value, 0, y + 1);
+	}
 }
 
 /* 必要に応じてスクロールする */
@@ -246,13 +285,51 @@ void terminal_putchar(char c)
 		sync_globals_from_console(con);
 		return;
 	}
-	terminal_putentryat(con, c, con->column, con->row);
+	/* 挿入モード: カーソル位置に文字を挿入 */
+	terminal_insert_char_at(con, c, con->column, con->row);
 	if (++con->column == VGA_WIDTH)
 	{
 		con->column = 0;
 		con->row++;
 	}
 	terminal_scroll_if_needed(con);
+	sync_globals_from_console(con);
+}
+
+/* 上書きモードで文字を出力（バックスペース用） */
+void terminal_putchar_overwrite(char c)
+{
+	ensure_console_bootstrap();
+	struct kfs_console_state *con = active_console();
+	console_activate_if_needed(con);
+	terminal_putentryat(con, c, con->column, con->row);
+	sync_globals_from_console(con);
+}
+
+/* カーソル位置の文字を削除し、右側の文字を左にシフト（バックスペース用） */
+void terminal_delete_char(void)
+{
+	ensure_console_bootstrap();
+	struct kfs_console_state *con = active_console();
+	console_activate_if_needed(con);
+
+	size_t x = con->column;
+	size_t y = con->row;
+
+	/* カーソル位置から行末まで左にシフト */
+	for (size_t i = x; i < VGA_WIDTH - 1; i++)
+	{
+		con->shadow[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i + 1];
+		if (console_is_active(con) && kfs_terminal_buffer)
+			kfs_terminal_buffer[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i];
+	}
+
+	/* 行末を空白で埋める */
+	uint16_t blank = kfs_vga_make_entry(' ', con->color);
+	con->shadow[y * VGA_WIDTH + (VGA_WIDTH - 1)] = blank;
+	if (console_is_active(con) && kfs_terminal_buffer)
+		kfs_terminal_buffer[y * VGA_WIDTH + (VGA_WIDTH - 1)] = blank;
+
 	sync_globals_from_console(con);
 }
 
@@ -443,4 +520,52 @@ void kfs_terminal_scroll_down(void)
 		con->scroll_offset--;
 		redraw_with_scroll_offset(con);
 	}
+}
+
+/* 左矢印キー: カーソルを左に移動 */
+void kfs_terminal_cursor_left(void)
+{
+	ensure_console_bootstrap();
+	struct kfs_console_state *con = active_console();
+
+	/* スクロール中は無効 */
+	if (con->scroll_offset != 0)
+		return;
+
+	if (con->column > 0)
+	{
+		con->column--;
+	}
+	else if (con->row > 0)
+	{
+		/* 前の行の末尾に移動 */
+		con->row--;
+		con->column = VGA_WIDTH - 1;
+	}
+	sync_globals_from_console(con);
+	update_hardware_cursor();
+}
+
+/* 右矢印キー: カーソルを右に移動 */
+void kfs_terminal_cursor_right(void)
+{
+	ensure_console_bootstrap();
+	struct kfs_console_state *con = active_console();
+
+	/* スクロール中は無効 */
+	if (con->scroll_offset != 0)
+		return;
+
+	if (con->column < VGA_WIDTH - 1)
+	{
+		con->column++;
+	}
+	else if (con->row < VGA_HEIGHT - 1)
+	{
+		/* 次の行の先頭に移動 */
+		con->row++;
+		con->column = 0;
+	}
+	sync_globals_from_console(con);
+	update_hardware_cursor();
 }

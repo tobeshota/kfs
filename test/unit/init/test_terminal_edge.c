@@ -24,7 +24,7 @@ KFS_TEST(test_terminal_wrap_at_line_end)
 	KFS_ASSERT_EQ((long long)cell('A', 7), (long long)stub[79]);
 }
 
-/* 2. キャリッジリターン: \r で列先頭に戻り上書きされる */
+/* 2. キャリッジリターン: \r で列先頭に戻り挿入される */
 KFS_TEST(test_terminal_carriage_return)
 {
 	kfs_terminal_set_buffer(stub);
@@ -32,8 +32,9 @@ KFS_TEST(test_terminal_carriage_return)
 	terminal_writestring("XYZ");
 	terminal_putchar('\r');
 	terminal_putchar('Q');
+	/* 挿入モードなので、Qが挿入され XYZ は右にシフトされる */
 	KFS_ASSERT_EQ((long long)cell('Q', 7), (long long)stub[0]);
-	KFS_ASSERT_EQ((long long)cell('Y', 7), (long long)stub[1]);
+	KFS_ASSERT_EQ((long long)cell('X', 7), (long long)stub[1]);
 }
 
 /* 3. 連続スクロール: 全行 +1 行で1回, さらに +VGA_HEIGHT 行で複数回 */
