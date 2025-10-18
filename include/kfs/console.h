@@ -5,9 +5,9 @@
 #include <stdint.h>
 #include <video/vga.h>
 
-#define KFS_VGA_WIDTH 80
-#define KFS_VGA_HEIGHT 25
-#define KFS_VIRTUAL_CONSOLE_COUNT 4
+#define KFS_VGA_WIDTH 80 /* 1コンソールあたりの幅 */
+#define KFS_VGA_HEIGHT 25 /* 1コンソールあたりの高さ(行数) */
+#define KFS_VIRTUAL_CONSOLE_COUNT 4 /* 仮想コンソールの数 */
 
 uint8_t kfs_vga_make_color(enum vga_color fg, enum vga_color bg);
 uint16_t kfs_vga_make_entry(char c, uint8_t color);
