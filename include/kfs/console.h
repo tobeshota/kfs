@@ -1,10 +1,6 @@
 #ifndef KFS_CONSOLE_H
 #define KFS_CONSOLE_H
 
-/* console.h: VGA テキストモード端末/仮想コンソール関連の公開インタフェース。
- * 既存実装(drivers/video/terminal.c)から宣言のみ抽出。機能追加なし。
- */
-
 #include <stddef.h>
 #include <stdint.h>
 #include <video/vga.h>
