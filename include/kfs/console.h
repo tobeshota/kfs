@@ -17,8 +17,8 @@ void terminal_initialize(void);
 
 /* 端末出力 API */
 void terminal_putchar(char c);
-void terminal_putchar_overwrite(char c); /* 上書きモード（バックスペース用） */
-void terminal_delete_char(void);		 /* カーソル位置の文字を削除（挿入モード対応） */
+void terminal_putchar_overwrite(char c);
+void terminal_delete_char(void);
 void terminal_write(const char *data, size_t size);
 void terminal_writestring(const char *s);
 
