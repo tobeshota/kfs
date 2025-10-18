@@ -1,17 +1,13 @@
 #ifndef KFS_CONSOLE_H
 #define KFS_CONSOLE_H
 
-/* console.h: VGA テキストモード端末/仮想コンソール関連の公開インタフェース。
- * 既存実装(drivers/video/terminal.c)から宣言のみ抽出。機能追加なし。
- */
-
 #include <stddef.h>
 #include <stdint.h>
 #include <video/vga.h>
 
-#define KFS_VGA_WIDTH 80
-#define KFS_VGA_HEIGHT 25
-#define KFS_VIRTUAL_CONSOLE_COUNT 4
+#define KFS_VGA_WIDTH 80			/* 1コンソールあたりの幅 */
+#define KFS_VGA_HEIGHT 25			/* 1コンソールあたりの高さ(行数) */
+#define KFS_VIRTUAL_CONSOLE_COUNT 4 /* 仮想コンソールの数 */
 
 uint8_t kfs_vga_make_color(enum vga_color fg, enum vga_color bg);
 uint16_t kfs_vga_make_entry(char c, uint8_t color);
@@ -21,8 +17,8 @@ void terminal_initialize(void);
 
 /* 端末出力 API */
 void terminal_putchar(char c);
-void terminal_putchar_overwrite(char c); /* 上書きモード（バックスペース用） */
-void terminal_delete_char(void);		 /* カーソル位置の文字を削除（挿入モード対応） */
+void terminal_putchar_overwrite(char c);
+void terminal_delete_char(void);
 void terminal_write(const char *data, size_t size);
 void terminal_writestring(const char *s);
 
