@@ -34,5 +34,3 @@ void start_kernel(void)
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK));
 	shell_run();
 }
-
-/* テスト用ラッパは drivers 実装側に残存 */

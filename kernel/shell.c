@@ -5,8 +5,8 @@
 #include <kfs/stdint.h>
 #include <kfs/string.h>
 
-#define SHELL_PROMPT "kfs> " /* シェルプロンプト文字列 */
-#define CMD_BUFFER_SIZE 256	 /* コマンドバッファのサイズ */
+#define SHELL_PROMPT "kfs $ " /* シェルプロンプト文字列 */
+#define CMD_BUFFER_SIZE 256	  /* コマンドバッファのサイズ */
 #define PS2_STATUS_PORT 0x64 /* PS/2 コントローラのペリフェラルから受け取るステータスレジスタのポート番号 */
 #define PS2_RESET_COMMAND 0xFE /* PS/2 コントローラのリセットコマンド */
 
@@ -212,8 +212,6 @@ void shell_init(void)
 	/* キーボードハンドラを登録（依存性の注入） */
 	kfs_keyboard_set_handler(shell_keyboard_handler);
 
-	printk("\nKFS Minimal Shell\n");
-	printk("Type 'help' for available commands.\n\n");
 	show_prompt();
 }
 
