@@ -207,8 +207,6 @@ void shell_init(void)
 		return;
 
 	clear_command_buffer();
-
-#ifndef WAITING_FOR_INPUT
 	shell_state.initialized = 1;
 
 	/* キーボードハンドラを登録（依存性の注入） */
@@ -217,21 +215,22 @@ void shell_init(void)
 	printk("\nKFS Minimal Shell\n");
 	printk("Type 'help' for available commands.\n\n");
 	show_prompt();
-#else
-	/* In unit tests we avoid printing interactive prompts and keep shell uninitialized
-	 * so keyboard driver can retain legacy behavior (tests expect that).
-	 */
-#endif
 }
 
 /** シェルのメインループ
  * キーボード入力を受け付けてコマンドを処理する
+ * テスト環境ではオーバーライドされる
  */
-void shell_run(void)
+__attribute__((weak)) void shell_run(void)
 {
 	shell_init();
-	/* キーボード入力は keyboard ドライバが shell_keyboard_handler を呼ぶ形で処理 */
-	/* このため、ここでは特に何もしない */
+
+	/* キーボード入力の無限ポーリングループ
+	 * 割り込みが実装されるまではhltを使わずポーリングで処理 */
+	for (;;)
+	{
+		kfs_keyboard_poll();
+	}
 }
 
 /* 単体テストやドライバがシェルの初期化状態を問い合わせるためのヘルパ */

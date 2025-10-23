@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 void shell_init(void);
-void shell_run(void);
+void shell_run(void) __attribute__((weak));
 int shell_is_initialized(void);
 
 #endif /* KFS_SHELL_H */

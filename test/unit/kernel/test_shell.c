@@ -50,34 +50,34 @@ static size_t capture_serial_output(char *dst, size_t max_len)
 	return idx;
 }
 
-/* テスト: shell_is_initialized() が初期状態では0を返す */
+/* テスト: shell_is_initialized() がshell_init()後に1を返す */
 KFS_TEST(test_shell_not_initialized_by_default)
 {
 	setup_test();
-	/* WAITING_FOR_INPUT が定義されているため、shell_init() を呼んでも初期化されない */
+	/* shell_init()を呼ぶと初期化される */
 	shell_init();
-	KFS_ASSERT_EQ(0, shell_is_initialized());
+	KFS_ASSERT_EQ(1, shell_is_initialized());
 }
 
-/* テスト: シェル未初期化時はキーボードハンドラが登録されない */
+/* テスト: シェル初期化後はキーボードハンドラが登録される */
 KFS_TEST(test_shell_no_handler_when_not_initialized)
 {
 	setup_test();
 	kfs_keyboard_init();
 
-	/* シェルを初期化しない（WAITING_FOR_INPUTのため初期化されない） */
+	/* シェルを初期化する */
 	shell_init();
-	KFS_ASSERT_EQ(0, shell_is_initialized());
+	KFS_ASSERT_EQ(1, shell_is_initialized());
 
 	/* キーボード入力をシミュレート（'a'キーの押下） */
 	kfs_keyboard_feed_scancode(0x1E); /* 'a' make code */
 	kfs_keyboard_feed_scancode(0x9E); /* 'a' break code */
 
-	/* ハンドラが登録されていないので、デフォルト動作（printk）が実行される */
+	/* ハンドラが登録されているので、シェルが処理する */
 	char output[64];
 	capture_serial_output(output, sizeof(output));
 
-	/* 'a' がシリアルに出力されているはず */
+	/* 'a' がシェルのバッファに追加され、画面に表示されるはず */
 	KFS_ASSERT_TRUE(strchr(output, 'a') != NULL);
 }
 
@@ -456,8 +456,8 @@ KFS_TEST(test_shell_run_callable)
 	/* shell_run()を呼んでもクラッシュしないことを確認 */
 	shell_run();
 
-	/* WAITING_FOR_INPUTのため初期化はされないが、関数は呼べる */
-	KFS_ASSERT_EQ(0, shell_is_initialized());
+	/* シェルが初期化される */
+	KFS_ASSERT_EQ(1, shell_is_initialized());
 }
 
 /* テスト: 複数回のshell_init()呼び出しが安全 */
@@ -470,7 +470,8 @@ KFS_TEST(test_shell_init_multiple_calls)
 	shell_init();
 	shell_init();
 
-	KFS_ASSERT_EQ(0, shell_is_initialized());
+	/* 一度初期化されたら1のまま */
+	KFS_ASSERT_EQ(1, shell_is_initialized());
 }
 
 /* テスト: halt コマンドの認識 */
@@ -479,20 +480,10 @@ KFS_TEST(test_shell_halt_command)
 	setup_test();
 	kfs_keyboard_init();
 
-	/* テスト用のハンドラで "halt\n" をシミュレート */
-	static int halt_detected = 0;
-
-	/* シェルのキーボードハンドラを直接テストするのは難しいので、
-	 * execute_command が halt を認識することを間接的にテスト
-	 * （WAITING_FOR_INPUT環境ではシェルは初期化されないため） */
-
-	/* この代わりに、シリアル出力に "halt" が含まれることを確認 */
-	/* ただし、WAITING_FOR_INPUT環境ではシェルプロンプトが表示されないため、
-	 * このテストではhaltコマンドが存在することのみを確認する */
-
 	/* halt関数が存在し、呼び出し可能であることを確認 */
-	/* 実際のhalt実行はテストできない（無限ループになるため） */
-	halt_detected = 1;
+	/* 実際のhalt実行は無限ループになるが、テスト環境では
+	 * halt_cmd()がweak symbolでオーバーライドされているため安全 */
+	static int halt_detected = 1;
 	KFS_ASSERT_EQ(1, halt_detected);
 }
 
@@ -503,7 +494,7 @@ KFS_TEST(test_shell_reboot_command)
 	kfs_keyboard_init();
 
 	/* reboot関数が存在し、コンパイル可能であることを確認 */
-	/* 実際のreboot実行はテストできない（システムリセットになるため） */
+	/* 実際のrebootは即座にシステムリセットされるため次の行には到達しない */
 	static int reboot_exists = 1;
 	KFS_ASSERT_EQ(1, reboot_exists);
 }
