@@ -91,7 +91,7 @@ static void execute_command(const char *cmd)
  * @param c 入力された文字（通常文字、'\n', '\b', 制御文字など）
  * @return 処理した場合は1、処理しなかった場合は0
  */
-static int shell_keyboard_handler(char c)
+int shell_keyboard_handler(char c)
 {
 	/* シェルが初期化されていない場合は処理しない（デフォルト動作に任せる） */
 	if (!shell_state.initialized)
