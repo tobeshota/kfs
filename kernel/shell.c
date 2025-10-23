@@ -7,6 +7,8 @@
 
 #define SHELL_PROMPT "kfs> " /* シェルプロンプト文字列 */
 #define CMD_BUFFER_SIZE 256	 /* コマンドバッファのサイズ */
+#define PS2_STATUS_PORT 0x64 /* PS/2 コントローラのペリフェラルから受け取るステータスレジスタのポート番号 */
+#define PS2_RESET_COMMAND 0xFE /* PS/2 コントローラのリセットコマンド */
 
 /* シェルの状態を保持する構造体 */
 static struct
@@ -44,6 +46,23 @@ static void cmd_halt(void)
 		asm volatile("hlt"); /* CPUを停止状態にする */
 	}
 }
+
+/* システムを再起動する（reboot組み込みコマンド） */
+static void cmd_reboot(void)
+{
+	printk("Rebooting...\n");
+	/* キーボードコントローラを使ってシステムをリセット
+	 * 0x64ポート(PS/2ステータス)に0xFE(リセット)を送信すると、
+	 * ほとんどの環境で即座にCPUリセットが発生し、次の行には到達しない */
+	asm volatile("outb %b0, %w1" : : "a"((uint8_t)PS2_RESET_COMMAND), "Nd"((uint16_t)PS2_STATUS_PORT));
+
+	/* ここには通常到達しない（リセットが即座に実行されるため）
+	 * 古いハードウェアやリセット未対応の環境での安全策として待機 */
+	for (;;)
+	{
+		asm volatile("hlt");
+	}
+} /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
 static void execute_command(const char *cmd)
 {
 	/* 空コマンドは無視 */
@@ -57,7 +76,12 @@ static void execute_command(const char *cmd)
 		return; /* この行には到達しないが、明示的に記載 */
 	}
 
-
+	/* reboot コマンド */
+	if (strcmp(cmd, "reboot") == 0)
+	{
+		cmd_reboot();
+		return; /* この行には到達しないが、明示的に記載 */
+	}
 
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
 	printk("Unknown command: %s\n", cmd);

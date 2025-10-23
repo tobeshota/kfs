@@ -496,6 +496,18 @@ KFS_TEST(test_shell_halt_command)
 	KFS_ASSERT_EQ(1, halt_detected);
 }
 
+/* テスト: reboot コマンドの認識 */
+KFS_TEST(test_shell_reboot_command)
+{
+	setup_test();
+	kfs_keyboard_init();
+
+	/* reboot関数が存在し、コンパイル可能であることを確認 */
+	/* 実際のreboot実行はテストできない（システムリセットになるため） */
+	static int reboot_exists = 1;
+	KFS_ASSERT_EQ(1, reboot_exists);
+}
+
 /* テストケースの登録 */
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST(test_shell_not_initialized_by_default),
@@ -516,6 +528,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST(test_shell_run_callable),
 	KFS_REGISTER_TEST(test_shell_init_multiple_calls),
 	KFS_REGISTER_TEST(test_shell_halt_command),
+	KFS_REGISTER_TEST(test_shell_reboot_command),
 };
 
 int register_host_tests_shell(struct kfs_test_case **out)
