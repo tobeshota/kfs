@@ -2,6 +2,7 @@
 #include <kfs/keyboard.h>
 #include <kfs/printk.h>
 #include <kfs/shell.h>
+#include <kfs/stdint.h>
 #include <kfs/string.h>
 
 #define SHELL_PROMPT "kfs> " /* シェルプロンプト文字列 */
@@ -32,12 +33,31 @@ static void clear_command_buffer(void)
 	shell_state.cmd_buffer[0] = '\0';
 }
 
-/* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
+/* システムを停止する（halt組み込みコマンド） */
+static void cmd_halt(void)
+{
+	printk("System halted.\n");
+	/* 割り込みを無効化してからCPUを完全に停止 */
+	asm volatile("cli"); /* Clear Interrupt Flag - 割り込み無効化 */
+	for (;;)
+	{
+		asm volatile("hlt"); /* CPUを停止状態にする */
+	}
+}
 static void execute_command(const char *cmd)
 {
 	/* 空コマンドは無視 */
 	if (cmd[0] == '\0')
 		return;
+
+	/* halt コマンド */
+	if (strcmp(cmd, "halt") == 0)
+	{
+		cmd_halt();
+		return; /* この行には到達しないが、明示的に記載 */
+	}
+
+
 
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
 	printk("Unknown command: %s\n", cmd);
