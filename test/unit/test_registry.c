@@ -5,6 +5,7 @@ int register_host_tests_init_main(struct kfs_test_case **out);
 int register_host_tests_terminal_edge(struct kfs_test_case **out);
 int register_host_tests_terminal_io(struct kfs_test_case **out);
 int register_host_tests_terminal_console(struct kfs_test_case **out);
+int register_host_tests_terminal_scroll(struct kfs_test_case **out);
 int register_host_tests_serial(struct kfs_test_case **out);
 int register_host_tests_start_kernel(struct kfs_test_case **out);
 int register_host_tests_printk(struct kfs_test_case **out);
@@ -30,6 +31,8 @@ int register_host_tests(struct kfs_test_case **out)
 		int count_term_io = register_host_tests_terminal_io(&cases_term_io);
 		struct kfs_test_case *cases_term_console = 0;
 		int count_term_console = register_host_tests_terminal_console(&cases_term_console);
+		struct kfs_test_case *cases_term_scroll = 0;
+		int count_term_scroll = register_host_tests_terminal_scroll(&cases_term_scroll);
 		struct kfs_test_case *cases_serial = 0;
 		int count_serial = register_host_tests_serial(&cases_serial);
 		struct kfs_test_case *cases_kernel = 0;
@@ -51,6 +54,8 @@ int register_host_tests(struct kfs_test_case **out)
 			merged[idx++] = cases_term_io[i];
 		for (int i = 0; i < count_term_console && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_term_console[i];
+		for (int i = 0; i < count_term_scroll && idx < KFS_MAX_TESTS; i++)
+			merged[idx++] = cases_term_scroll[i];
 		for (int i = 0; i < count_serial && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_serial[i];
 		for (int i = 0; i < count_kernel && idx < KFS_MAX_TESTS; i++)
