@@ -12,7 +12,8 @@ LCOV			= lcov --rc lcov_branch_coverage=1
 GENHTML			= genhtml --rc lcov_branch_coverage=1
 # 単体テスト対象ソース: テストコード + テストしたいカーネルコード最小限
 TEST_SRCS		= $(shell find ../test/unit -name '*.c')
-KERNEL_SRCS		= $(shell find ../ -path ../test -prune -o -name '*.c' -print)
+# arch/を単体テスト対象ソースから除外した理由：arch/はアーキテクチャ固有の処理であり，単体テストの実行環境(ホスト環境)では必ずしも実行できないため．
+KERNEL_SRCS		= $(shell find ../ -path ../test -prune -o -path ../arch -prune -o -name '*.c' -print)
 UNIT_SRCS		= $(TEST_SRCS) $(KERNEL_SRCS)
 
 # Build & coverage directories
