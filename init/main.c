@@ -21,11 +21,6 @@ void start_kernel(void)
 	asm volatile("mov %%ss, %0" : "=r"(ss)); /* 現在のSSレジスタ %%ss を C変数 ss に書き込む */
 	printk("GDT loaded: CS=%x DS=%x SS=%x\n", cs, ds, ss);
 
-	/* 早期スタックダンプはコメントアウト（フォーマット問題のため一時的に無効化） */
-	// printk("Early stack dump after kernel init banner:\n");
-	// extern void dump_stack(void);
-	// dump_stack();
-
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
 	printk("Alt+F1..F4 switch consoles; keyboard echo ready.\n");
 

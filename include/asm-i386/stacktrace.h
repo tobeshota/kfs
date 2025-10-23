@@ -7,6 +7,6 @@
 #include <stddef.h>
 
 void show_stack(unsigned long *esp);
-void dump_stack(void);
+void dump_stack(void) __attribute__((weak));
 
 #endif /* _ASM_I386_STACKTRACE_H */

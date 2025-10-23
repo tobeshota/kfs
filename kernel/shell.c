@@ -83,6 +83,14 @@ static void execute_command(const char *cmd)
 		return; /* この行には到達しないが、明示的に記載 */
 	}
 
+	/* カーネルスタックダンプ */
+	if (strcmp(cmd, "dkstack") == 0)
+	{
+		extern void dump_stack(void);
+		dump_stack();
+		return;
+	}
+
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
 	printk("Unknown command: %s\n", cmd);
 }
