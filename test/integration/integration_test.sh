@@ -24,6 +24,7 @@ fi
 
 run_kernel_capture() {
 	local log_file="$1" tmp_log="$log_file.tmp"
+	local input_file="${2:-}" # オプション: 入力ファイル
 	local qemu_bin="qemu-system-${ISA}"
 
 	# 1. 事前に kernel があるか確認
@@ -33,8 +34,15 @@ run_kernel_capture() {
 
 	# 2. ホストで直接 QEMU が動く場合
 	if command -v "$qemu_bin" >/dev/null 2>&1; then
-		local qemu_args="-kernel $REPO_ROOT/kfs.bin -serial file:$tmp_log -display none -no-reboot -no-shutdown"
-		"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" $qemu_bin $qemu_args >/dev/null 2>&1 || true
+		if [[ -n "$input_file" && -f "$input_file" ]]; then
+			# 入力ファイルがある場合は、1つ目のシリアルポートを出力用、stdioを入力用に使用
+			local qemu_args="-kernel $REPO_ROOT/kfs.bin -serial file:$tmp_log -serial stdio -display none -no-reboot -no-shutdown"
+			"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" $qemu_bin $qemu_args <"$input_file" >/dev/null 2>&1 || true
+		else
+			# 入力ファイルがない場合は -serial file を使用
+			local qemu_args="-kernel $REPO_ROOT/kfs.bin -serial file:$tmp_log -display none -no-reboot -no-shutdown"
+			"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" $qemu_bin $qemu_args >/dev/null 2>&1 || true
+		fi
 	else
 		# 3. Docker 経由: /work に REPO_ROOT をマウントしているため、
 		#    ホスト絶対パス -> /work への変換が必要。
@@ -45,13 +53,27 @@ run_kernel_capture() {
 			# 例: /home/runner/work/kfs/kfs/test/integration/_artifacts/foo.log.tmp
 			#  -> /work/test/integration/_artifacts/foo.log.tmp
 			local container_tmp_log="${tmp_log/#$REPO_ROOT/$container_root}"
-			local qemu_args="-kernel $container_root/kfs.bin -serial file:$container_tmp_log -display none -no-reboot -no-shutdown"
-			"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" \
+
+			if [[ -n "$input_file" && -f "$input_file" ]]; then
+				# 入力ファイルがある場合は、1つ目のシリアルポートを出力用、stdioを入力用に使用
+				local container_input="${input_file/#$REPO_ROOT/$container_root}"
+				local qemu_args="-kernel $container_root/kfs.bin -serial file:$container_tmp_log -serial stdio -display none -no-reboot -no-shutdown"
 				"$docker_bin" run --rm -v "$REPO_ROOT":$container_root -w $container_root "$image" \
-				qemu-system-"$ISA" $qemu_args >/dev/null 2>&1 || true
+					bash -c "timeout ${TIMEOUT_SECS}s qemu-system-$ISA $qemu_args <$container_input" >/dev/null 2>&1 || true
+			else
+				# 入力ファイルがない場合は -serial file を使用
+				local qemu_args="-kernel $container_root/kfs.bin -serial file:$container_tmp_log -display none -no-reboot -no-shutdown"
+				"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" \
+					"$docker_bin" run --rm -v "$REPO_ROOT":$container_root -w $container_root "$image" \
+					qemu-system-"$ISA" $qemu_args >/dev/null 2>&1 || true
+			fi
 		else
 			# 4. それでも QEMU を直接起動できない場合は既存の make run-kernel にフォールバック
-			"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" make -s -C "$REPO_ROOT" run-kernel >/dev/null 2>&1 || true
+			if [[ -n "$input_file" && -f "$input_file" ]]; then
+				"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" make -s -C "$REPO_ROOT" run-kernel <"$input_file" >/dev/null 2>&1 || true
+			else
+				"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" make -s -C "$REPO_ROOT" run-kernel >/dev/null 2>&1 || true
+			fi
 		fi
 	fi
 
@@ -78,7 +100,17 @@ for t in "${tests[@]}"; do
 	name="$(basename "$t")"
 	echo "[integration] >>> $name"
 	log_file="$ARTIFACTS_DIR/${name%.sh}.log"
-	run_kernel_capture "$log_file"
+
+	# テストスクリプトが入力ファイルを指定できるようにする
+	# test_xxx.sh の横に test_xxx.input があればそれを使用
+	input_file="${t%.sh}.input"
+	if [[ -f "$input_file" ]]; then
+		echo "[integration]     Using input file: $input_file"
+		run_kernel_capture "$log_file" "$input_file"
+	else
+		run_kernel_capture "$log_file"
+	fi
+
 	if LOG_FILE="$log_file" bash -eu "$t"; then
 		echo "[integration] PASS: $name"
 		passed=$((passed + 1))
