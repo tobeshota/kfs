@@ -55,7 +55,7 @@ void show_stack(unsigned long *esp)
 }
 
 /* 現在のスタックをダンプする */
-void dump_stack(void)
+__attribute__((weak)) void dump_stack(void)
 {
 	show_stack(NULL);
 }

@@ -1,7 +1,6 @@
 #include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
 #include <kfs/console.h>
-#include <kfs/printk.h>
 
 #include <stdint.h>
 
@@ -19,8 +18,10 @@ static inline uint16_t cell(char c, uint8_t color)
 KFS_TEST(test_start_kernel_does_not_crash)
 {
 	kfs_terminal_set_buffer(term_stub);
-	/* start_kernel()を呼び出してクラッシュしないことを確認 */
+
+	/* shell_run()がすぐに戻るため、start_kernel()も正常に終了する */
 	start_kernel();
+
 	/* クラッシュせずにここに到達すればテスト成功 */
 	KFS_ASSERT_TRUE(1);
 }

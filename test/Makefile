@@ -4,7 +4,7 @@ export
 ISA				?= i386
 CC				?= gcc
 # -freestanding: 自分たちが定義した標準ライブラリを使用したいため(memcpyとか)
-CFLAGS			= -I../include -I./unit -Wall -Wextra -O0 -g -m32 --coverage -DWAITING_FOR_INPUT -ffreestanding
+CFLAGS			= -I../include -I./unit -Wall -Wextra -O0 -g -m32 --coverage -ffreestanding
 DEPFLAGS		= -MMD -MP -MF $(@:.o=.d)
 DOCKER_RUN		= docker run --platform linux/386 -v $(realpath ../):/work -w /work/test unit_test_image
 DOCKER_SH		= $(DOCKER_RUN) bash -euxo pipefail -c
