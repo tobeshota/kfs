@@ -1,6 +1,7 @@
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
 #include <kfs/printk.h>
+#include <kfs/serial.h>
 #include <kfs/shell.h>
 #include <kfs/stdint.h>
 #include <kfs/string.h>
@@ -239,11 +240,20 @@ __attribute__((weak)) void shell_run(void)
 {
 	shell_init();
 
-	/* キーボード入力の無限ポーリングループ
+	/* キーボードとシリアル入力の無限ポーリングループ
 	 * 割り込みが実装されるまではhltを使わずポーリングで処理 */
 	for (;;)
 	{
+		/* キーボード入力をポーリング */
 		kfs_keyboard_poll();
+
+		/* シリアルポート入力をポーリング */
+		int c = serial_read();
+		if (c != -1)
+		{
+			/* シリアルからの入力を処理（キーボードハンドラを再利用） */
+			shell_keyboard_handler((char)c);
+		}
 	}
 }
 
