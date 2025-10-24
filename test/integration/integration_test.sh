@@ -59,8 +59,8 @@ run_kernel_capture() {
 				local container_input="${input_file/#$REPO_ROOT/$container_root}"
 				local qemu_args="-kernel $container_root/kfs.bin -serial file:$container_tmp_log -serial stdio -display none -no-reboot -no-shutdown"
 				"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" \
-					"$docker_bin" run --rm -i -v "$REPO_ROOT":$container_root -w $container_root "$image" \
-					bash -c "cat $container_input | qemu-system-$ISA $qemu_args" >/dev/null 2>&1 || true
+					"$docker_bin" run --rm -v "$REPO_ROOT":$container_root -w $container_root "$image" \
+					bash -c "qemu-system-$ISA $qemu_args <$container_input" >/dev/null 2>&1 || true
 			else
 				# 入力ファイルがない場合は -serial file を使用
 				local qemu_args="-kernel $container_root/kfs.bin -serial file:$container_tmp_log -display none -no-reboot -no-shutdown"
