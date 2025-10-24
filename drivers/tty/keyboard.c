@@ -17,6 +17,9 @@ static int caps_lock;
 static int extended_prefix; /* 拡張コードプレフィックス。これと、この次に押下された値によって、意味が決まる */
 static int keyboard_initialized;
 
+/* カスタムキーボードハンドラ（シェルなどが登録する） */
+static keyboard_handler_t custom_handler = NULL;
+
 extern uint8_t kfs_io_inb(uint16_t port);
 
 static const char scancode_map_normal[128] = {
@@ -64,6 +67,7 @@ static char translate_scancode(uint8_t code)
 	return base;
 }
 
+/* バックスペース処理：カーソルを左に移動して文字を削除 */
 static void handle_backspace(void)
 {
 	size_t row = 0;
@@ -78,8 +82,7 @@ static void handle_backspace(void)
 	else if (row > 0)
 	{
 		/* 前の行の末尾に移動してから削除 */
-		size_t new_col = KFS_VGA_WIDTH - 1;
-		kfs_terminal_move_cursor(row - 1, new_col);
+		kfs_terminal_move_cursor(row - 1, KFS_VGA_WIDTH - 1);
 		terminal_delete_char(); /* 挿入モード対応: 文字を削除して左シフト */
 	}
 }
@@ -93,6 +96,7 @@ void kfs_keyboard_reset(void)
 	caps_lock = 0;
 	extended_prefix = 0;
 	keyboard_initialized = 0;
+	custom_handler = NULL; /* ハンドラもリセット */
 }
 
 /* PS/2 キーボード制御の初期化ルーチン */
@@ -155,13 +159,36 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		return;
 	case 0x0E:
 		if (!release)
-			handle_backspace();
+		{
+			/* バックスペース: ハンドラがあれば渡す。
+			 * ハンドラが0を返したら従来の端末処理を行う。
+			 */
+			if (custom_handler && custom_handler('\b'))
+			{
+				/* ハンドラが処理した */
+			}
+			else
+			{
+				/* ハンドラがないか、ハンドラが0を返した */
+				handle_backspace();
+			}
+		}
 		extended_prefix = 0;
 		return;
 	/* Enter */
 	case 0x1C:
 		if (!release)
-			terminal_putchar('\n');
+		{
+			if (custom_handler && custom_handler('\n'))
+			{
+				/* ハンドラが処理した */
+			}
+			else
+			{
+				/* 従来のEnter: 改行してカーソルを次行先頭へ */
+				printk("\n");
+			}
+		}
 		extended_prefix = 0;
 		return;
 	/* F1 - F4 */
@@ -202,12 +229,30 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		}
 		else if (code == 0x4B) /* 左矢印 */
 		{
-			kfs_terminal_cursor_left();
+			/* ハンドラがあれば特殊コード（例: '\x1B'=ESC + 'D'）として渡す
+			 * ここでは簡易的に制御文字 0x1C（左）を使う
+			 */
+			if (custom_handler && custom_handler('\x1C'))
+			{
+				/* ハンドラが処理した */
+			}
+			else
+			{
+				kfs_terminal_cursor_left(); /* 従来のカーソル移動 */
+			}
 			return;
 		}
 		else if (code == 0x4D) /* 右矢印 */
 		{
-			kfs_terminal_cursor_right();
+			/* 同様に制御文字 0x1D（右）を使う */
+			if (custom_handler && custom_handler('\x1D'))
+			{
+				/* ハンドラが処理した */
+			}
+			else
+			{
+				kfs_terminal_cursor_right();
+			}
 			return;
 		}
 		/* その他の拡張コードは無視 */
@@ -215,10 +260,28 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 	}
 	extended_prefix = 0;
 
-	/* スキャンコードから対応するascii codeを取得しVGAに書き込む */
+	/* スキャンコードから対応するascii codeを取得
+	 * - ハンドラがあればハンドラに渡す
+	 * - ハンドラがないか、ハンドラが0を返したら従来通り端末へ直接出力する
+	 */
 	char ch = translate_scancode(code);
 	if (ch)
-		terminal_putchar(ch);
+	{
+		if (custom_handler && custom_handler(ch))
+		{
+			/* ハンドラが処理した */
+		}
+		else
+		{
+			printk("%c", ch);
+		}
+	}
+}
+
+/* カスタムキーボードハンドラを設定する */
+void kfs_keyboard_set_handler(keyboard_handler_t handler)
+{
+	custom_handler = handler;
 }
 
 /* キーボードのポーリング処理 (割り込み未使用時に定期的に呼び出す) */

@@ -11,6 +11,7 @@ int register_host_tests_start_kernel(struct kfs_test_case **out);
 int register_host_tests_printk(struct kfs_test_case **out);
 int register_host_tests_keyboard(struct kfs_test_case **out);
 int register_host_tests_string(struct kfs_test_case **out);
+int register_host_tests_shell(struct kfs_test_case **out);
 
 #define KFS_MAX_TESTS 256
 
@@ -43,6 +44,8 @@ int register_host_tests(struct kfs_test_case **out)
 		int count_keyboard = register_host_tests_keyboard(&cases_keyboard);
 		struct kfs_test_case *cases_string = 0;
 		int count_string = register_host_tests_string(&cases_string);
+		struct kfs_test_case *cases_shell = 0;
+		int count_shell = register_host_tests_shell(&cases_shell);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
@@ -66,6 +69,8 @@ int register_host_tests(struct kfs_test_case **out)
 			merged[idx++] = cases_keyboard[i];
 		for (int i = 0; i < count_string && idx < KFS_MAX_TESTS; i++)
 			merged[idx++] = cases_string[i];
+		for (int i = 0; i < count_shell && idx < KFS_MAX_TESTS; i++)
+			merged[idx++] = cases_shell[i];
 		all_cases = merged;
 		all_count = idx;
 	}

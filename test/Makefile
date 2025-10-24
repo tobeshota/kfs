@@ -4,7 +4,7 @@ export
 ISA				?= i386
 CC				?= gcc
 # -freestanding: 自分たちが定義した標準ライブラリを使用したいため(memcpyとか)
-CFLAGS			= -I../include -I./unit -Wall -Wextra -O0 -g -m32 --coverage -DWAITING_FOR_INPUT -ffreestanding
+CFLAGS			= -I../include -I./unit -Wall -Wextra -O0 -g -m32 --coverage -ffreestanding
 DEPFLAGS		= -MMD -MP -MF $(@:.o=.d)
 DOCKER_RUN		= docker run --platform linux/386 -v $(realpath ../):/work -w /work/test unit_test_image
 DOCKER_SH		= $(DOCKER_RUN) bash -euxo pipefail -c
@@ -12,7 +12,8 @@ LCOV			= lcov --rc lcov_branch_coverage=1
 GENHTML			= genhtml --rc lcov_branch_coverage=1
 # 単体テスト対象ソース: テストコード + テストしたいカーネルコード最小限
 TEST_SRCS		= $(shell find ../test/unit -name '*.c')
-KERNEL_SRCS		= $(shell find ../ -path ../test -prune -o -name '*.c' -print)
+# arch/を単体テスト対象ソースから除外した理由：arch/はアーキテクチャ固有の処理であり，単体テストの実行環境(ホスト環境)では必ずしも実行できないため．
+KERNEL_SRCS		= $(shell find ../ -path ../test -prune -o -path ../arch -prune -o -name '*.c' -print)
 UNIT_SRCS		= $(TEST_SRCS) $(KERNEL_SRCS)
 
 # Build & coverage directories

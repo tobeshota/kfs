@@ -15,16 +15,22 @@
 /* 16KiBのスタック領域を確保 */
 .section .bss
 .align 16 /* x86 の System V ABI ではスタックが 16バイト境界に揃っていることが前提になっているから */
+.globl stack_bottom /* スタック領域の下端（低位アドレス） */
 stack_bottom:
 .skip 16384 /* スタック領域が枯渇しないためのある程度の大きさの16KiB分の領域を確保 */
+.globl stack_top /* スタック領域の上端（高位アドレス） */
 stack_top:
 
 .section .text /* コードセクションの開始 */
 .global _start /* リンカに_startシンボルをエクスポートするよう指示 */
 .type _start, @function /* _startシンボルが関数であることをリンカに伝える */
+.extern gdt_init
 _start:
     /* スタックを設定 */
     mov $stack_top, %esp
+
+    /* 物理アドレス0x00000800にGDTをビルドしてロードする */
+    call gdt_init
 
     /* 高レベルカーネルに入る */
     call start_kernel
