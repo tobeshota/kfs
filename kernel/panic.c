@@ -32,6 +32,7 @@ void panic(const char *fmt, ...)
 
 	/* スタックトレースを表示（デバッグ用） */
 	printk(KERN_EMERG "---[ stack trace ]---\n");
+	extern void dump_stack(void);
 	dump_stack();
 
 	/* カーネル停止（無限ループ） */
