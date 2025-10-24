@@ -91,6 +91,14 @@ static void execute_command(const char *cmd)
 		return;
 	}
 
+	/* カーネルパニックテスト（KFS-3 Phase 2） */
+	if (strcmp(cmd, "panic") == 0)
+	{
+		extern void panic(const char *fmt, ...);
+		panic("Test panic from shell command");
+		return; /* この行には到達しない */
+	}
+
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
 	printk("Unknown command: %s\n", cmd);
 }
