@@ -46,26 +46,26 @@ extern int kfs_test_failures;
 #fn, fn                                                                                                        \
 	}
 
-static sigjmp_buf __kfs_segv_env;
+static sigjmp_buf __KFS_EXPECT_SEGV_env;
 
-static void __kfs_segv_handler(int sig)
+static void __KFS_EXPECT_SEGV_handler(int sig)
 {
 	if (sig == SIGSEGV)
 	{
-		siglongjmp(__kfs_segv_env, 1);
+		siglongjmp(__KFS_EXPECT_SEGV_env, 1);
 	}
 }
 
-#define KFS_SEGV(fn, ...)                                                                                              \
+#define KFS_EXPECT_SEGV(fn, ...)                                                                                              \
 	do                                                                                                                 \
 	{                                                                                                                  \
 		struct sigaction sa, old_sa;                                                                                   \
-		sa.sa_handler = __kfs_segv_handler;                                                                            \
+		sa.sa_handler = __KFS_EXPECT_SEGV_handler;                                                                            \
 		sigemptyset(&sa.sa_mask);                                                                                      \
 		sa.sa_flags = 0;                                                                                               \
 		sigaction(SIGSEGV, &sa, &old_sa);                                                                              \
                                                                                                                        \
-		if (sigsetjmp(__kfs_segv_env, 1) == 0)                                                                         \
+		if (sigsetjmp(__KFS_EXPECT_SEGV_env, 1) == 0)                                                                         \
 		{                                                                                                              \
 			/* 関数実行（SIGSEGV発生を期待） */                                                             \
 			fn(__VA_ARGS__);                                                                                           \
@@ -85,7 +85,7 @@ static void __kfs_segv_handler(int sig)
 
 static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count)
 {
-	(void)__kfs_segv_handler; // to eliminate unused function warnings
+	(void)__KFS_EXPECT_SEGV_handler; // to eliminate unused function warnings
 	int executed = 0;
 	for (int i = 0; i < count; ++i)
 	{

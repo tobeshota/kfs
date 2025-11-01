@@ -15,7 +15,7 @@ extern void mem_init(void);
 
 KFS_TEST(test_page_alloc_init)
 {
-	KFS_SEGV(page_alloc_init, 0);
+	KFS_EXPECT_SEGV(page_alloc_init, 0);
 }
 
 KFS_TEST(test___alloc_pages)
