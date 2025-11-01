@@ -3,8 +3,11 @@ export
 
 ISA				?= i386
 CC				?= gcc
+SYSTEM_INCS		= $(shell echo "" | gcc -xc -E -v - 2>&1 | sed -n '/\#include <...> search starts here:/,/End of search list/ p' | grep '^ /' | sed 's/ /-isystem /' | tr '\n' ' ')
+# ユーザヘッダをシステムヘッダより優先させるようにすることで，システムヘッダ・ユーザヘッダ間の重複定義を防ぐ
+INCLUDE_DIRS	= -I../include -I./unit "$(SYSTEM_INCS)"
 # -freestanding: 自分たちが定義した標準ライブラリを使用したいため(memcpyとか)
-CFLAGS			= -I../include -I./unit -Wall -Wextra -O0 -g -m32 --coverage -ffreestanding
+CFLAGS			= $(INCLUDE_DIRS) -Wall -Wextra -O0 -g -m32 --coverage -ffreestanding
 DEPFLAGS		= -MMD -MP -MF $(@:.o=.d)
 DOCKER_RUN		= docker run --platform linux/386 -v $(realpath ../):/work -w /work/test unit_test_image
 DOCKER_SH		= $(DOCKER_RUN) bash -euxo pipefail -c
