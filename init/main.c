@@ -1,8 +1,16 @@
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
+#include <kfs/mm.h>
+#include <kfs/multiboot.h>
 #include <kfs/printk.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
+
+/* Multiboot情報構造体へのポインタ（boot.Sで設定） */
+extern struct multiboot_info *multiboot_info_ptr;
+
+/* ページアロケータの初期化（mm/page_alloc.c） */
+extern void page_alloc_init(struct multiboot_info *mbi);
 
 void start_kernel(void)
 {
@@ -20,6 +28,18 @@ void start_kernel(void)
 	asm volatile("mov %%ds, %0" : "=r"(ds)); /* 現在のDSレジスタ %%ds を C変数 ds に書き込む */
 	asm volatile("mov %%ss, %0" : "=r"(ss)); /* 現在のSSレジスタ %%ss を C変数 ss に書き込む */
 	printk("GDT loaded: CS=%x DS=%x SS=%x\n", cs, ds, ss);
+
+	/* メモリ管理システムの初期化 */
+	if (multiboot_info_ptr != NULL)
+	{
+		printk("Initializing memory management...\n");
+		page_alloc_init(multiboot_info_ptr);
+		mem_init();
+	}
+	else
+	{
+		printk("Multiboot info not available\n");
+	}
 
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
 	printk("Alt+F1..F4 switch consoles; keyboard echo ready.\n");
