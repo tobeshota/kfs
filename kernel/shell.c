@@ -100,6 +100,14 @@ static void execute_command(const char *cmd)
 		return; /* この行には到達しない */
 	}
 
+	/* メモリ情報表示 */
+	if (strcmp(cmd, "meminfo") == 0)
+	{
+		extern void show_mem_info(void);
+		show_mem_info();
+		return;
+	}
+
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
 	printk("Unknown command: %s\n", cmd);
 }
