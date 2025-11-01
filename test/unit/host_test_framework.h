@@ -71,7 +71,7 @@ static void __kfs_segv_handler(int sig)
 			fn(__VA_ARGS__);                                                                                           \
 			__builtin_printf("[FAIL] %s:%d expected SIGSEGV, but none occurred\n", __FILE__, __LINE__);                \
 			kfs_test_failures++;                                                                                       \
-			sigaction(SIGSEGV, &old_sa, 0);                                                                         \
+			sigaction(SIGSEGV, &old_sa, 0);                                                                            \
 			return;                                                                                                    \
 		}                                                                                                              \
 		else                                                                                                           \
@@ -80,7 +80,7 @@ static void __kfs_segv_handler(int sig)
 			__builtin_printf("[OK  ] %s caused SIGSEGV as expected\n", #fn);                                           \
 		}                                                                                                              \
                                                                                                                        \
-		sigaction(SIGSEGV, &old_sa, 0);                                                                             \
+		sigaction(SIGSEGV, &old_sa, 0);                                                                                \
 	} while (0)
 
 static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count)
