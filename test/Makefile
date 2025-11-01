@@ -4,7 +4,7 @@ export
 ISA				?= i386
 CC				?= gcc
 SYSTEM_INCS		= $(shell echo "" | gcc -xc -E -v - 2>&1 | sed -n '/\#include <...> search starts here:/,/End of search list/ p' | grep '^ /' | sed 's/ /-isystem /' | tr '\n' ' ')
-# ユーザヘッダをシステムヘッダより優先させるようにすることで，システムヘッダ・ユーザヘッダ間の重複定義を防ぐ
+# ユーザヘッダをシステムヘッダより優先させるようにすることで，ユーザヘッダ・システムヘッダ間の重複定義を防ぐ
 INCLUDE_DIRS	= -I../include -I./unit "$(SYSTEM_INCS)"
 # -freestanding: 自分たちが定義した標準ライブラリを使用したいため(memcpyとか)
 CFLAGS			= $(INCLUDE_DIRS) -Wall -Wextra -O0 -g -m32 --coverage -ffreestanding
