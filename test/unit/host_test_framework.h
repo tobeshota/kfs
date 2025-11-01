@@ -56,16 +56,16 @@ static void __KFS_EXPECT_SEGV_handler(int sig)
 	}
 }
 
-#define KFS_EXPECT_SEGV(fn, ...)                                                                                              \
+#define KFS_EXPECT_SEGV(fn, ...)                                                                                       \
 	do                                                                                                                 \
 	{                                                                                                                  \
 		struct sigaction sa, old_sa;                                                                                   \
-		sa.sa_handler = __KFS_EXPECT_SEGV_handler;                                                                            \
+		sa.sa_handler = __KFS_EXPECT_SEGV_handler;                                                                     \
 		sigemptyset(&sa.sa_mask);                                                                                      \
 		sa.sa_flags = 0;                                                                                               \
 		sigaction(SIGSEGV, &sa, &old_sa);                                                                              \
                                                                                                                        \
-		if (sigsetjmp(__KFS_EXPECT_SEGV_env, 1) == 0)                                                                         \
+		if (sigsetjmp(__KFS_EXPECT_SEGV_env, 1) == 0)                                                                  \
 		{                                                                                                              \
 			/* 関数実行（SIGSEGV発生を期待） */                                                             \
 			fn(__VA_ARGS__);                                                                                           \
