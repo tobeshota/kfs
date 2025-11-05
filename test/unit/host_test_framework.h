@@ -1,6 +1,8 @@
 #ifndef KFS_HOST_TEST_FRAMEWORK_H
 #define KFS_HOST_TEST_FRAMEWORK_H
 
+#include <kfs/printk.h>
+
 typedef void (*kfs_test_fn)(void);
 
 struct kfs_test_case
@@ -18,7 +20,7 @@ struct kfs_test_case
 		long long _a = (long long)(actual);                                                                            \
 		if (_e != _a)                                                                                                  \
 		{                                                                                                              \
-			__builtin_printf("[FAIL] %s:%d %s == %s  expected=%lld actual=%lld\n", __FILE__, __LINE__, #expected,      \
+			printk("[FAIL] %s:%d %s == %s  expected=%lld actual=%lld\n", __FILE__, __LINE__, #expected,      \
 							 #actual, _e, _a);                                                                         \
 			kfs_test_failures++;                                                                                       \
 			return;                                                                                                    \
@@ -30,7 +32,7 @@ struct kfs_test_case
 	{                                                                                                                  \
 		if (!(expr))                                                                                                   \
 		{                                                                                                              \
-			__builtin_printf("[FAIL] %s:%d %s is false\n", __FILE__, __LINE__, #expr);                                 \
+			printk("[FAIL] %s:%d %s is false\n", __FILE__, __LINE__, #expr);                                 \
 			kfs_test_failures++;                                                                                       \
 			return;                                                                                                    \
 		}                                                                                                              \
@@ -48,11 +50,11 @@ static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count
 	int executed = 0;
 	for (int i = 0; i < count; ++i)
 	{
-		__builtin_printf("[RUN ] %s\n", cases[i].name);
+		printk("[RUN ] %s\n", cases[i].name);
 		cases[i].fn();
 		if (kfs_test_failures == 0)
 		{
-			__builtin_printf("[PASS] %s\n", cases[i].name);
+			printk("[PASS] %s\n", cases[i].name);
 		}
 		else
 		{
@@ -62,11 +64,11 @@ static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count
 	}
 	if (kfs_test_failures)
 	{
-		__builtin_printf("== SUMMARY: %d tests, %d failed ==\n", executed, kfs_test_failures);
+		printk("== SUMMARY: %d tests, %d failed ==\n", executed, kfs_test_failures);
 	}
 	else
 	{
-		__builtin_printf("== SUMMARY: %d tests, all passed ==\n", executed);
+		printk("== SUMMARY: %d tests, all passed ==\n", executed);
 	}
 	return kfs_test_failures == 0 ? 0 : 1;
 }
