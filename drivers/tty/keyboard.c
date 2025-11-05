@@ -3,8 +3,8 @@
 #include <kfs/printk.h>
 
 #include <kfs/printk.h> /* TODO: umbrella 削除後は個別ヘッダに整理 */
-#include <stddef.h>
-#include <stdint.h>
+#include <kfs/stddef.h>
+#include <kfs/stdint.h>
 
 /* @see https://wiki.osdev.org/I8042_PS/2_Controller */
 #define PS2_STATUS_PORT 0x64 /* PS/2 コントローラのペリフェラルから受け取るステータスレジスタのポート番号 */

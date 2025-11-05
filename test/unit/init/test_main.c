@@ -3,7 +3,7 @@
  * buffer injection + accessors (kfs_terminal_*). */
 #include "../support/terminal_test_support.h"
 #include <kfs/console.h>
-#include <stdint.h>
+#include <kfs/stdint.h>
 
 // 画面寸法 (main.c と同期) ※テスト内重複を避けるなら共有ヘッダ化検討
 #define VGA_WIDTH 80

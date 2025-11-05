@@ -3,7 +3,7 @@
 #include <kfs/console.h>
 #include <kfs/printk.h>
 
-#include <stdint.h>
+#include <kfs/stdint.h>
 
 struct io_log_entry
 {

@@ -1,8 +1,8 @@
 #ifndef KFS_PRINTK_H
 #define KFS_PRINTK_H
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <kfs/stdarg.h>
+#include <kfs/stddef.h>
 
 /* Loglevel escape prefixes (Linux inspired) */
 #define KFS_KERN_SOH "\001"

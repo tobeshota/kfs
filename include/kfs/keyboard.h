@@ -3,7 +3,7 @@
 
 /* keyboard.h: キーボードドライバ公開インタフェース (drivers/tty/keyboard.c)。機能追加なし。 */
 
-#include <stdint.h>
+#include <kfs/stdint.h>
 
 /** キーボード入力イベントのハンドラ型
  *

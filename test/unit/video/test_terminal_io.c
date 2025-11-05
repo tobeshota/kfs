@@ -1,8 +1,8 @@
 #include "../support/terminal_test_support.h"
 #include "host_test_framework.h"
 #include <kfs/console.h>
-#include <stdint.h>
-#include <string.h>
+#include <kfs/stdint.h>
+#include <kfs/string.h>
 
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25

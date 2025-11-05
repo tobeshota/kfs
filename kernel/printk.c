@@ -3,8 +3,6 @@
 #include <kfs/serial.h>
 #include <kfs/string.h>
 
-#include <stdarg.h>
-
 int console_printk[4] = {
 	KFS_LOGLEVEL_DEFAULT, /* console_loglevel */
 	KFS_LOGLEVEL_DEFAULT, /* default_message_loglevel */

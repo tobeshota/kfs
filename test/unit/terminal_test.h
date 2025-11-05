@@ -1,8 +1,8 @@
 #ifndef KFS_TEST_TERMINAL_TEST_H
 #define KFS_TEST_TERMINAL_TEST_H
 
-#include <stddef.h>
-#include <stdint.h>
+#include <kfs/stddef.h>
+#include <kfs/stdint.h>
 
 /* Test-only accessors & helpers for terminal / VGA layer.
  * These are intentionally separated from production headers so that

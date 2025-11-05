@@ -1,5 +1,5 @@
-#include <stddef.h>
-#include <stdint.h>
+#include <kfs/stddef.h>
+#include <kfs/stdint.h>
 
 #define STUB_COM1_PORT 0x3F8
 #define STUB_COM1_STATUS (STUB_COM1_PORT + 5)

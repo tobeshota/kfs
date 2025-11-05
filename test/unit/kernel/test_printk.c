@@ -5,7 +5,7 @@
 #include <kfs/printk.h>
 
 #include <kfs/string.h>
-#include <string.h>
+#include <kfs/string.h>
 
 struct io_log_entry
 {

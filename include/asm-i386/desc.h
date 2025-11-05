@@ -4,7 +4,7 @@
 #ifndef _ASM_I386_DESC_H
 #define _ASM_I386_DESC_H
 
-#include <stdint.h>
+#include <kfs/stdint.h>
 
 /* GDT entry indices (like Linux GDT_ENTRY_*) */
 #define GDT_ENTRY_NULL 0

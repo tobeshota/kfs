@@ -2,7 +2,7 @@
 #include "host_test_framework.h"
 #include <kfs/console.h>
 
-#include <stdint.h>
+#include <kfs/stdint.h>
 
 /* Provide weak symbol overrides & terminal buffer injection to execute start_kernel */
 extern void start_kernel(void);

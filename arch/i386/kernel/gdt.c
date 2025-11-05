@@ -3,7 +3,7 @@
  */
 #include <asm-i386/desc.h>
 #include <kfs/printk.h>
-#include <stdint.h>
+#include <kfs/stdint.h>
 
 /* GDTを配置する物理アドレス */
 #define KFS_GDT_PHYS 0x00000800U

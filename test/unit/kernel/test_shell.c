@@ -14,7 +14,7 @@
 #include <kfs/keyboard.h>
 #include <kfs/printk.h>
 #include <kfs/shell.h>
-#include <string.h>
+#include <kfs/string.h>
 
 /* I/Oログのキャプチャ用 */
 struct io_log_entry

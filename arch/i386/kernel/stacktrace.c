@@ -1,5 +1,5 @@
 #include <kfs/printk.h>
-#include <stdint.h>
+#include <kfs/stdint.h>
 
 /* boot.Sで定義されたスタック領域の境界。スタックのオーバーフロー検出に必要 */
 extern char stack_bottom[];

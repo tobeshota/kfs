@@ -1,7 +1,7 @@
 #include <asm-i386/io.h>
 #include <kfs/serial.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <kfs/stddef.h>
+#include <kfs/stdint.h>
 
 /* Communication Port。
  * カーネルのデバッグ用途として、現在communication portへの出力をQEMUがstdioにリダイレクトしている。

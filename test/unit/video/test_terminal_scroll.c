@@ -3,8 +3,8 @@
 #include <kfs/console.h>
 #include <kfs/printk.h>
 
-#include <stdint.h>
-#include <string.h>
+#include <kfs/stdint.h>
+#include <kfs/string.h>
 
 static uint16_t stub[KFS_VGA_WIDTH * KFS_VGA_HEIGHT];
 

@@ -1,7 +1,7 @@
 #include "host_test_framework.h"
 #include <kfs/serial.h>
-#include <stdint.h>
-#include <string.h>
+#include <kfs/stdint.h>
+#include <kfs/string.h>
 
 #include "../support/io_stub_control.h"
 

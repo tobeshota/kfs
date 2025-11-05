@@ -1,9 +1,6 @@
 #ifndef KFS_HOST_TEST_FRAMEWORK_H
 #define KFS_HOST_TEST_FRAMEWORK_H
 
-#include <setjmp.h> // for sigsetjmp, siglongjmp
-#include <signal.h> // for sigaction, SIGSEGV
-
 typedef void (*kfs_test_fn)(void);
 
 struct kfs_test_case
