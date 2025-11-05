@@ -92,7 +92,7 @@ static void execute_command(const char *cmd)
 		return;
 	}
 
-	/* カーネルパニックテスト（KFS-3 Phase 2） */
+	/* カーネルパニックテスト */
 	if (strcmp(cmd, "panic") == 0)
 	{
 		extern void panic(const char *fmt, ...);
