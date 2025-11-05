@@ -2,10 +2,7 @@
 #define _KFS_MULTIBOOT_H
 
 /**
- * Multiboot Information Structure - KFS-3 Minimal Implementation
- * Based on Multiboot Specification 0.6.96
- *
- * ブートローダー（GRUB）から渡されるメモリ情報を取得
+ * ブートローダー（GRUB）から渡されるメモリ情報を取得する
  */
 
 #include <kfs/stdint.h>
