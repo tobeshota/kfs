@@ -34,6 +34,10 @@ void start_kernel(void)
 	{
 		printk("Initializing memory management...\n");
 		page_alloc_init(multiboot_info_ptr);
+
+		/* ページング初期化 */
+		paging_init();
+
 		mem_init();
 	}
 	else

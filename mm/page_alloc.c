@@ -141,7 +141,7 @@ void page_alloc_init(struct multiboot_info *mbi)
 }
 
 /**
- * 物理ページを1ページ割り当てる（Linux 2.6.11の__alloc_pages相当）
+ * 物理ページを1ページ割り当てる
  * @param gfp_mask GFPフラグ
  * @return 割り当てられたページの物理アドレス（失敗時は0）
  */
@@ -178,7 +178,7 @@ unsigned long __alloc_pages(unsigned int gfp_mask)
 }
 
 /**
- * 物理ページを解放する（Linux 2.6.11の__free_pages相当）
+ * 物理ページを解放する
  * @param addr ページの物理アドレス
  */
 void __free_pages(unsigned long addr)
@@ -217,7 +217,7 @@ void show_mem_info(void)
 }
 
 /**
- * メモリ管理システムの初期化（Linux 2.6.11のmem_init相当）
+ * メモリ管理システムの初期化
  * mm.hで宣言されている関数の実装
  */
 void mem_init(void)
