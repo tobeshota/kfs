@@ -46,46 +46,8 @@ extern int kfs_test_failures;
 #fn, fn                                                                                                        \
 	}
 
-static sigjmp_buf __KFS_EXPECT_SEGV_env;
-
-static void __KFS_EXPECT_SEGV_handler(int sig)
-{
-	if (sig == SIGSEGV)
-	{
-		siglongjmp(__KFS_EXPECT_SEGV_env, 1);
-	}
-}
-
-#define KFS_EXPECT_SEGV(fn, ...)                                                                                       \
-	do                                                                                                                 \
-	{                                                                                                                  \
-		struct sigaction sa, old_sa;                                                                                   \
-		sa.sa_handler = __KFS_EXPECT_SEGV_handler;                                                                     \
-		sigemptyset(&sa.sa_mask);                                                                                      \
-		sa.sa_flags = 0;                                                                                               \
-		sigaction(SIGSEGV, &sa, &old_sa);                                                                              \
-                                                                                                                       \
-		if (sigsetjmp(__KFS_EXPECT_SEGV_env, 1) == 0)                                                                  \
-		{                                                                                                              \
-			/* 関数実行（SIGSEGV発生を期待） */                                                             \
-			fn(__VA_ARGS__);                                                                                           \
-			__builtin_printf("[FAIL] %s:%d expected SIGSEGV, but none occurred\n", __FILE__, __LINE__);                \
-			kfs_test_failures++;                                                                                       \
-			sigaction(SIGSEGV, &old_sa, 0);                                                                            \
-			return;                                                                                                    \
-		}                                                                                                              \
-		else                                                                                                           \
-		{                                                                                                              \
-			/* SIGSEGV を検出 */                                                                                    \
-			__builtin_printf("[OK  ] %s caused SIGSEGV as expected\n", #fn);                                           \
-		}                                                                                                              \
-                                                                                                                       \
-		sigaction(SIGSEGV, &old_sa, 0);                                                                                \
-	} while (0)
-
 static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count)
 {
-	(void)__KFS_EXPECT_SEGV_handler; // to eliminate unused function warnings
 	int executed = 0;
 	for (int i = 0; i < count; ++i)
 	{
