@@ -29,12 +29,8 @@ RAW_KERNEL_SRCS_C := $(shell find ./ -path ./test -prune -o -name '*.c' -print)
 KERNEL_SRCS_C := $(filter-out %_test_shim.c,$(RAW_KERNEL_SRCS_C))
 KERNEL_SRCS_H := $(shell find ./ -path ./test -prune -o -name '*.h' -print)
 KERNEL_SRCS_S := $(shell find ./ -path ./test -prune -o -name '*.S' -print)
-TEST_SRCS_C   := $(shell find ./test -name '*.c' -print)
-TEST_SRCS_H   := $(shell find ./test -name '*.h' -print)
-TEST_SRCS_SH  := $(shell find ./test -name '*.sh' -print)
 
 KERNEL_SRCS := $(KERNEL_SRCS_C) $(KERNEL_SRCS_S)
-TEST_SRCS := $(TEST_SRCS_C) $(TEST_SRCS_SH)
 BUILD_DIR   := build/obj
 KERNEL_OBJS := $(patsubst %.S,$(BUILD_DIR)/%.o,$(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SRCS)))
 KERNEL_DEPS := $(patsubst %.c,$(BUILD_DIR)/%.d,$(KERNEL_SRCS_C))
@@ -121,6 +117,9 @@ run-kernel: $(KERNEL)
 # ===== Tests passthrough =====
 test:
 	@ make test -C test/
+
+unit:
+	@ make unit -C test/
 
 coverage:
 	@ make coverage -C test/
