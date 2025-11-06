@@ -242,9 +242,8 @@ void shell_init(void)
 
 /** シェルのメインループ
  * キーボード入力を受け付けてコマンドを処理する
- * テスト環境ではオーバーライドされる
  */
-__attribute__((weak)) void shell_run(void)
+void shell_run(void)
 {
 	shell_init();
 
