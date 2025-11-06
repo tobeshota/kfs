@@ -12,10 +12,9 @@ DOCKER_RUN     = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(ROOT_DIR
 CROSS          ?= i686-elf
 CC             := $(CROSS)-gcc
 INCLUDE_DIRS   = ../../include ../../include/kfs ../../include/asm-i386 .
-CFLAGS         = $(addprefix -I,$(INCLUDE_DIRS)) -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g
-# CFLAGS       += --coverage
-LDFLAGS        = -T ../../arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g
-# LDFLAGS      += --coverage
+CFLAGS         = $(addprefix -I,$(INCLUDE_DIRS)) -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g --coverage
+GCOV_LIBDIR    := $(shell $(CC) --print-file-name=)
+LDFLAGS        = -T ../../arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g --coverage -L$(GCOV_LIBDIR) -lgcov
 DEPFLAGS       := -MMD -MP -MF $(BUILD_DIR)/$*.d
 
 # Build directories
