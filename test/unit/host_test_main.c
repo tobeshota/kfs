@@ -1,13 +1,37 @@
+#include <kfs/console.h>
+#include <kfs/keyboard.h>
+#include <kfs/mm.h>
+#include <kfs/multiboot.h>
+#include <kfs/printk.h>
+#include <kfs/serial.h>
+#include <kfs/shell.h>
 #include "host_test_framework.h"
+#include <asm-i386/io.h>
 
 int kfs_test_failures = 0;
 
 // ここに外部テスト宣言 (各テストファイルで KFS_TEST 定義)
 
-int main(void)
+int start_unit_test_kernel(void)
 {
-	extern int register_host_tests(struct kfs_test_case * *out);
+	/* 初期化 */
+	serial_init();
+	terminal_initialize();
+	kfs_keyboard_init();
+	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK));
+	printk("Starting host unit tests...\n");
+
+	extern int register_host_tests(struct kfs_test_case **out);
 	struct kfs_test_case *cases = 0;
 	int count = register_host_tests(&cases);
-	return kfs_run_all_tests(cases, count);
+	int result = kfs_run_all_tests(cases, count);
+
+	/* Signal QEMU to exit with status "result" using isa-debug-exit device. */
+	outb(0xF4, (uint8_t)result);
+
+	/* Halt; ensure no further execution. */
+	for (;;)
+		__asm__ volatile("hlt");
+
+	return result; /* unreachable */
 }

@@ -114,7 +114,11 @@ endif
 run: run-iso
 
 run-iso: $(ISO)
-	qemu-system-$(ISA) -cdrom $(ISO) -serial stdio
+	@set -e; \
+	qemu-system-$(ISA) -device isa-debug-exit,iobase=0xf4,iosize=0x04 -cdrom $(ISO) -serial stdio -display none -no-reboot && raw_status=$$? || raw_status=$$?; \
+	decoded_status=$$(( (raw_status - 1) / 2 )); \
+	echo "qemu exit raw=$$raw_status decoded_status=$$decoded_status"; \
+	exit $$decoded_status
 
 # ===== Tests passthrough =====
 
