@@ -1,8 +1,8 @@
 .DS_Store/
 .vscode/
 isodir/
-kfs.bin
-kfs.iso
+*.bin
+*.iso
 Documentation/*.pdf
 Documentation/*.rst
 Documentation/*.md
@@ -12,4 +12,3 @@ Documentation/*.md
 *.gcno
 test/_artifacts/
 test/integration/_artifacts
-test/unit_test.bin
