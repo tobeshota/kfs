@@ -125,12 +125,13 @@ run-iso: $(ISO)
 
 # $(COVERAGE_DIR)を都度再生成している理由は，カバレッジの測定が以前の結果に影響されないようにするため
 coverage: unit
-	@ $(DOCKER_RUN) /bin/bash -lc "\
-		rm -rf $(COVERAGE_DIR) && mkdir -p $(COVERAGE_DIR)/html; \
-		$(LCOV) --capture --directory $(BUILD_DIR) --output-file $(COVERAGE_DIR)/coverage.info; \
-		$(LCOV) --remove $(COVERAGE_DIR)/coverage.info '/work/test/*' '/usr/*' '*.h' --output-file $(COVERAGE_DIR)/coverage.filtered.info; \
-		$(GENHTML) $(COVERAGE_DIR)/coverage.filtered.info --output-directory $(COVERAGE_DIR)/html; \
-		$(LCOV) --summary $(COVERAGE_DIR)/coverage.filtered.info"
+	@ docker run -v ./:/work -w /work ubuntu:22.04 bash -c \
+		"apt-get update && apt-get install -y lcov \
+		&& rm -rf $(COVERAGE_DIR) && mkdir -p $(COVERAGE_DIR)/html \
+		&& $(LCOV) --capture --directory $(BUILD_DIR) --output-file $(COVERAGE_DIR)/coverage.info \
+		&& $(LCOV) --remove $(COVERAGE_DIR)/coverage.info \'/work/test/*\' \'/usr/*\' \'*.h\' --output-file $(COVERAGE_DIR)/coverage.filtered.info \
+		&& $(GENHTML) $(COVERAGE_DIR)/coverage.filtered.info --output-directory $(COVERAGE_DIR)/html \
+		&& $(LCOV) --summary $(COVERAGE_DIR)/coverage.filtered.info"
 	@ echo "\nCoverage HTML:\n./test/$(COVERAGE_DIR)/html/index.html\n"
 
 .PHONY: all kernel iso run run-iso clean fclean re ensure-image unit test coverage
