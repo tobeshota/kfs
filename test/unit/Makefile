@@ -23,7 +23,6 @@ BUILD_DIR     := build/obj
 COVERAGE_DIR  := _artifacts/coverage
 
 # Sources and objects
-# Explicit kernel C sources (collect then filter out legacy *_test_shim.c that must not ship)
 SRCS_C        := $(shell find ../../ -name '*.c')
 BOOTSTRAP     := $(shell find ./arch/ -name "boot*.S")
 SRCS_S        := $(shell find ../../ -name '*.S' ! -name "*boot*.S")
@@ -118,8 +117,6 @@ run-iso: $(ISO)
 	decoded_status=$$(( (raw_status - 1) / 2 )); \
 	echo "qemu exit raw=$$raw_status decoded_status=$$decoded_status"; \
 	exit $$decoded_status
-
-# ===== Tests passthrough =====
 
 # $(COVERAGE_DIR)を都度再生成している理由は，カバレッジの測定が以前の結果に影響されないようにするため
 coverage: unit
