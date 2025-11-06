@@ -20,8 +20,8 @@ struct kfs_test_case
 		long long _a = (long long)(actual);                                                                            \
 		if (_e != _a)                                                                                                  \
 		{                                                                                                              \
-			printk("[FAIL] %s:%d %s == %s  expected=%lld actual=%lld\n", __FILE__, __LINE__, #expected,      \
-							 #actual, _e, _a);                                                                         \
+			printk("[FAIL] %s:%d %s == %s  expected=%lld actual=%lld\n", __FILE__, __LINE__, #expected, #actual, _e,   \
+				   _a);                                                                                                \
 			kfs_test_failures++;                                                                                       \
 			return;                                                                                                    \
 		}                                                                                                              \
@@ -32,7 +32,7 @@ struct kfs_test_case
 	{                                                                                                                  \
 		if (!(expr))                                                                                                   \
 		{                                                                                                              \
-			printk("[FAIL] %s:%d %s is false\n", __FILE__, __LINE__, #expr);                                 \
+			printk("[FAIL] %s:%d %s is false\n", __FILE__, __LINE__, #expr);                                           \
 			kfs_test_failures++;                                                                                       \
 			return;                                                                                                    \
 		}                                                                                                              \

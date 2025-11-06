@@ -1,3 +1,5 @@
+#include "host_test_framework.h"
+#include <asm-i386/io.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
 #include <kfs/mm.h>
@@ -5,8 +7,6 @@
 #include <kfs/printk.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
-#include "host_test_framework.h"
-#include <asm-i386/io.h>
 
 int kfs_test_failures = 0;
 
@@ -20,7 +20,7 @@ void start_unit_test_kernel(void)
 
 	printk("unit test\n");
 
-	extern int register_host_tests(struct kfs_test_case **out);
+	extern int register_host_tests(struct kfs_test_case * *out);
 	struct kfs_test_case *cases = 0;
 	int count = register_host_tests(&cases);
 	int result = kfs_run_all_tests(cases, count);

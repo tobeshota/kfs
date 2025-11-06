@@ -163,12 +163,18 @@ KFS_TEST(test_memcmp_and_memchr)
 
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST(test_strlen),
-	KFS_REGISTER_TEST(test_strnlen_clamps),			 KFS_REGISTER_TEST(test_strncpy_pads_with_nuls),
-	KFS_REGISTER_TEST(test_strncpy_zero_count),		 KFS_REGISTER_TEST(test_strncpy_empty_source),
-	KFS_REGISTER_TEST(test_strlcpy_behaviour),		 KFS_REGISTER_TEST(test_strcat_and_strncat),
-	KFS_REGISTER_TEST(test_strncat_empty_source),	 KFS_REGISTER_TEST(test_strcmp_family),
-	KFS_REGISTER_TEST(test_strchr_strrchr_strstr),	 KFS_REGISTER_TEST(test_memset_and_memcpy),
-	KFS_REGISTER_TEST(test_memmove_handles_overlap), KFS_REGISTER_TEST(test_memcmp_and_memchr),
+	KFS_REGISTER_TEST(test_strnlen_clamps),
+	KFS_REGISTER_TEST(test_strncpy_pads_with_nuls),
+	KFS_REGISTER_TEST(test_strncpy_zero_count),
+	KFS_REGISTER_TEST(test_strncpy_empty_source),
+	KFS_REGISTER_TEST(test_strlcpy_behaviour),
+	KFS_REGISTER_TEST(test_strcat_and_strncat),
+	KFS_REGISTER_TEST(test_strncat_empty_source),
+	KFS_REGISTER_TEST(test_strcmp_family),
+	KFS_REGISTER_TEST(test_strchr_strrchr_strstr),
+	KFS_REGISTER_TEST(test_memset_and_memcpy),
+	KFS_REGISTER_TEST(test_memmove_handles_overlap),
+	KFS_REGISTER_TEST(test_memcmp_and_memchr),
 };
 
 int register_host_tests_string(struct kfs_test_case **out)
