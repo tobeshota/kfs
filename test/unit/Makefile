@@ -2,25 +2,31 @@ include ../../.env
 export
 
 # ===== Docker image settings =====
-IMAGE         ?= smizuoch/kfs:1.0.2
-DOCKER        ?= docker
-ISA	          ?= i386
-ROOT_DIR      := $(shell cd ../.. && pwd)
-DOCKER_RUN    = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(ROOT_DIR)":/work -w /work/test/unit $(IMAGE)
+IMAGE          ?= smizuoch/kfs:1.0.2
+DOCKER         ?= docker
+ISA	           ?= i386
+ROOT_DIR       := $(shell cd ../.. && pwd)
+DOCKER_RUN     = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(ROOT_DIR)":/work -w /work/test/unit $(IMAGE)
 
 # ===== Toolchain (used inside container) =====
-CROSS         ?= i686-elf
-CC            := $(CROSS)-gcc
-INCLUDE_DIRS  = ../../include ../../include/kfs ../../include/asm-i386 .
-CFLAGS        = $(addprefix -I,$(INCLUDE_DIRS)) -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g
-# CFLAGS      += --coverage
-LDFLAGS       = -T ../../arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g
-# LDFLAGS     += --coverage
-DEPFLAGS      := -MMD -MP -MF $(BUILD_DIR)/$*.d
+CROSS          ?= i686-elf
+CC             := $(CROSS)-gcc
+INCLUDE_DIRS   = ../../include ../../include/kfs ../../include/asm-i386 .
+CFLAGS         = $(addprefix -I,$(INCLUDE_DIRS)) -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g
+# CFLAGS       += --coverage
+LDFLAGS        = -T ../../arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g
+# LDFLAGS      += --coverage
+DEPFLAGS       := -MMD -MP -MF $(BUILD_DIR)/$*.d
 
 # Build directories
-BUILD_DIR     := build/obj
-COVERAGE_DIR  := _artifacts/coverage
+BUILD_DIR      := build/obj
+COVERAGE_DIR   := _artifacts/coverage
+
+# Coverage
+LCOV           := lcov --rc lcov_branch_coverage=1
+GENHTML        := genhtml --rc lcov_branch_coverage=1
+COVERAGE_DIR   := _artifacts/coverage
+COVERAGE_FILES := $(shell find $(BUILD_DIR) -name '*.gcno' -o -name '*.gcda' 2>/dev/null)
 
 # Sources and objects
 SRCS_C        := $(shell find ../../ -name '*.c')
