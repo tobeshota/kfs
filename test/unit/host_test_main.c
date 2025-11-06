@@ -1,3 +1,4 @@
+#include "gcov_runtime.h"
 #include "host_test_framework.h"
 #include <asm-i386/io.h>
 #include <kfs/console.h>
@@ -24,6 +25,9 @@ void start_unit_test_kernel(void)
 	struct kfs_test_case *cases = 0;
 	int count = register_host_tests(&cases);
 	int result = kfs_run_all_tests(cases, count);
+
+	/* Dump coverage data before exit */
+	gcov_kernel_dump();
 
 	/* Signal QEMU to exit with status "result" using isa-debug-exit device. */
 	outb(0xF4, (uint8_t)result);
