@@ -77,7 +77,7 @@ iso: kernel ./grub.cfg
 	cp ./grub.cfg isodir/boot/grub/
 	grub-mkrescue -o $(ISO) isodir --modules="multiboot normal configfile" --compress=xz
 
-unit: fclean iso
+unit: fclean iso run
 
 clean:
 	@rm -rf isodir $(BUILD_DIR) $(COVERAGE_DIR)
@@ -98,7 +98,6 @@ iso: ensure-image
 
 unit: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make unit'
-	make run
 
 clean:
 	@rm -rf isodir $(BUILD_DIR) $(COVERAGE_DIR)
