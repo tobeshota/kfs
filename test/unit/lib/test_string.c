@@ -1,6 +1,13 @@
 #include "host_test_framework.h"
 #include "kfs/string.h"
 
+KFS_TEST(test_strlen)
+{
+	KFS_ASSERT_EQ(6, strlen("kernel"));
+	KFS_ASSERT_EQ(4, strlen("from"));
+	KFS_ASSERT_EQ(7, strlen("scratch"));
+}
+
 KFS_TEST(test_strnlen_clamps)
 {
 	const char *text = "hello";
@@ -155,6 +162,7 @@ KFS_TEST(test_memcmp_and_memchr)
 }
 
 static struct kfs_test_case cases[] = {
+	KFS_REGISTER_TEST(test_strlen),
 	KFS_REGISTER_TEST(test_strnlen_clamps),			 KFS_REGISTER_TEST(test_strncpy_pads_with_nuls),
 	KFS_REGISTER_TEST(test_strncpy_zero_count),		 KFS_REGISTER_TEST(test_strncpy_empty_source),
 	KFS_REGISTER_TEST(test_strlcpy_behaviour),		 KFS_REGISTER_TEST(test_strcat_and_strncat),
