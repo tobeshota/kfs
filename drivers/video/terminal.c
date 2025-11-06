@@ -1,9 +1,9 @@
 #include <kfs/console.h>
 #include <kfs/printk.h>
 #include <kfs/serial.h>
-#include <kfs/string.h>
 #include <kfs/stddef.h>
 #include <kfs/stdint.h>
+#include <kfs/string.h>
 #include <video/vga.h>
 
 #define VGA_WIDTH KFS_VGA_WIDTH
