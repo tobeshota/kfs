@@ -124,6 +124,9 @@ test:
 unit:
 	@ make unit -C test/
 
+integration:
+	@ make integration -C test/
+
 coverage:
 	@ make coverage -C test/
 
