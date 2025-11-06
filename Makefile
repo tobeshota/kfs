@@ -29,6 +29,9 @@ RAW_KERNEL_SRCS_C := $(shell find ./ -path ./test -prune -o -name '*.c' -print)
 KERNEL_SRCS_C := $(filter-out %_test_shim.c,$(RAW_KERNEL_SRCS_C))
 KERNEL_SRCS_H := $(shell find ./ -path ./test -prune -o -name '*.h' -print)
 KERNEL_SRCS_S := $(shell find ./ -path ./test -prune -o -name '*.S' -print)
+TEST_SRCS_C   := $(shell find ./test -name '*.c' -print)
+TEST_SRCS_H   := $(shell find ./test -name '*.h' -print)
+TEST_SRCS_SH  := $(shell find ./test -name '*.sh' -print)
 
 KERNEL_SRCS := $(KERNEL_SRCS_C) $(KERNEL_SRCS_S)
 BUILD_DIR   := build/obj
