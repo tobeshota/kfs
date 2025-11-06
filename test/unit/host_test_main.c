@@ -10,16 +10,15 @@
 
 int kfs_test_failures = 0;
 
-// ここに外部テスト宣言 (各テストファイルで KFS_TEST 定義)
-
-int start_unit_test_kernel(void)
+void start_unit_test_kernel(void)
 {
 	/* 初期化 */
 	serial_init();
 	terminal_initialize();
 	kfs_keyboard_init();
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK));
-	printk("Starting host unit tests...\n");
+
+	printk("unit test\n");
 
 	extern int register_host_tests(struct kfs_test_case **out);
 	struct kfs_test_case *cases = 0;
@@ -32,6 +31,4 @@ int start_unit_test_kernel(void)
 	/* Halt; ensure no further execution. */
 	for (;;)
 		__asm__ volatile("hlt");
-
-	return result; /* unreachable */
 }
