@@ -22,7 +22,7 @@ extern void __gcov_dump(void);
  */
 void __gcov_exit(void)
 {
-__gcov_dump();
+	__gcov_dump();
 }
 
 /**
@@ -33,7 +33,7 @@ __gcov_dump();
  */
 void gcov_kernel_dump(void)
 {
-printk("GCOV: Dumping coverage data...\n");
-__gcov_exit();
-printk("GCOV: Coverage dump complete\n");
+	printk("GCOV: Dumping coverage data...\n");
+	__gcov_exit();
+	printk("GCOV: Coverage dump complete\n");
 }
