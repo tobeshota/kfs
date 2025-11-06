@@ -32,6 +32,8 @@ multiboot_info_ptr:
 .global _start /* リンカに_startシンボルをエクスポートするよう指示 */
 .type _start, @function /* _startシンボルが関数であることをリンカに伝える */
 .extern gdt_init
+.extern __CTOR_LIST__
+.extern __CTOR_END__
 _start:
     /* Multiboot情報構造体へのポインタを保存（EBXレジスタ） */
     mov %ebx, (multiboot_info_ptr)
@@ -42,6 +44,9 @@ _start:
     /* 物理アドレス0x00000800にGDTをビルドしてロードする */
     call gdt_init
 
+    /* コンストラクタを実行（カバレッジ初期化など） */
+    call run_constructors
+
     /* 高レベルカーネルに入る */
     call start_unit_test_kernel
 
@@ -51,3 +56,44 @@ _start:
     jmp 1b
 
 .size _start, . - _start /* _start関数のサイズを計算してリンカに伝える */
+
+/** コンストラクタを実行する
+ * .ctorsセクションに配置されたコンストラクタ関数を順に呼び出す．
+ * gccコンパイルフラグ`--coverage`で生成されるカバレッジランタイムの
+ * 初期化関数__gcov_init()などのコンストラクタを呼ぶためもの．
+ */
+.type run_constructors, @function
+run_constructors:
+    push %ebp
+    mov %esp, %ebp
+    push %ebx
+
+    /* コンストラクタリストの開始位置 */
+    mov $__CTOR_LIST__, %ebx
+
+.Lctor_loop:
+    /* 終端に達したかチェック */
+    cmp $__CTOR_END__, %ebx
+    jge .Lctor_done
+
+    /* 関数ポインタを取得 */
+    mov (%ebx), %eax
+
+    /* NULLチェック */
+    test %eax, %eax
+    jz .Lctor_next
+
+    /* コンストラクタを呼び出し */
+    call *%eax
+
+.Lctor_next:
+    /* 次のエントリへ（ポインタサイズ = 4バイト） */
+    add $4, %ebx
+    jmp .Lctor_loop
+
+.Lctor_done:
+    pop %ebx
+    pop %ebp
+    ret
+
+.size run_constructors, . - run_constructors

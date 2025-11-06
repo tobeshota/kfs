@@ -14,7 +14,7 @@ CC             := $(CROSS)-gcc
 INCLUDE_DIRS   = ../../include ../../include/kfs ../../include/asm-i386 .
 CFLAGS         = $(addprefix -I,$(INCLUDE_DIRS)) -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g --coverage
 GCOV_LIBDIR    := $(shell $(CC) --print-file-name=)
-LDFLAGS        = -T ../../arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g --coverage -L$(GCOV_LIBDIR) -lgcov
+LDFLAGS        = -T ./arch/$(ISA)/boot/linker_unit_test.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -O0 -g --coverage -L$(GCOV_LIBDIR) -lgcov
 DEPFLAGS       := -MMD -MP -MF $(BUILD_DIR)/$*.d
 
 # Build directories
@@ -55,7 +55,7 @@ ensure-image:
 ifeq ($(IN_DOCKER),1)
 
 # --- Build inside container ---
-$(KERNEL): $(OBJS) ../../arch/$(ISA)/boot/linker.ld
+$(KERNEL): $(OBJS) ./arch/$(ISA)/boot/linker_unit_test.ld
 	$(CC) -o $@ $(OBJS) $(LDFLAGS)
 
 # Compile rules (inside container)
