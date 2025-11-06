@@ -125,7 +125,7 @@ run-iso: $(ISO)
 
 # $(COVERAGE_DIR)を都度再生成している理由は，カバレッジの測定が以前の結果に影響されないようにするため
 coverage: unit
-	@ $(DOCKER_SH) "\
+	@ $(DOCKER_RUN) /bin/bash -lc "\
 		rm -rf $(COVERAGE_DIR) && mkdir -p $(COVERAGE_DIR)/html; \
 		$(LCOV) --capture --directory $(BUILD_DIR) --output-file $(COVERAGE_DIR)/coverage.info; \
 		$(LCOV) --remove $(COVERAGE_DIR)/coverage.info '/work/test/*' '/usr/*' '*.h' --output-file $(COVERAGE_DIR)/coverage.filtered.info; \
