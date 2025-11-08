@@ -165,6 +165,6 @@ coverage: fclean coverage-instrument
 # Instrument production code before building for coverage
 coverage-instrument:
 	@echo "Instrumenting production code..."
-	@python3 coverage/insert_coverage_func.py ../../ build/coverage/
+	@python3 coverage/insert_coverage_func.py ../../ build/coverage/ build/log/coverage_manifest.txt
 
 .PHONY: all kernel iso run run-iso clean fclean re ensure-image unit test coverage coverage-instrument

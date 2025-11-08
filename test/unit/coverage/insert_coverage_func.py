@@ -6,12 +6,13 @@
 1. プロダクションコードのCファイルを検索（test/ディレクトリは除外）
 2. 各ファイルにCOVERAGE_LINE()マクロを挿入
 3. 計装済みファイルをbuild/coverage/にディレクトリ構造を維持して出力
+4. マニフェストファイルに全ての計装位置を記録
 
 使い方:
-    python3 insert_coverage_func.py <ソースルート> <出力ディレクトリ>
+    python3 insert_coverage_func.py <ソースルート> <出力ディレクトリ> <マニフェストファイル>
 
 例:
-    python3 insert_coverage_func.py ../../ build/coverage/
+    python3 insert_coverage_func.py ../../ build/coverage/ build/log/coverage_manifest.txt
 """
 
 import sys
@@ -19,13 +20,19 @@ import re
 from pathlib import Path
 
 
-def instrument_c_file(input_path, output_path):
+# グローバルなマニフェストリスト
+coverage_manifest = []
+
+
+def instrument_c_file(input_path, output_path, source_root, output_dir):
     """
     Cソースファイルをカバレッジマクロで計装
 
     引数:
         input_path: 入力Cファイルのパス
         output_path: 計装済みCファイルの出力パス
+        source_root: ソースルートパス（相対パス計算用）
+        output_dir: 出力ディレクトリ（マニフェスト用パス計算）
     """
     with open(input_path, 'r', encoding='utf-8') as f:
         content = f.read()
@@ -50,8 +57,13 @@ def instrument_c_file(input_path, output_path):
             # includeが見つからない場合は先頭に追加
             content = '#include "coverage/simple_coverage.h"\n' + content
 
-    # 関数を計装
-    instrumented = instrument_functions(content)
+    # 相対パスを計算（output_dirからの相対パス + "build/coverage/"プレフィックス）
+    rel_path = output_path.relative_to(output_dir)
+    # マニフェスト用にbuild/coverage/プレフィックスを追加
+    manifest_path = f"build/coverage/{rel_path}"
+
+    # 関数を計装（マニフェストに記録しながら）
+    instrumented = instrument_functions(content, manifest_path)
 
     # 必要に応じて出力ディレクトリを作成
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,18 +75,24 @@ def instrument_c_file(input_path, output_path):
     return True
 
 
-def instrument_functions(content):
+def instrument_functions(content, file_path):
     """
     各関数の先頭にCOVERAGE_LINE()を挿入
+
+    引数:
+        content: ファイル内容
+        file_path: ファイルパス（マニフェスト記録用）
 
     戦略（ブレース整形を前提）:
     1. 独立した'{'行（独自の行にある開き波括弧）を検索
     2. 前の行に関数シグネチャが含まれているかチェック
     3. 開き波括弧の後にCOVERAGE_LINE();を挿入
+    4. 挿入した行番号をマニフェストに記録
     """
     lines = content.split('\n')
     result = []
     i = 0
+    line_offset = 0  # 挿入による行番号のオフセット
 
     while i < len(lines):
         line = lines[i]
@@ -88,6 +106,10 @@ def instrument_functions(content):
                 # 適切なインデントでCOVERAGE_LINE()を追加
                 indent = get_indent(line)
                 result.append(indent + '\tCOVERAGE_LINE();')
+
+                # マニフェストに記録（出力ファイルでの行番号）
+                inserted_line = len(result)
+                coverage_manifest.append(f"{file_path}:{inserted_line}")
 
         i += 1
 
@@ -222,13 +244,14 @@ def find_production_c_files(root_dir):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: python3 insert_coverage_func.py <source_root> <output_directory>")
-        print("Example: python3 insert_coverage_func.py ../../ build/coverage/")
+    if len(sys.argv) != 4:
+        print("Usage: python3 insert_coverage_func.py <source_root> <output_directory> <manifest_file>")
+        print("Example: python3 insert_coverage_func.py ../../ build/coverage/ build/log/coverage_manifest.txt")
         sys.exit(1)
 
     source_root = Path(sys.argv[1]).resolve()
     output_dir = Path(sys.argv[2]).resolve()
+    manifest_file = Path(sys.argv[3])
 
     if not source_root.exists():
         print(f"Error: Source root '{source_root}' does not exist")
@@ -256,16 +279,24 @@ def main():
         output_file = output_dir / rel_path
 
         try:
-            instrument_c_file(c_file, output_file)
+            instrument_c_file(c_file, output_file, source_root, output_dir)
             print(f"  ✓ {rel_path}")
             success_count += 1
         except Exception as e:
             print(f"  ✗ {rel_path}: {e}")
             error_count += 1
 
+    # マニフェストファイルを書き込み
+    manifest_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(manifest_file, 'w', encoding='utf-8') as f:
+        for entry in coverage_manifest:
+            f.write(entry + '\n')
+
     print(f"\nInstrumentation complete:")
     print(f"  Success: {success_count}")
     print(f"  Errors: {error_count}")
+    print(f"  Coverage points: {len(coverage_manifest)}")
+    print(f"  Manifest written to: {manifest_file}")
 
     if error_count > 0:
         sys.exit(1)
