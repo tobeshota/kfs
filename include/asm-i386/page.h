@@ -13,7 +13,7 @@
 #define PAGE_OFFSET 0xC0000000UL /* 3GB */
 
 /* 物理アドレス ⟷ 仮想アドレス変換（恒等マッピング + PAGE_OFFSET） */
-#define __pa(x) ((unsigned long)(x)-PAGE_OFFSET)
+#define __pa(x) ((unsigned long)(x) - PAGE_OFFSET)
 #define __va(x) ((void *)((unsigned long)(x) + PAGE_OFFSET))
 
 /* 現在は恒等マッピングなので変換不要だが、将来の拡張のため定義 */
