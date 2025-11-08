@@ -115,9 +115,16 @@ endif
 # ===== Run with QEMU (prefer host, fallback to container) =====
 run: run-iso
 
+# Bashと明示した理由はPIPESTATUSがBash特有の機能であるため
 run-iso: $(ISO)
-	@set -e; \
-	(qemu-system-$(ISA) -display none -device isa-debug-exit,iobase=0xf4,iosize=0x04 -cdrom $(ISO) -serial stdio 2>&1 && raw_status=$$? && raw_status=$$? || raw_status=$$?) | tee qemu_serial.log ; \
+	@ bash -c \
+	'set -e; \
+	{ qemu-system-$(ISA) \
+		-display none \
+		-device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+		-cdrom $(ISO) \
+		-serial stdio 2>&1 | tee qemu_serial.log; } ; \
+	raw_status=$${PIPESTATUS[0]}; \
 	decoded_status=$$(( (raw_status - 1) / 2 )); \
 	echo "qemu exit raw=$$raw_status decoded_status=$$decoded_status"; \
 	exit $$decoded_status
