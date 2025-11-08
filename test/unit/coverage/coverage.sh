@@ -1,7 +1,7 @@
 #!/bin/bash
 # Parse coverage output from QEMU serial and generate diff format
 
-COVERAGE_FILE="coverage/log/coverage.diff"
+COVERAGE_FILE="coverage/log/summary.diff"
 SERIAL_LOG="coverage/log/qemu_serial.log"
 MANIFEST_FILE="coverage/log/coverage_manifest.txt"
 

@@ -160,7 +160,7 @@ coverage: fclean coverage-instrument
 	@$(MAKE) unit COVERAGE_BUILD=1
 	@echo "Generating coverage summary report..."
 	@./coverage/coverage.sh
-	@cat coverage/log/coverage.diff
+	@cat coverage/log/summary.diff
 	@echo ""
 	@echo "Generating diff-style coverage report..."
 	@./coverage/generate_diff_report.sh
