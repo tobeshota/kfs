@@ -77,40 +77,126 @@ def instrument_c_file(input_path, output_path, source_root, output_dir):
 
 def instrument_functions(content, file_path):
     """
-    各関数の先頭にCOVERAGE_LINE()を挿入
+    すべての実行可能文にCOVERAGE_LINE()を挿入（C1カバレッジ）
 
     引数:
         content: ファイル内容
         file_path: ファイルパス（マニフェスト記録用）
 
-    戦略（ブレース整形を前提）:
-    1. 独立した'{'行（独自の行にある開き波括弧）を検索
-    2. 前の行に関数シグネチャが含まれているかチェック
-    3. 開き波括弧の後にCOVERAGE_LINE();を挿入
-    4. 挿入した行番号をマニフェストに記録
+    戦略:
+    1. 各文（セミコロンで終わる行）の前にCOVERAGE_LINE()を挿入
+    2. 制御構文（if/while/for/switch）の前にCOVERAGE_LINE()を挿入
+    3. return文の前にCOVERAGE_LINE()を挿入
+    4. ただし、宣言のみやコメント行は除外
     """
     lines = content.split('\n')
     result = []
+    in_function = False
+    brace_depth = 0
     i = 0
-    line_offset = 0  # 挿入による行番号のオフセット
 
     while i < len(lines):
         line = lines[i]
-        result.append(line)
-
-        # この行が独立した開き波括弧かチェック
         stripped = line.strip()
-        if stripped == '{':
-            # 関数本体の開始かチェック
-            if is_function_brace(i, lines):
-                # 適切なインデントでCOVERAGE_LINE()を追加
-                indent = get_indent(line)
-                result.append(indent + '\tCOVERAGE_LINE();')
 
-                # マニフェストに記録（出力ファイルでの行番号）
-                inserted_line = len(result)
+        # 空行やコメント行はそのまま追加
+        if not stripped or stripped.startswith('//') or stripped.startswith('/*') or stripped.startswith('*'):
+            result.append(line)
+            i += 1
+            continue
+
+        # プリプロセッサディレクティブはそのまま追加
+        if stripped.startswith('#'):
+            result.append(line)
+            i += 1
+            continue
+
+        # ブレース深度を追跡
+        if '{' in line:
+            if stripped == '{' and is_function_brace(i, lines):
+                in_function = True
+                brace_depth = 1
+                result.append(line)
+                i += 1
+                continue
+            brace_depth += line.count('{')
+
+        if '}' in line:
+            brace_depth -= line.count('}')
+            if brace_depth <= 0:
+                in_function = False
+
+        # 関数内でのみ計装
+        if in_function and brace_depth > 0:
+            should_instrument = False
+
+            # else/else ifの前には挿入しない（if-elseチェーンを壊さないため）
+            if stripped.startswith('else'):
+                result.append(line)
+                i += 1
+                continue
+
+            # 実行可能文かチェック
+            # 1. セミコロンで終わる（文の終わり）
+            if stripped.endswith(';'):
+                # 継続行かチェック（インデントが深すぎる、または前の行が代入や関数呼び出しの途中）
+                # 簡易判定: 行がタブ2つ以上のインデントなら継続行の可能性
+                indent_level = len(line) - len(line.lstrip('\t'))
+                # インデントが深い場合は継続行の可能性があるため、前の行をチェック
+                if i > 0 and indent_level >= 2:
+                    prev_line = lines[i - 1].strip()
+                    # 前の行が '=' や '(' や ',' で終わっている場合は継続行
+                    if prev_line and (prev_line.endswith('=') or prev_line.endswith('(') or
+                                     prev_line.endswith(',') or prev_line.endswith(':')):
+                        # 継続行なので挿入しない
+                        result.append(line)
+                        i += 1
+                        continue
+
+                # 行が ':' で始まる（インラインアセンブリのオペランドリスト）
+                if stripped.startswith(':'):
+                    # 継続行なので挿入しない
+                    result.append(line)
+                    i += 1
+                    continue
+
+                # for文の初期化部分は除外
+                if not (stripped.startswith('for') and stripped.endswith(');')):
+                    # ただし、単純な宣言は除外（typedef, extern, staticなど）
+                    if not any(stripped.startswith(kw) for kw in ['typedef', 'extern', 'struct', 'union', 'enum']):
+                        should_instrument = True
+
+            # 2. 制御構文（elseは除外済み）
+            control_keywords = ['if', 'while', 'for', 'switch', 'do']
+            for kw in control_keywords:
+                if stripped.startswith(kw + ' ') or stripped.startswith(kw + '('):
+                    should_instrument = True
+                    break
+
+            # 3. return文
+            if stripped.startswith('return'):
+                should_instrument = True
+
+            # 4. 既にCOVERAGE_LINE()がある行は除外
+            if 'COVERAGE_LINE' in stripped:
+                should_instrument = False
+
+            # 5. 単独の開き波括弧は除外
+            if stripped == '{' or stripped == '}':
+                should_instrument = False
+
+            # 6. caseラベルは除外
+            if stripped.startswith('case ') or stripped == 'default:':
+                should_instrument = False
+
+            if should_instrument:
+                indent = get_indent(line)
+                result.append(indent + 'COVERAGE_LINE();')
+                # マニフェストに記録（COVERAGE_LINE()自身の行番号）
+                inserted_line = len(result)  # 追加したCOVERAGE_LINE()の行番号（1ベース）
                 coverage_manifest.append(f"{file_path}:{inserted_line}")
 
+        result.append(line)
         i += 1
 
     return '\n'.join(result)

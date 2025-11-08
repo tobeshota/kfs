@@ -27,11 +27,15 @@ rm -rf "$REPORT_DIR"
 mkdir -p "$REPORT_DIR"
 
 # Extract executed lines from QEMU log
+# Format: filename:line:executed (where executed=1 means executed, 0 means not executed)
 awk '/COVERAGE_START/,/COVERAGE_END/' "$SERIAL_LOG" |
 	grep -v 'COVERAGE_START\|COVERAGE_END' |
 	tr -d '\r' |
-	awk -F: '{print $1":"$2}' |
+	awk -F: '$3 == "1" {print $1":"$2}' |
 	sort -u >/tmp/executed_lines.txt
+
+# Wait for file to be written
+sync
 
 echo "Generating diff-style coverage report..."
 
