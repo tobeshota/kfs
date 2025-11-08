@@ -16,6 +16,21 @@ KFS_TEST(test_strnlen_clamps)
 	KFS_ASSERT_EQ(0, (long long)strnlen(text, 0));
 }
 
+KFS_TEST(test_strcpy_basic)
+{
+	char buf[16];
+	char *ret = strcpy(buf, "hello");
+	KFS_ASSERT_TRUE(ret == buf);
+	KFS_ASSERT_TRUE(strcmp(buf, "hello") == 0);
+
+	char buf2[8];
+	strcpy(buf2, "");
+	KFS_ASSERT_TRUE(strcmp(buf2, "") == 0);
+
+	strcpy(buf, "world");
+	KFS_ASSERT_TRUE(strcmp(buf, "world") == 0);
+}
+
 KFS_TEST(test_strncpy_pads_with_nuls)
 {
 	char buf[8];
@@ -172,6 +187,7 @@ KFS_TEST(test_memcmp_and_memchr)
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST(test_strlen),
 	KFS_REGISTER_TEST(test_strnlen_clamps),
+	KFS_REGISTER_TEST(test_strcpy_basic),
 	KFS_REGISTER_TEST(test_strncpy_pads_with_nuls),
 	KFS_REGISTER_TEST(test_strncpy_zero_count),
 	KFS_REGISTER_TEST(test_strncpy_empty_source),
