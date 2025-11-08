@@ -350,11 +350,268 @@ KFS_TEST(test_scroll_per_console)
 	KFS_ASSERT_EQ('A', get_char_at(0));
 }
 
+/* 大量のスクロールでリングバッファがラップアラウンドするテスト */
+KFS_TEST(test_scrollback_buffer_wraparound)
+{
+	setup_terminal();
+
+	/* スクロールバックバッファの容量は100行 */
+	/* 150行出力してリングバッファをラップアラウンドさせる */
+	for (int i = 0; i < 150; i++)
+	{
+		char marker = 'A' + (i % 26);
+		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+		{
+			terminal_putchar(marker);
+		}
+		terminal_putchar('\n');
+	}
+
+	/* 少しスクロールアップ */
+	kfs_terminal_scroll_up();
+	kfs_terminal_scroll_up();
+
+	/* クラッシュしないことを確認（アサーションなしで成功すればOK） */
+}
+
+/* カーソル位置のクランプテスト */
+KFS_TEST(test_cursor_move_clamp)
+{
+	setup_terminal();
+
+	/* 範囲外の座標を指定してもクランプされることを確認 */
+	kfs_terminal_move_cursor(1000, 1000);
+
+	size_t row, col;
+	kfs_terminal_get_cursor(&row, &col);
+
+	/* VGA_HEIGHTとVGA_WIDTHの範囲内にクランプされるはず */
+	KFS_ASSERT_TRUE(row < KFS_VGA_HEIGHT);
+	KFS_ASSERT_TRUE(col < KFS_VGA_WIDTH);
+}
+
+/* 行末を超えた文字の折り返しテスト */
+KFS_TEST(test_line_wrap_at_edge)
+{
+	setup_terminal();
+
+	/* 行末まで文字を埋める */
+	for (int i = 0; i < KFS_VGA_WIDTH; i++)
+	{
+		terminal_putchar('X');
+	}
+
+	/* さらに文字を追加（次の行に折り返されるはず） */
+	terminal_putchar('Y');
+
+	/* 2行目の最初の文字が'Y'であることを確認 */
+	KFS_ASSERT_EQ('Y', get_char_at(KFS_VGA_WIDTH));
+}
+
+/* スクロール時のリングバッファ境界テスト */
+KFS_TEST(test_scrollback_ring_buffer_edge)
+{
+	setup_terminal();
+
+	/* ちょうど100行（スクロールバックバッファ容量）を出力 */
+	for (int i = 0; i < 100; i++)
+	{
+		char marker = 'A' + (i % 26);
+		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+		{
+			terminal_putchar(marker);
+		}
+		terminal_putchar('\n');
+	}
+
+	/* 少しスクロールアップ */
+	kfs_terminal_scroll_up();
+
+	/* クラッシュしないことを確認（アサーションなしで成功すればOK） */
+}
+
+/* terminal_setcolor()関数のテスト */
+KFS_TEST(test_terminal_setcolor)
+{
+	terminal_initialize();
+	uint8_t test_color = kfs_vga_make_color(VGA_COLOR_GREEN, VGA_COLOR_BLUE);
+	kfs_terminal_set_color(test_color);
+	KFS_ASSERT_EQ(test_color, kfs_terminal_get_color());
+}
+
+/* terminal_putchar_overwrite()のテスト（上書きモード） */
+KFS_TEST(test_terminal_putchar_overwrite)
+{
+	terminal_initialize();
+
+	/* まず通常モードで文字を書き込む */
+	terminal_putchar('A');
+	terminal_putchar('B');
+	terminal_putchar('C');
+
+	/* カーソルを先頭に戻す */
+	kfs_terminal_move_cursor(0, 0);
+
+	/* 上書きモードで'X'を書き込む */
+	terminal_putchar_overwrite('X');
+
+	/* カーソルは移動しないことを確認 */
+	size_t row, col;
+	kfs_terminal_get_cursor(&row, &col);
+	KFS_ASSERT_EQ(0, row);
+	KFS_ASSERT_EQ(0, col);
+
+	/* シャドウバッファで'X'が書かれたことを確認 */
+	uint16_t *shadow = (uint16_t *)kfs_terminal_buffer;
+	char written_char = (char)(shadow[0] & 0xFF);
+	KFS_ASSERT_EQ('X', written_char);
+}
+
+/* terminal_delete_char()のテスト（文字削除とシフト） */
+KFS_TEST(test_terminal_delete_char)
+{
+	terminal_initialize();
+
+	/* "ABCDE"と書き込む */
+	terminal_putchar('A');
+	terminal_putchar('B');
+	terminal_putchar('C');
+	terminal_putchar('D');
+	terminal_putchar('E');
+
+	/* カーソルを'C'の位置(列2)に移動 */
+	kfs_terminal_move_cursor(0, 2);
+
+	/* 'C'を削除して右側をシフト */
+	terminal_delete_char();
+
+	/* シャドウバッファを確認: "ABDE " になっているはず */
+	uint16_t *shadow = (uint16_t *)kfs_terminal_buffer;
+	KFS_ASSERT_EQ('A', (char)(shadow[0] & 0xFF));
+	KFS_ASSERT_EQ('B', (char)(shadow[1] & 0xFF));
+	KFS_ASSERT_EQ('D', (char)(shadow[2] & 0xFF));
+	KFS_ASSERT_EQ('E', (char)(shadow[3] & 0xFF));
+	KFS_ASSERT_EQ(' ', (char)(shadow[4] & 0xFF));
+}
+
+/* kfs_terminal_get_color()とkfs_terminal_active_console()のテスト */
+KFS_TEST(test_terminal_get_color_and_active_console)
+{
+	terminal_initialize();
+
+	/* 色設定とget_color()のテスト */
+	uint8_t test_color = kfs_vga_make_color(VGA_COLOR_RED, VGA_COLOR_WHITE);
+	kfs_terminal_set_color(test_color);
+	KFS_ASSERT_EQ(test_color, kfs_terminal_get_color());
+
+	/* active_console()のテスト - 初期状態ではコンソール0がアクティブ */
+	KFS_ASSERT_EQ(0, kfs_terminal_active_console());
+
+	/* コンソール1に切り替えて確認 */
+	kfs_terminal_switch_console(1);
+	KFS_ASSERT_EQ(1, kfs_terminal_active_console());
+
+	/* コンソール0に戻す */
+	kfs_terminal_switch_console(0);
+	KFS_ASSERT_EQ(0, kfs_terminal_active_console());
+}
+
+/* kfs_terminal_cursor_left()のテスト（左矢印キー） */
+KFS_TEST(test_cursor_left_movement)
+{
+	terminal_initialize();
+
+	/* カーソルを(0, 5)に移動 */
+	kfs_terminal_move_cursor(0, 5);
+
+	/* 左に移動 */
+	kfs_terminal_cursor_left();
+
+	size_t row, col;
+	kfs_terminal_get_cursor(&row, &col);
+	KFS_ASSERT_EQ(0, row);
+	KFS_ASSERT_EQ(4, col);
+
+	/* カーソルを(1, 0)に移動（行頭） */
+	kfs_terminal_move_cursor(1, 0);
+
+	/* 左に移動 → 前の行の末尾(0, VGA_WIDTH-1)に移動するはず */
+	kfs_terminal_cursor_left();
+
+	kfs_terminal_get_cursor(&row, &col);
+	KFS_ASSERT_EQ(0, row);
+	KFS_ASSERT_EQ(79, col); /* VGA_WIDTH-1 = 79 */
+
+	/* スクロール中は左矢印キーが無効になることを確認 */
+	kfs_terminal_move_cursor(5, 10);
+
+	/* 何行か書き込んでスクロールバックに保存 */
+	for (int i = 0; i < 30; i++)
+	{
+		terminal_writestring("Line\n");
+	}
+
+	/* スクロールアップ */
+	kfs_terminal_scroll_up();
+
+	/* カーソル移動を試みる（無効化されているはず） */
+	size_t row_before, col_before;
+	kfs_terminal_get_cursor(&row_before, &col_before);
+
+	kfs_terminal_cursor_left();
+
+	size_t row_after, col_after;
+	kfs_terminal_get_cursor(&row_after, &col_after);
+
+	/* スクロール中なのでカーソル位置は変わらないはず */
+	KFS_ASSERT_EQ(row_before, row_after);
+	KFS_ASSERT_EQ(col_before, col_after);
+}
+
+/* kfs_terminal_cursor_right()で行末から次行へ移動するテスト */
+KFS_TEST(test_cursor_right_wrap_to_next_line)
+{
+	terminal_initialize();
+
+	/* カーソルを行末(0, VGA_WIDTH-1)に移動 */
+	kfs_terminal_move_cursor(0, 79); /* VGA_WIDTH-1 */
+
+	/* 右に移動 → 次の行の先頭(1, 0)に移動するはず */
+	kfs_terminal_cursor_right();
+
+	size_t row, col;
+	kfs_terminal_get_cursor(&row, &col);
+	KFS_ASSERT_EQ(1, row);
+	KFS_ASSERT_EQ(0, col);
+
+	/* 通常の右移動もテスト */
+	kfs_terminal_move_cursor(5, 10);
+	kfs_terminal_cursor_right();
+
+	kfs_terminal_get_cursor(&row, &col);
+	KFS_ASSERT_EQ(5, row);
+	KFS_ASSERT_EQ(11, col);
+}
+
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_scroll_up_after_full_screen), KFS_REGISTER_TEST(test_scroll_down_returns_to_latest),
-	KFS_REGISTER_TEST(test_multiple_scroll_up),			 KFS_REGISTER_TEST(test_scroll_down_at_bottom_is_noop),
-	KFS_REGISTER_TEST(test_scroll_up_beyond_limit),		 KFS_REGISTER_TEST(test_new_output_resets_scroll_offset),
-	KFS_REGISTER_TEST(test_scroll_on_empty_screen),		 KFS_REGISTER_TEST(test_scroll_per_console),
+	KFS_REGISTER_TEST(test_scroll_up_after_full_screen),
+	KFS_REGISTER_TEST(test_scroll_down_returns_to_latest),
+	KFS_REGISTER_TEST(test_multiple_scroll_up),
+	KFS_REGISTER_TEST(test_scroll_down_at_bottom_is_noop),
+	KFS_REGISTER_TEST(test_scroll_up_beyond_limit),
+	KFS_REGISTER_TEST(test_new_output_resets_scroll_offset),
+	KFS_REGISTER_TEST(test_scroll_on_empty_screen),
+	KFS_REGISTER_TEST(test_scroll_per_console),
+	KFS_REGISTER_TEST(test_scrollback_buffer_wraparound),
+	KFS_REGISTER_TEST(test_cursor_move_clamp),
+	KFS_REGISTER_TEST(test_line_wrap_at_edge),
+	KFS_REGISTER_TEST(test_scrollback_ring_buffer_edge),
+	KFS_REGISTER_TEST(test_terminal_setcolor),
+	KFS_REGISTER_TEST(test_terminal_putchar_overwrite),
+	KFS_REGISTER_TEST(test_terminal_delete_char),
+	KFS_REGISTER_TEST(test_terminal_get_color_and_active_console),
+	KFS_REGISTER_TEST(test_cursor_left_movement),
+	KFS_REGISTER_TEST(test_cursor_right_wrap_to_next_line),
 };
 
 int register_host_tests_terminal_scroll(struct kfs_test_case **out)
