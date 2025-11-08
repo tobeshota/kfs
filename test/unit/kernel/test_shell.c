@@ -143,6 +143,101 @@ KFS_TEST(test_shell_keyboard_handler_empty_enter)
 	KFS_ASSERT_TRUE(result == 1);
 }
 
+/* DELキー(127)のテスト */
+KFS_TEST(test_shell_keyboard_handler_del_key)
+{
+	shell_init();
+
+	shell_keyboard_handler('a');
+	shell_keyboard_handler('b');
+	shell_keyboard_handler('c');
+
+	/* DELキー(127) */
+	int result = shell_keyboard_handler(127);
+	KFS_ASSERT_TRUE(result == 1);
+}
+
+/* 複数文字削除のテスト */
+KFS_TEST(test_shell_keyboard_handler_multiple_backspace)
+{
+	shell_init();
+
+	shell_keyboard_handler('a');
+	shell_keyboard_handler('b');
+	shell_keyboard_handler('c');
+	shell_keyboard_handler('d');
+
+	/* 複数回バックスペース */
+	shell_keyboard_handler('\b');
+	shell_keyboard_handler('\b');
+	int result = shell_keyboard_handler('\b');
+	KFS_ASSERT_TRUE(result == 1);
+}
+
+/* プロンプト位置でのバックスペース(削除しない) */
+KFS_TEST(test_shell_backspace_at_prompt)
+{
+	shell_init();
+
+	/* プロンプト位置でバックスペース（何も起きない） */
+	int result = shell_keyboard_handler('\b');
+	KFS_ASSERT_TRUE(result == 1);
+}
+
+/* 右矢印キーで入力末尾を超えない */
+KFS_TEST(test_shell_right_arrow_at_end)
+{
+	shell_init();
+
+	shell_keyboard_handler('a');
+	shell_keyboard_handler('b');
+
+	/* 右矢印（末尾なので移動しない） */
+	int result = shell_keyboard_handler('\x1D');
+	KFS_ASSERT_TRUE(result == 1);
+}
+
+/* 左矢印キーでプロンプト位置を超えない */
+KFS_TEST(test_shell_left_arrow_at_prompt)
+{
+	shell_init();
+
+	/* プロンプト位置で左矢印（移動しない） */
+	int result = shell_keyboard_handler('\x1C');
+	KFS_ASSERT_TRUE(result == 1);
+}
+
+/* キャリッジリターン(\r)のテスト */
+KFS_TEST(test_shell_keyboard_handler_carriage_return)
+{
+	shell_init();
+
+	shell_keyboard_handler('t');
+	shell_keyboard_handler('e');
+	shell_keyboard_handler('s');
+	shell_keyboard_handler('t');
+
+	/* \r (キャリッジリターン) */
+	int result = shell_keyboard_handler('\r');
+	KFS_ASSERT_TRUE(result == 1);
+}
+
+/* 長い入力のテスト */
+KFS_TEST(test_shell_long_command)
+{
+	shell_init();
+
+	/* 長い文字列を入力 */
+	const char *long_cmd = "this_is_a_very_long_command_name_that_tests_buffer_handling";
+	for (size_t i = 0; long_cmd[i] != '\0'; i++)
+	{
+		shell_keyboard_handler(long_cmd[i]);
+	}
+
+	int result = shell_keyboard_handler('\n');
+	KFS_ASSERT_TRUE(result == 1);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST(test_shell_init),
 	KFS_REGISTER_TEST(test_shell_keyboard_handler_printable),
@@ -154,6 +249,13 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST(test_shell_keyboard_handler_arrow_keys),
 	KFS_REGISTER_TEST(test_shell_keyboard_handler_ctrl_c),
 	KFS_REGISTER_TEST(test_shell_keyboard_handler_empty_enter),
+	KFS_REGISTER_TEST(test_shell_keyboard_handler_del_key),
+	KFS_REGISTER_TEST(test_shell_keyboard_handler_multiple_backspace),
+	KFS_REGISTER_TEST(test_shell_backspace_at_prompt),
+	KFS_REGISTER_TEST(test_shell_right_arrow_at_end),
+	KFS_REGISTER_TEST(test_shell_left_arrow_at_prompt),
+	KFS_REGISTER_TEST(test_shell_keyboard_handler_carriage_return),
+	KFS_REGISTER_TEST(test_shell_long_command),
 };
 
 int register_host_tests_shell(struct kfs_test_case **out)
