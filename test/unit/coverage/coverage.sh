@@ -26,11 +26,43 @@ awk '/COVERAGE_START/,/COVERAGE_END/' "$SERIAL_LOG" |
 # Create a sorted list of executed lines
 sort -u /tmp/coverage_raw.txt | awk -F: '{print $1":"$2}' >/tmp/executed_lines.txt
 
-# Count statistics
+# Count overall statistics
 total_lines=$(wc -l <"$MANIFEST_FILE" | tr -d ' ')
 executed_count=$(wc -l </tmp/executed_lines.txt | tr -d ' ')
 not_executed=$((total_lines - executed_count))
 coverage_percent=$((executed_count * 100 / total_lines))
+
+# Generate per-file statistics
+# First, get unique files and count total lines per file
+awk -F: '{print $1}' "$MANIFEST_FILE" | sort | uniq >/tmp/unique_files.txt
+
+# For each file, count total and executed lines
+>/tmp/file_stats.txt
+while read -r file; do
+	[ -z "$file" ] && continue
+
+	# Count total lines for this file
+	total=$(grep -c "^${file}:" "$MANIFEST_FILE")
+
+	# Count executed lines for this file
+	executed=$(grep "^${file}:" "$MANIFEST_FILE" | while IFS=: read -r f line; do
+		if grep -q "^${f}:${line}$" /tmp/executed_lines.txt; then
+			echo "1"
+		fi
+	done | wc -l | tr -d ' ')
+
+	# Calculate percentage
+	if [ "$total" -gt 0 ]; then
+		percent=$((executed * 100 / total))
+	else
+		percent=0
+	fi
+
+	# Remove build/coverage/ prefix for display
+	display_file=$(echo "$file" | sed 's|build/coverage/||')
+
+	echo "$executed $total $percent $display_file"
+done </tmp/unique_files.txt | sort -k4 >/tmp/file_stats.txt
 
 # Generate report by comparing manifest with executed lines
 {
@@ -64,7 +96,22 @@ coverage_percent=$((executed_count * 100 / total_lines))
 	echo "Not executed: $not_executed"
 	echo ""
 	echo "=== End of Coverage Report ==="
+	echo ""
+	echo "=== Summary ==="
+	echo "Run	/	Sum		coverage"
+
+	# Print per-file statistics from temp file
+	while read -r executed total percent display_file; do
+		printf "%d\t/\t%d\t\t%d%%\t./%s\n" "$executed" "$total" "$percent" "$display_file"
+	done </tmp/file_stats.txt
+
+	echo "— Total —- -- -- -- --"
+	printf "%d\t/\t%d\t\t%d%%\n" "$executed_count" "$total_lines" "$coverage_percent"
+	echo ""
+	echo "For more,"
+	echo "- summary: test/unit/coverage/log/summary.diff"
+	echo "- code:    test/unit/coverage/report/"
 } >"$COVERAGE_FILE"
 
 echo "Coverage report written to $COVERAGE_FILE"
-rm -f /tmp/coverage_raw.txt /tmp/executed_lines.txt
+rm -f /tmp/coverage_raw.txt /tmp/executed_lines.txt /tmp/unique_files.txt /tmp/file_stats.txt
