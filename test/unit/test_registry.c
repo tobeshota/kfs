@@ -17,8 +17,8 @@ int register_host_tests(struct kfs_test_case **out)
 	// 初回だけ収集
 	if (!all_cases)
 	{
-		// struct kfs_test_case *cases_term_scroll = 0;
-		// int count_term_scroll = register_host_tests_terminal_scroll(&cases_term_scroll);
+		struct kfs_test_case *cases_term_scroll = 0;
+		int count_term_scroll = register_host_tests_terminal_scroll(&cases_term_scroll);
 		// struct kfs_test_case *cases_serial = 0;
 		// int count_serial = register_host_tests_serial(&cases_serial);
 		// struct kfs_test_case *cases_kernel = 0;
@@ -31,11 +31,15 @@ int register_host_tests(struct kfs_test_case **out)
 		int count_string = register_host_tests_string(&cases_string);
 		// struct kfs_test_case *cases_shell = 0;
 		// int count_shell = register_host_tests_shell(&cases_shell);
-		// struct kfs_test_case *cases_page_alloc = 0;
-		// int count_page_alloc = register_host_tests_page_alloc(&cases_page_alloc);
+		struct kfs_test_case *cases_page_alloc = 0;
+		int count_page_alloc = register_host_tests_page_alloc(&cases_page_alloc);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
+		for (int i = 0; i < count_term_scroll && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_term_scroll[i];
+		}
 		// for (int i = 0; i < count_term_scroll && idx < KFS_MAX_TESTS; i++)
 		// 	merged[idx++] = cases_term_scroll[i];
 		// for (int i = 0; i < count_serial && idx < KFS_MAX_TESTS; i++)
@@ -52,8 +56,10 @@ int register_host_tests(struct kfs_test_case **out)
 		}
 		// for (int i = 0; i < count_shell && idx < KFS_MAX_TESTS; i++)
 		// 	merged[idx++] = cases_shell[i];
-		// for (int i = 0; i < count_page_alloc && idx < KFS_MAX_TESTS; i++)
-		// 	merged[idx++] = cases_page_alloc[i];
+		for (int i = 0; i < count_page_alloc && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_page_alloc[i];
+		}
 		all_cases = merged;
 		all_count = idx;
 	}
