@@ -256,8 +256,11 @@ void shell_init(void)
 
 /** シェルのメインループ
  * キーボード入力を受け付けてコマンドを処理する
+ *
+ * この関数はweak symbolとして定義されており、
+ * テスト環境では別の実装でオーバーライドできる
  */
-void shell_run(void)
+__attribute__((weak)) void shell_run(void)
 {
 	shell_init();
 

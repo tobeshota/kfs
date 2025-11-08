@@ -5,6 +5,7 @@ int register_host_tests_terminal_scroll(struct kfs_test_case **out);
 int register_host_tests_start_kernel(struct kfs_test_case **out);
 int register_host_tests_string(struct kfs_test_case **out);
 int register_host_tests_page_alloc(struct kfs_test_case **out);
+int register_host_tests_shell(struct kfs_test_case **out);
 
 #define KFS_MAX_TESTS 256
 
@@ -21,16 +22,16 @@ int register_host_tests(struct kfs_test_case **out)
 		int count_term_scroll = register_host_tests_terminal_scroll(&cases_term_scroll);
 		// struct kfs_test_case *cases_serial = 0;
 		// int count_serial = register_host_tests_serial(&cases_serial);
-		// struct kfs_test_case *cases_kernel = 0;
-		// int count_kernel = register_host_tests_start_kernel(&cases_kernel);
+		struct kfs_test_case *cases_kernel = 0;
+		int count_kernel = register_host_tests_start_kernel(&cases_kernel);
 		// struct kfs_test_case *cases_printk = 0;
 		// int count_printk = register_host_tests_printk(&cases_printk);
 		// struct kfs_test_case *cases_keyboard = 0;
 		// int count_keyboard = register_host_tests_keyboard(&cases_keyboard);
 		struct kfs_test_case *cases_string = 0;
 		int count_string = register_host_tests_string(&cases_string);
-		// struct kfs_test_case *cases_shell = 0;
-		// int count_shell = register_host_tests_shell(&cases_shell);
+		struct kfs_test_case *cases_shell = 0;
+		int count_shell = register_host_tests_shell(&cases_shell);
 		struct kfs_test_case *cases_page_alloc = 0;
 		int count_page_alloc = register_host_tests_page_alloc(&cases_page_alloc);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
@@ -40,12 +41,12 @@ int register_host_tests(struct kfs_test_case **out)
 		{
 			merged[idx++] = cases_term_scroll[i];
 		}
-		// for (int i = 0; i < count_term_scroll && idx < KFS_MAX_TESTS; i++)
-		// 	merged[idx++] = cases_term_scroll[i];
 		// for (int i = 0; i < count_serial && idx < KFS_MAX_TESTS; i++)
 		// 	merged[idx++] = cases_serial[i];
-		// for (int i = 0; i < count_kernel && idx < KFS_MAX_TESTS; i++)
-		// 	merged[idx++] = cases_kernel[i];
+		for (int i = 0; i < count_kernel && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_kernel[i];
+		}
 		// for (int i = 0; i < count_printk && idx < KFS_MAX_TESTS; i++)
 		// 	merged[idx++] = cases_printk[i];
 		// for (int i = 0; i < count_keyboard && idx < KFS_MAX_TESTS; i++)
@@ -54,8 +55,10 @@ int register_host_tests(struct kfs_test_case **out)
 		{
 			merged[idx++] = cases_string[i];
 		}
-		// for (int i = 0; i < count_shell && idx < KFS_MAX_TESTS; i++)
-		// 	merged[idx++] = cases_shell[i];
+		for (int i = 0; i < count_shell && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_shell[i];
+		}
 		for (int i = 0; i < count_page_alloc && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_page_alloc[i];

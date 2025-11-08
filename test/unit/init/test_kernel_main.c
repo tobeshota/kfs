@@ -7,6 +7,13 @@
 /* Provide weak symbol overrides & terminal buffer injection to execute start_kernel */
 extern void start_kernel(void);
 
+/* shell_run()をオーバーライド（weak symbolのため） */
+void shell_run(void)
+{
+	/* テスト環境では即座に戻る（無限ループに入らない） */
+	return;
+}
+
 /* Serial I/O overrides provided by shared stub (serial_io_stub.c) */
 
 static uint16_t term_stub[80 * 25];
