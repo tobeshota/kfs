@@ -3,8 +3,8 @@
 
 COVERAGE_DIR="build/coverage"
 REPORT_DIR="coverage/report"
-SERIAL_LOG="build/log/qemu_serial.log"
-MANIFEST_FILE="build/log/coverage_manifest.txt"
+SERIAL_LOG="coverage/log/qemu_serial.log"
+MANIFEST_FILE="coverage/log/coverage_manifest.txt"
 
 # Check if required files exist
 if [ ! -f "$SERIAL_LOG" ]; then

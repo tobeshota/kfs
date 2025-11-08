@@ -1,9 +1,9 @@
 #!/bin/bash
 # Parse coverage output from QEMU serial and generate diff format
 
-COVERAGE_FILE="build/log/coverage.diff"
-SERIAL_LOG="build/log/qemu_serial.log"
-MANIFEST_FILE="build/log/coverage_manifest.txt"
+COVERAGE_FILE="coverage/log/coverage.diff"
+SERIAL_LOG="coverage/log/qemu_serial.log"
+MANIFEST_FILE="coverage/log/coverage_manifest.txt"
 
 # Check if serial log exists
 if [ ! -f "$SERIAL_LOG" ]; then

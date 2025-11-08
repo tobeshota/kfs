@@ -18,7 +18,7 @@ DEPFLAGS       := -MMD -MP -MF $(BUILD_DIR)/$*.d
 
 # Build directories
 BUILD_DIR      := build/obj
-LOGDIR         := build/log
+LOGDIR         := coverage/log
 COVERAGE_DIR   := _artifacts/coverage
 
 # Coverage
@@ -141,7 +141,7 @@ run: run-iso
 run-iso: $(ISO) | $(LOGDIR)
 	@ bash -c \
 	'set -e; \
-	LOGFILE=$$([ "$(COVERAGE_BUILD)" = "1" ] && echo "build/log/qemu_serial.log" || echo "build/log/qemu_serial.log"); \
+	LOGFILE=$$([ "$(COVERAGE_BUILD)" = "1" ] && echo "coverage/log/qemu_serial.log" || echo "coverage/log/qemu_serial.log"); \
 	{ qemu-system-$(ISA) \
 		-display none \
 		-device isa-debug-exit,iobase=0xf4,iosize=0x04 \
@@ -160,7 +160,7 @@ coverage: fclean coverage-instrument
 	@$(MAKE) unit COVERAGE_BUILD=1
 	@echo "Generating coverage summary report..."
 	@./coverage/coverage.sh
-	@cat build/log/coverage.diff
+	@cat coverage/log/coverage.diff
 	@echo ""
 	@echo "Generating diff-style coverage report..."
 	@./coverage/generate_diff_report.sh
@@ -168,6 +168,6 @@ coverage: fclean coverage-instrument
 # Instrument production code before building for coverage
 coverage-instrument:
 	@echo "Instrumenting production code..."
-	@python3 coverage/insert_coverage_func.py ../../ build/coverage/ build/log/coverage_manifest.txt
+	@python3 coverage/insert_coverage_func.py ../../ build/coverage/ coverage/log/coverage_manifest.txt
 
 .PHONY: all kernel iso run run-iso clean fclean re ensure-image unit test coverage coverage-instrument

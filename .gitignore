@@ -2,6 +2,8 @@
 .vscode/
 isodir/
 build/
+report/
+log/
 *.bin
 *.iso
 Documentation/*.pdf
