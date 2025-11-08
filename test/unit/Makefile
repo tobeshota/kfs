@@ -18,6 +18,7 @@ DEPFLAGS       := -MMD -MP -MF $(BUILD_DIR)/$*.d
 
 # Build directories
 BUILD_DIR      := build/obj
+LOGDIR         := build/log
 COVERAGE_DIR   := _artifacts/coverage
 
 # Coverage
@@ -27,15 +28,21 @@ COVERAGE_DIR   := _artifacts/coverage
 COVERAGE_FILES := $(shell find $(BUILD_DIR) -name '*.gcno' -o -name '*.gcda' 2>/dev/null)
 
 # Sources and objects
-SRCS_C        := $(shell find ../../ -name '*.c')
+# Exclude build/ and coverage/ directories from source search
+SRCS_C        := $(shell find ../../ -name '*.c' ! -path '*/build/*' ! -path '*/coverage/*')
+COVERAGE_C    := ./coverage/simple_coverage.c
 BOOTSTRAP     := $(shell find ./arch/ -name "boot*.S")
-SRCS_S        := $(shell find ../../ -name '*.S' ! -name "*boot*.S")
+SRCS_S        := $(shell find ../../ -name '*.S' ! -name "*boot*.S" ! -path '*/build/*')
 OBJS          := $(patsubst ../../%,$(BUILD_DIR)/%,$(patsubst %.c,%.o,$(SRCS_C))) \
                  $(patsubst ../../%,$(BUILD_DIR)/%,$(patsubst %.S,%.o,$(SRCS_S))) \
-                 $(patsubst ./%,$(BUILD_DIR)/%,$(patsubst %.S,%.o,$(BOOTSTRAP)))
+                 $(patsubst ./%,$(BUILD_DIR)/%,$(patsubst %.S,%.o,$(BOOTSTRAP))) \
+                 $(patsubst ./%.c,$(BUILD_DIR)/%.o,$(COVERAGE_C))
 DEPS          := $(patsubst %.o,%.d,$(OBJS))
 KERNEL        := kfs_unit_test.bin
 ISO           := kfs_unit_test.iso
+
+# Coverage build flag - when set, use instrumented sources from build/coverage
+COVERAGE_BUILD ?= 0
 
 # ===== Default =====
 all: unit
@@ -62,13 +69,28 @@ $(BUILD_DIR)/%.o: ../../%.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# For C files, check if instrumented version exists in build/coverage when COVERAGE_BUILD=1
 $(BUILD_DIR)/%.o: ../../%.c
 	@mkdir -p $(dir $@) $(dir $(BUILD_DIR)/$*.d)
-	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+	@if [ "$(COVERAGE_BUILD)" = "1" ] && [ -f "build/coverage/$*.c" ]; then \
+		echo "Using instrumented: build/coverage/$*.c"; \
+		$(CC) $(CFLAGS) $(DEPFLAGS) -c "build/coverage/$*.c" -o $@; \
+	else \
+		$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@; \
+	fi
 
 $(BUILD_DIR)/%.o: ./%.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# Coverage support files
+$(BUILD_DIR)/coverage/%.o: ./coverage/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+# Log directory
+$(LOGDIR):
+	@mkdir -p $(LOGDIR)
 
 -include $(DEPS)
 
@@ -80,10 +102,10 @@ iso: kernel ./grub.cfg
 	cp ./grub.cfg isodir/boot/grub/
 	grub-mkrescue -o $(ISO) isodir --modules="multiboot normal configfile" --compress=xz
 
-unit: fclean iso run
+unit: iso run
 
 clean:
-	@rm -rf isodir $(BUILD_DIR) $(COVERAGE_DIR)
+	@rm -rf isodir build $(COVERAGE_DIR)
 
 fclean: clean
 	@rm -f $(KERNEL) $(ISO)
@@ -94,16 +116,16 @@ else
 
 # --- Wrapper: run the same targets inside Docker ---
 kernel: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make kernel'
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make kernel'
 
 iso: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso'
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make iso'
 
 unit: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make unit'
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make unit'
 
 clean:
-	@rm -rf isodir $(BUILD_DIR) $(COVERAGE_DIR)
+	@rm -rf isodir build $(COVERAGE_DIR)
 
 fclean: clean
 	@rm -f $(KERNEL) $(ISO)
@@ -116,28 +138,33 @@ endif
 run: run-iso
 
 # Bashと明示した理由はPIPESTATUSがBash特有の機能であるため
-run-iso: $(ISO)
+run-iso: $(ISO) | $(LOGDIR)
 	@ bash -c \
 	'set -e; \
+	LOGFILE=$$([ "$(COVERAGE_BUILD)" = "1" ] && echo "build/log/qemu_serial.log" || echo "build/log/qemu_serial.log"); \
 	{ qemu-system-$(ISA) \
 		-display none \
 		-device isa-debug-exit,iobase=0xf4,iosize=0x04 \
 		-cdrom $(ISO) \
-		-serial stdio 2>&1 | tee qemu_serial.log; } ; \
+		-serial stdio 2>&1 | tee $$LOGFILE; } ; \
 	raw_status=$${PIPESTATUS[0]}; \
 	decoded_status=$$(( (raw_status - 1) / 2 )); \
 	echo "qemu exit raw=$$raw_status decoded_status=$$decoded_status"; \
-	exit $$decoded_status
+	exit $$decoded_status'
 
 # $(COVERAGE_DIR)を都度再生成している理由は，カバレッジの測定が以前の結果に影響されないようにするため
-coverage: unit
-	@ docker run -v ./:/work -w /work ubuntu:22.04 bash -c \
-		"apt-get update && apt-get install -y lcov \
-		&& rm -rf $(COVERAGE_DIR) && mkdir -p $(COVERAGE_DIR)/html \
-		&& $(LCOV) --capture --directory $(BUILD_DIR) --output-file $(COVERAGE_DIR)/coverage.info \
-		&& $(LCOV) --remove $(COVERAGE_DIR)/coverage.info \'/work/test/*\' \'/usr/*\' \'*.h\' --output-file $(COVERAGE_DIR)/coverage.filtered.info \
-		&& $(GENHTML) $(COVERAGE_DIR)/coverage.filtered.info --output-directory $(COVERAGE_DIR)/html \
-		&& $(LCOV) --summary $(COVERAGE_DIR)/coverage.filtered.info"
-	@ echo "\nCoverage HTML:\n./test/$(COVERAGE_DIR)/html/index.html\n"
+# Updated to use simple_coverage instead of lcov/gcov
+# Now builds with instrumented sources from build/coverage without modifying production code
+coverage: fclean coverage-instrument
+	@echo "Building and running tests with coverage (using instrumented sources from build/coverage)..."
+	@$(MAKE) unit COVERAGE_BUILD=1
+	@echo "Generating coverage report..."
+	@./coverage/coverage.sh
+	@cat build/log/coverage.diff
 
-.PHONY: all kernel iso run run-iso clean fclean re ensure-image unit test coverage
+# Instrument production code before building for coverage
+coverage-instrument:
+	@echo "Instrumenting production code..."
+	@python3 coverage/insert_coverage_func.py ../../ build/coverage/
+
+.PHONY: all kernel iso run run-iso clean fclean re ensure-image unit test coverage coverage-instrument
