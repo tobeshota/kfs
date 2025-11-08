@@ -158,9 +158,12 @@ run-iso: $(ISO) | $(LOGDIR)
 coverage: fclean coverage-instrument
 	@echo "Building and running tests with coverage (using instrumented sources from build/coverage)..."
 	@$(MAKE) unit COVERAGE_BUILD=1
-	@echo "Generating coverage report..."
+	@echo "Generating coverage summary report..."
 	@./coverage/coverage.sh
 	@cat build/log/coverage.diff
+	@echo ""
+	@echo "Generating diff-style coverage report..."
+	@./coverage/generate_diff_report.sh
 
 # Instrument production code before building for coverage
 coverage-instrument:
