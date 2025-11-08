@@ -19,12 +19,11 @@ DEPFLAGS       := -MMD -MP -MF $(BUILD_DIR)/$*.d
 # Build directories
 BUILD_DIR      := build/obj
 LOGDIR         := coverage/log
-COVERAGE_DIR   := _artifacts/coverage
+REPORT_DIR     := coverage/report
 
 # Coverage
 LCOV           := lcov --rc lcov_branch_coverage=1
 GENHTML        := genhtml --rc lcov_branch_coverage=1
-COVERAGE_DIR   := _artifacts/coverage
 COVERAGE_FILES := $(shell find $(BUILD_DIR) -name '*.gcno' -o -name '*.gcda' 2>/dev/null)
 
 # Sources and objects
@@ -92,6 +91,10 @@ $(BUILD_DIR)/coverage/%.o: ./coverage/%.c
 $(LOGDIR):
 	@mkdir -p $(LOGDIR)
 
+# Report directory
+$(REPORT_DIR):
+	@mkdir -p $(REPORT_DIR)
+
 -include $(DEPS)
 
 kernel: $(KERNEL)
@@ -105,7 +108,7 @@ iso: kernel ./grub.cfg
 unit: iso run
 
 clean:
-	@rm -rf isodir build $(COVERAGE_DIR)
+	@rm -rf isodir build $(LOGDIR) $(REPORT_DIR)
 
 fclean: clean
 	@rm -f $(KERNEL) $(ISO)
@@ -125,7 +128,7 @@ unit: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make unit'
 
 clean:
-	@rm -rf isodir build $(COVERAGE_DIR)
+	@rm -rf isodir build $(LOGDIR) $(REPORT_DIR)
 
 fclean: clean
 	@rm -f $(KERNEL) $(ISO)
@@ -138,7 +141,7 @@ endif
 run: run-iso
 
 # Bashと明示した理由はPIPESTATUSがBash特有の機能であるため
-run-iso: $(ISO) | $(LOGDIR)
+run-iso: $(ISO) | $(LOGDIR) $(REPORT_DIR)
 	@ bash -c \
 	'set -e; \
 	LOGFILE=$$([ "$(COVERAGE_BUILD)" = "1" ] && echo "coverage/log/qemu_serial.log" || echo "coverage/log/qemu_serial.log"); \
@@ -152,7 +155,6 @@ run-iso: $(ISO) | $(LOGDIR)
 	echo "qemu exit raw=$$raw_status decoded_status=$$decoded_status"; \
 	exit $$decoded_status'
 
-# $(COVERAGE_DIR)を都度再生成している理由は，カバレッジの測定が以前の結果に影響されないようにするため
 # Updated to use simple_coverage instead of lcov/gcov
 # Now builds with instrumented sources from build/coverage without modifying production code
 coverage: fclean coverage-instrument
