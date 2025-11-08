@@ -8,13 +8,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Install lcov
-        run: sudo apt-get update && sudo apt-get install lcov
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install python3
       - name: Generate coverage report
         run: make coverage
       - name: Check if branch coverage is 80%
         run: |
-          BRANCH_COVERAGE=$(cd ./test/_artifacts/coverage && lcov --summary coverage.filtered.info --rc "lcov_branch_coverage=1" | grep "branches" | awk '{print $2}' | tr -d '%')
+          BRANCH_COVERAGE=$(cd ./test/unit/coverage/log && awk '/— Total —- -- -- -- --/{getline; sub(/%$/, "", $NF); print $NF}' summary.diff)
           result=$(echo "$BRANCH_COVERAGE >= 80" | bc)
           if [ "$result" -eq 1 ]; then \
               echo "Branch coverage is sufficient: $BRANCH_COVERAGE%"
