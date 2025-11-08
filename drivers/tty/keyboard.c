@@ -52,7 +52,9 @@ static char translate_scancode(uint8_t code)
 {
 	char base = scancode_map_normal[code];
 	if (!base)
+	{
 		return 0;
+	}
 	if (base >= 'a' && base <= 'z')
 	{
 		int upper = caps_lock ^ shift_active();
@@ -62,7 +64,9 @@ static char translate_scancode(uint8_t code)
 	{
 		char shifted = scancode_map_shift[code];
 		if (shifted)
+		{
 			return shifted;
+		}
 	}
 	return base;
 }
@@ -154,7 +158,9 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		return;
 	case 0x3A:
 		if (!release)
+		{
 			caps_lock = !caps_lock;
+		}
 		extended_prefix = 0;
 		return;
 	case 0x0E:
@@ -200,7 +206,9 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		{
 			size_t target = (size_t)(code - 0x3B);
 			if (target < kfs_terminal_console_count())
+			{
 				kfs_terminal_switch_console(target);
+			}
 		}
 		extended_prefix = 0;
 		return;
@@ -288,12 +296,16 @@ void kfs_keyboard_set_handler(keyboard_handler_t handler)
 void kfs_keyboard_poll(void)
 {
 	if (!keyboard_initialized)
+	{
 		return;
+	}
 	for (;;)
 	{
 		uint8_t status = kfs_io_inb(PS2_STATUS_PORT);
 		if (!(status & 0x01)) /* キーボードからCPUへの出力バッファが空である(キーが押下されていない)ならば抜ける */
+		{
 			break;
+		}
 		uint8_t scancode = kfs_io_inb(PS2_DATA_PORT); /* キーボードから押下された値をscancodeに格納する */
 		kfs_keyboard_feed_scancode(scancode);
 	}

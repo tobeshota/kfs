@@ -46,7 +46,9 @@ static int serial_received(void)
 int serial_read(void)
 {
 	if (!serial_received())
+	{
 		return -1;
+	}
 	return (int)kfs_io_inb(COM2_PORT);
 }
 

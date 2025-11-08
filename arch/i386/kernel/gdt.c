@@ -68,7 +68,9 @@ void gdt_init(void)
 	/* 仕様で要求された物理アドレス0x800にGDTをコピー */
 	volatile uint64_t *gdt_phys = (volatile uint64_t *)KFS_GDT_PHYS;
 	for (int i = 0; i < GDT_ENTRIES; ++i)
+	{
 		gdt_phys[i] = gdt_build[i];
+	}
 
 	/* GDTR（GDTレジスタ）用の構造体を準備 */
 	struct desc_ptr gdtp;

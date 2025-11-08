@@ -42,7 +42,7 @@ extern int kfs_test_failures;
 
 #define KFS_REGISTER_TEST(fn)                                                                                          \
 	{                                                                                                                  \
-#fn, fn                                                                                                        \
+		#fn, fn                                                                                                        \
 	}
 
 static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count)

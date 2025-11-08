@@ -32,5 +32,7 @@ void start_unit_test_kernel(void)
 
 	/* Halt; ensure no further execution. */
 	for (;;)
+	{
 		__asm__ volatile("hlt");
+	}
 }

@@ -131,9 +131,12 @@ coverage:
 	@ make coverage -C test/
 
 fmt:
-	@ docker run -v ./:/work -w /work ubuntu:22.04 bash -c \
-		'apt-get update && apt-get install -y make clang-format shfmt \
-		&& clang-format -i -style="{BasedOnStyle: Microsoft, IndentWidth: 4, TabWidth: 4, UseTab: Always}" $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H) \
+	@ docker run -v ./:/work -w /work ubuntu:24.04 bash -c \
+		'export DEBIAN_FRONTEND=noninteractive \
+		&& apt-get update \
+		&& apt-get upgrade -y \
+		&& apt-get install -y clang-format shfmt \
+		&& clang-format -i -style="{BasedOnStyle: Microsoft, IndentWidth: 4, TabWidth: 4, UseTab: Always, InsertBraces: true}" $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H) \
 		&& shfmt -w $(TEST_SRCS_SH)'
 
 .PHONY: all kernel iso run run-iso run-kernel clean fclean re ensure-image test coverage fmt

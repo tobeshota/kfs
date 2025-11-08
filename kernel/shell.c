@@ -68,7 +68,9 @@ static void execute_command(const char *cmd)
 {
 	/* 空コマンドは無視 */
 	if (cmd[0] == '\0')
+	{
 		return;
+	}
 
 	/* halt コマンド */
 	if (strcmp(cmd, "halt") == 0)
@@ -120,7 +122,9 @@ int shell_keyboard_handler(char c)
 {
 	/* シェルが初期化されていない場合は処理しない（デフォルト動作に任せる） */
 	if (!shell_state.initialized)
+	{
 		return 0;
+	}
 
 	/* 左矢印キー (0x1C) */
 	if (c == '\x1C')
@@ -130,7 +134,9 @@ int shell_keyboard_handler(char c)
 
 		/* プロンプト開始位置より左には移動させない */
 		if (row < shell_state.prompt_row || (row == shell_state.prompt_row && col <= shell_state.prompt_col))
+		{
 			return 1; /* 処理済み扱い */
+		}
 
 		/* 通常のカーソル左移動 */
 		kfs_terminal_cursor_left();
@@ -148,7 +154,9 @@ int shell_keyboard_handler(char c)
 
 		/* 同じ行で、かつ入力末尾より右には移動しない */
 		if (row == shell_state.prompt_row && col >= input_end_col)
+		{
 			return 1; /* 処理済み扱い */
+		}
 
 		/* 通常のカーソル右移動 */
 		kfs_terminal_cursor_right();
@@ -178,7 +186,9 @@ int shell_keyboard_handler(char c)
 
 			/* プロンプト開始位置より左には移動させない */
 			if (row < shell_state.prompt_row || (row == shell_state.prompt_row && col <= shell_state.prompt_col))
+			{
 				return 1; /* 処理済み扱い */
+			}
 
 			/* カーソル位置に対応するバッファ内のインデックスを計算 */
 			size_t cursor_index = col - shell_state.prompt_col;
@@ -214,7 +224,9 @@ int shell_keyboard_handler(char c)
 
 	/* 制御文字は無視（タブなど将来拡張可能） */
 	if (c < 32 && c != '\t')
+	{
 		return 1; /* 処理した（無視） */
+	}
 
 	/* 通常文字をバッファに追加して画面に表示 */
 	shell_state.cmd_buffer[shell_state.cmd_len++] = c;
@@ -229,7 +241,9 @@ int shell_keyboard_handler(char c)
 void shell_init(void)
 {
 	if (shell_state.initialized)
+	{
 		return;
+	}
 
 	clear_command_buffer();
 	shell_state.initialized = 1;

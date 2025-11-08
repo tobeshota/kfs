@@ -36,18 +36,24 @@ KFS_TEST(test_scroll_up_after_full_screen)
 	{
 		char line_marker = 'A' + i;
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++) /* 最後の1文字は残す */
+		{
 			terminal_putchar(line_marker);
+		}
 		terminal_putchar('\n'); /* 明示的に改行 */
 	}
 
 	/* 25行目（Y行）を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+	{
 		terminal_putchar('Y');
+	}
 
 	/* さらに1行追加してスクロールを発生させる */
 	terminal_putchar('\n'); /* この改行でスクロール発生 */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+	{
 		terminal_putchar('Z');
+	}
 	/* Z行は改行なし - これでスクロールは1回だけ */
 
 	/* この時点で最初の行（'A'で満たされた行）はスクロールアウトしているはず */
@@ -71,16 +77,22 @@ KFS_TEST(test_scroll_down_returns_to_latest)
 	{
 		char line_marker = 'A' + i;
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+		{
 			terminal_putchar(line_marker);
+		}
 		terminal_putchar('\n');
 	}
 	/* 25行目（Y行）を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+	{
 		terminal_putchar('Y');
+	}
 	/* Z行を追加してスクロール発生 */
 	terminal_putchar('\n');
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+	{
 		terminal_putchar('Z');
+	}
 	/* Z行は改行なし */
 
 	/* 'B'が最初の行のはず */
@@ -105,12 +117,16 @@ KFS_TEST(test_multiple_scroll_up)
 	{
 		char digit = '0' + (i % 10);
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+		{
 			terminal_putchar(digit);
+		}
 		terminal_putchar('\n');
 	}
 	/* 30行目（9）を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+	{
 		terminal_putchar('9');
+	}
 
 	/* 最初の行は'5'のはず（0,1,2,3,4がスクロールアウト） */
 	KFS_ASSERT_EQ('5', get_char_at(0));
@@ -140,14 +156,18 @@ KFS_TEST(test_scroll_down_at_bottom_is_noop)
 	/* 最新の状態で内容を保存 */
 	uint16_t first_line[KFS_VGA_WIDTH];
 	for (size_t i = 0; i < KFS_VGA_WIDTH; i++)
+	{
 		first_line[i] = stub[i];
+	}
 
 	/* スクロールダウンを試みる（何も起こらないはず） */
 	kfs_terminal_scroll_down();
 
 	/* 画面内容が変わっていないことを確認 */
 	for (size_t i = 0; i < KFS_VGA_WIDTH; i++)
+	{
 		KFS_ASSERT_EQ((long long)first_line[i], (long long)stub[i]);
+	}
 }
 
 /* スクロールアップの境界テスト: スクロールバックバッファの上限を超えてスクロールアップしても安全 */
@@ -161,12 +181,16 @@ KFS_TEST(test_scroll_up_beyond_limit)
 	{
 		char letter = 'A' + (i % 26);
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+		{
 			terminal_putchar(letter);
+		}
 		terminal_putchar('\n');
 	}
 	/* 25行目（Y）を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+	{
 		terminal_putchar('Y');
+	}
 
 	/* さらに10行追加してスクロールを10回発生させる（A～Jがスクロールアウト） */
 	for (int i = 0; i < 10; i++)
@@ -174,7 +198,9 @@ KFS_TEST(test_scroll_up_beyond_limit)
 		terminal_putchar('\n');
 		char letter = 'A' + ((25 + i) % 26); /* Z, A, B, C, D, E, F, G, H, I */
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+		{
 			terminal_putchar(letter);
+		}
 	}
 
 	/* この時点で画面の最初の行は'K'のはず（A～Jがスクロールアウト） */
@@ -226,12 +252,16 @@ KFS_TEST(test_new_output_resets_scroll_offset)
 	{
 		char letter = 'A' + i;
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+		{
 			terminal_putchar(letter);
+		}
 		terminal_putchar('\n');
 	}
 	/* Z行を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+	{
 		terminal_putchar('Z');
+	}
 
 	/* この時点でA行がスクロールバックに、画面はB～Zのはず */
 	/* スクロールアップ */
@@ -241,7 +271,9 @@ KFS_TEST(test_new_output_resets_scroll_offset)
 	/* 新しい行を出力（スクロールを発生させる） */
 	terminal_putchar('\n');
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+	{
 		terminal_putchar('X');
+	}
 	/* X行は改行なし */
 
 	/* 自動的に最新表示にリセットされるはず */
@@ -277,16 +309,22 @@ KFS_TEST(test_scroll_per_console)
 	for (int i = 0; i < KFS_VGA_HEIGHT - 1; i++)
 	{
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+		{
 			terminal_putchar('A');
+		}
 		terminal_putchar('\n');
 	}
 	/* 25行目を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+	{
 		terminal_putchar('A');
+	}
 	/* 26行目を追加してスクロール発生 */
 	terminal_putchar('\n');
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
+	{
 		terminal_putchar('A');
+	}
 
 	kfs_terminal_scroll_up();
 
@@ -298,7 +336,9 @@ KFS_TEST(test_scroll_per_console)
 
 	/* コンソール1で出力 */
 	for (int j = 0; j < 5; j++)
+	{
 		terminal_putchar('B');
+	}
 
 	/* コンソール1では'B'が表示されているはず */
 	KFS_ASSERT_EQ('B', get_char_at(0));

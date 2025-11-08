@@ -23,7 +23,9 @@ KFS_TEST(test_strncpy_pads_with_nuls)
 	KFS_ASSERT_TRUE(ret == buf);
 	KFS_ASSERT_TRUE(strcmp(buf, "abc") == 0);
 	for (size_t i = 4; i < sizeof(buf); i++)
+	{
 		KFS_ASSERT_EQ(0, (long long)buf[i]);
+	}
 	char partial[4] = {0};
 	strncpy(partial, "abcdef", 2);
 	KFS_ASSERT_TRUE(partial[0] == 'a');
@@ -45,7 +47,9 @@ KFS_TEST(test_strncpy_empty_source)
 	char *ret = strncpy(buf, "", sizeof(buf) - 1);
 	KFS_ASSERT_TRUE(ret == buf);
 	for (size_t i = 0; i < sizeof(buf) - 1; i++)
+	{
 		KFS_ASSERT_EQ(0, (long long)buf[i]);
+	}
 	KFS_ASSERT_EQ('\0', (long long)buf[3]);
 }
 
@@ -127,11 +131,15 @@ KFS_TEST(test_memset_and_memcpy)
 	unsigned char buf[6];
 	memset(buf, 0xAB, sizeof(buf));
 	for (size_t i = 0; i < sizeof(buf); i++)
+	{
 		KFS_ASSERT_EQ(0xAB, (long long)buf[i]);
+	}
 	unsigned char other[6] = {0};
 	memcpy(other, buf, sizeof(buf));
 	for (size_t i = 0; i < sizeof(buf); i++)
+	{
 		KFS_ASSERT_EQ((long long)buf[i], (long long)other[i]);
+	}
 }
 
 KFS_TEST(test_memmove_handles_overlap)

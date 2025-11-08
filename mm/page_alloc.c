@@ -33,7 +33,9 @@ extern char _kernel_end[];
 static inline void set_page_bit(unsigned long pfn)
 {
 	if (pfn >= MAX_PAGES)
+	{
 		return;
+	}
 	page_bitmap[pfn / 8] |= (1 << (pfn % 8));
 }
 
@@ -43,7 +45,9 @@ static inline void set_page_bit(unsigned long pfn)
 static inline void clear_page_bit(unsigned long pfn)
 {
 	if (pfn >= MAX_PAGES)
+	{
 		return;
+	}
 	page_bitmap[pfn / 8] &= ~(1 << (pfn % 8)); // pfn番目のビットに0を書き込む
 }
 
@@ -54,7 +58,9 @@ static inline void clear_page_bit(unsigned long pfn)
 static inline int test_page_bit(unsigned long pfn)
 {
 	if (pfn >= MAX_PAGES)
+	{
 		return 1; /* 範囲外は使用中とみなす */
+	}
 	return (page_bitmap[pfn / 8] & (1 << (pfn % 8))) != 0;
 }
 
@@ -100,7 +106,9 @@ static void parse_memory_map(struct multiboot_info *mbi)
 			 * @note カーネル自身が使用しているページが上書きされないようにするため
 			 */
 			if (start_pfn < kernel_end_pfn)
+			{
 				start_pfn = kernel_end_pfn;
+			}
 
 			for (unsigned long pfn = start_pfn; pfn < end_pfn && pfn < MAX_PAGES; pfn++)
 			{
@@ -109,7 +117,9 @@ static void parse_memory_map(struct multiboot_info *mbi)
 			}
 
 			if (end_pfn > total_pages && end_pfn <= MAX_PAGES)
+			{
 				total_pages = end_pfn;
+			}
 		}
 
 		/* 次のエントリへ */

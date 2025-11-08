@@ -47,7 +47,9 @@ int register_host_tests(struct kfs_test_case **out)
 		// for (int i = 0; i < count_keyboard && idx < KFS_MAX_TESTS; i++)
 		// 	merged[idx++] = cases_keyboard[i];
 		for (int i = 0; i < count_string && idx < KFS_MAX_TESTS; i++)
+		{
 			merged[idx++] = cases_string[i];
+		}
 		// for (int i = 0; i < count_shell && idx < KFS_MAX_TESTS; i++)
 		// 	merged[idx++] = cases_shell[i];
 		// for (int i = 0; i < count_page_alloc && idx < KFS_MAX_TESTS; i++)

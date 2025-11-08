@@ -31,7 +31,9 @@ static void append_char(char **dst, size_t *remaining, size_t *written, char c)
 static void append_string(char **dst, size_t *remaining, size_t *written, const char *s)
 {
 	if (!s)
+	{
 		s = "(null)";
+	}
 	while (*s)
 	{
 		append_char(dst, remaining, written, *s);
@@ -55,13 +57,19 @@ static void append_unsigned(char **dst, size_t *remaining, size_t *written, unsi
 			unsigned int digit = value % base;
 			value /= base;
 			if (digit < 10)
+			{
 				buf[idx++] = (char)('0' + digit);
+			}
 			else
+			{
 				buf[idx++] = (char)((uppercase ? 'A' : 'a') + (digit - 10));
+			}
 		}
 	}
 	while (idx > 0)
+	{
 		append_char(dst, remaining, written, buf[--idx]);
+	}
 }
 
 static void append_signed(char **dst, size_t *remaining, size_t *written, int value)
@@ -86,7 +94,9 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 	size_t remaining = size ? size : 0;
 	size_t written = 0;
 	if (remaining)
+	{
 		*out = '\0';
+	}
 	while (*fmt)
 	{
 		if (*fmt != '%')
@@ -124,16 +134,22 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 		default:
 			append_char(&out, &remaining, &written, '%');
 			if (spec)
+			{
 				append_char(&out, &remaining, &written, spec);
+			}
 			break;
 		}
 	}
 	if (size)
 	{ /* Ensure NUL termination */
 		if (remaining)
+		{
 			*out = '\0';
+		}
 		else
+		{
 			buf[size - 1] = '\0';
+		}
 	}
 	return (int)written;
 }
@@ -141,9 +157,13 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 static int clamp_loglevel(int level)
 {
 	if (level < minimum_console_loglevel)
+	{
 		return minimum_console_loglevel;
+	}
 	if (level > KFS_LOGLEVEL_DEBUG)
+	{
 		return KFS_LOGLEVEL_DEBUG;
+	}
 	return level;
 }
 
@@ -200,7 +220,9 @@ static int vprintk_internal(const char *fmt, va_list ap)
 	va_end(copy);
 	size_t out_len = (size_t)len;
 	if (out_len >= sizeof(buffer))
+	{
 		out_len = sizeof(buffer) - 1;
+	}
 	int emit = 0;
 	if (is_cont)
 	{
@@ -220,7 +242,9 @@ static int vprintk_internal(const char *fmt, va_list ap)
 		serial_write(buffer, out_len);
 	}
 	if (!is_cont)
+	{
 		printk_last_emitted = emit;
+	}
 	return len;
 }
 
