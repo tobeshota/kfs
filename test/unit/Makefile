@@ -166,7 +166,7 @@ coverage: fclean coverage-instrument
 	@echo "Generating diff-style coverage report..."
 	@./coverage/generate_diff_report.sh
 	@echo ""
-	@tail -n +$$(grep -n "^=== Summary ===" coverage/log/summary.diff | cut -d: -f1) coverage/log/summary.diff
+	@tail -n +$$(grep -n "^=== Summary ===" coverage/log/summary.txt | cut -d: -f1) coverage/log/summary.txt
 
 # Instrument production code before building for coverage
 coverage-instrument:

@@ -14,7 +14,7 @@ jobs:
         run: make coverage
       - name: Check if branch coverage is 80%
         run: |
-          BRANCH_COVERAGE=$(cd ./test/unit/coverage/log && awk '/— Total —- -- -- -- --/{getline; sub(/%$/, "", $NF); print $NF}' summary.diff)
+          BRANCH_COVERAGE=$(cd ./test/unit/coverage/log && awk '/— Total —- -- -- -- --/{getline; sub(/%$/, "", $NF); print $NF}' summary.txt)
           result=$(echo "$BRANCH_COVERAGE >= 80" | bc)
           if [ "$result" -eq 1 ]; then \
               echo "Branch coverage is sufficient: $BRANCH_COVERAGE%"

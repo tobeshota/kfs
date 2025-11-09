@@ -1,7 +1,7 @@
 #!/bin/bash
 # Parse coverage output from QEMU serial and generate diff format
 
-COVERAGE_FILE="coverage/log/summary.diff"
+COVERAGE_FILE="coverage/log/summary.txt"
 SERIAL_LOG="coverage/log/qemu_serial.log"
 MANIFEST_FILE="coverage/log/coverage_manifest.txt"
 
@@ -109,7 +109,7 @@ done </tmp/unique_files.txt | sort -k4 >/tmp/file_stats.txt
 	printf "%d\t/\t%d\t\t%d%%\n" "$executed_count" "$total_lines" "$coverage_percent"
 	echo ""
 	echo "For more,"
-	echo "- summary: test/unit/coverage/log/summary.diff"
+	echo "- summary: test/unit/coverage/log/summary.txt"
 	echo "- code:    test/unit/coverage/report/"
 } >"$COVERAGE_FILE"
 
