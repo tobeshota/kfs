@@ -7,7 +7,6 @@ DOCKER         ?= docker
 ISA	           ?= i386
 ROOT_DIR       := $(shell cd ../.. && pwd)
 DOCKER_RUN     = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(ROOT_DIR)":/work -w /work/test/unit $(IMAGE)
-DOCKER_MAKE    = $(DOCKER_RUN) /bin/bash -lc 'COVERAGE_BUILD=$(COVERAGE_BUILD) make $(1)'
 
 # ===== Toolchain (used inside container) =====
 CROSS          ?= i686-elf
@@ -21,7 +20,6 @@ DEPFLAGS       := -MMD -MP -MF $(BUILD_DIR)/$*.d
 BUILD_DIR      := build/obj
 LOGDIR         := coverage/log
 REPORT_DIR     := coverage/report
-ALL_DIRS       := $(BUILD_DIR) $(LOGDIR) $(REPORT_DIR)
 
 # Coverage
 LCOV           := lcov --rc lcov_branch_coverage=1
@@ -41,7 +39,6 @@ OBJS          := $(patsubst ../../%,$(BUILD_DIR)/%,$(patsubst %.c,%.o,$(SRCS_C))
 DEPS          := $(patsubst %.o,%.d,$(OBJS))
 KERNEL        := kfs_unit_test.bin
 ISO           := kfs_unit_test.iso
-LOGFILE        := $(LOGDIR)/qemu_serial.log
 
 # Coverage build flag - when set, use instrumented sources from build/coverage
 COVERAGE_BUILD ?= 0
@@ -59,17 +56,20 @@ ensure-image:
 	fi; \
 	echo "Using Docker image: $(IMAGE)"
 
-# ===== Build rules (executed inside Docker) =====
+# ===== Wrapper rules (host side) =====
+ifeq ($(IN_DOCKER),1)
+
+# --- Build inside container ---
 $(KERNEL): $(OBJS) ./arch/$(ISA)/boot/linker_unit_test.ld
 	$(CC) -o $@ $(OBJS) $(LDFLAGS)
 
-# Compile rules
-$(BUILD_DIR)/%.o: ../../%.S | $(BUILD_DIR)
+# Compile rules (inside container)
+$(BUILD_DIR)/%.o: ../../%.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # For C files, check if instrumented version exists in build/coverage when COVERAGE_BUILD=1
-$(BUILD_DIR)/%.o: ../../%.c | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: ../../%.c
 	@mkdir -p $(dir $@) $(dir $(BUILD_DIR)/$*.d)
 	@if [ "$(COVERAGE_BUILD)" = "1" ] && [ -f "build/coverage/$*.c" ]; then \
 		echo "Using instrumented: build/coverage/$*.c"; \
@@ -78,48 +78,64 @@ $(BUILD_DIR)/%.o: ../../%.c | $(BUILD_DIR)
 		$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@; \
 	fi
 
-$(BUILD_DIR)/%.o: ./%.S | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: ./%.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Coverage support files
-$(BUILD_DIR)/coverage/%.o: ./coverage/%.c | $(BUILD_DIR)
+$(BUILD_DIR)/coverage/%.o: ./coverage/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
-# Create all directories as needed
-$(BUILD_DIR) $(LOGDIR) $(REPORT_DIR):
-	@mkdir -p $@
+# Log directory
+$(LOGDIR):
+	@mkdir -p $(LOGDIR)
+
+# Report directory
+$(REPORT_DIR):
+	@mkdir -p $(REPORT_DIR)
 
 -include $(DEPS)
 
-# ===== High-level targets =====
-build-kernel: ensure-image
-	@$(call DOCKER_MAKE,$@-inner)
+kernel: $(KERNEL)
 
-build-kernel-inner: $(KERNEL)
-
-build-iso: ensure-image
-	@$(call DOCKER_MAKE,$@-inner)
-
-build-iso-inner: build-kernel-inner ./grub.cfg
+iso: kernel ./grub.cfg
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/
 	cp ./grub.cfg isodir/boot/grub/
 	grub-mkrescue -o $(ISO) isodir --modules="multiboot normal configfile" --compress=xz
 
-# Aliases for backward compatibility
-kernel: build-kernel
-iso: build-iso
-unit: build-iso run
+unit: iso run
 
 clean:
-	@rm -rf isodir $(BUILD_DIR) $(LOGDIR) $(REPORT_DIR)
+	@rm -rf isodir build $(LOGDIR) $(REPORT_DIR)
 
 fclean: clean
 	@rm -f $(KERNEL) $(ISO)
 
 re: fclean all
+
+else
+
+# --- Wrapper: run the same targets inside Docker ---
+kernel: ensure-image
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make kernel'
+
+iso: ensure-image
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make iso'
+
+unit: ensure-image
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make unit'
+
+clean:
+	@rm -rf isodir build $(LOGDIR) $(REPORT_DIR)
+
+fclean: clean
+	@rm -f $(KERNEL) $(ISO)
+
+re: fclean all
+
+endif
 
 # ===== Run with QEMU (prefer host, fallback to container) =====
 run: run-iso
@@ -128,11 +144,12 @@ run: run-iso
 run-iso: $(ISO) | $(LOGDIR) $(REPORT_DIR)
 	@ bash -c \
 	'set -e; \
+	LOGFILE=$$([ "$(COVERAGE_BUILD)" = "1" ] && echo "coverage/log/qemu_serial.log" || echo "coverage/log/qemu_serial.log"); \
 	{ qemu-system-$(ISA) \
 		-display none \
 		-device isa-debug-exit,iobase=0xf4,iosize=0x04 \
 		-cdrom $(ISO) \
-		-serial stdio 2>&1 | tee $(LOGFILE); } ; \
+		-serial stdio 2>&1 | tee $$LOGFILE; } ; \
 	raw_status=$${PIPESTATUS[0]}; \
 	decoded_status=$$(( (raw_status - 1) / 2 )); \
 	echo "qemu exit raw=$$raw_status decoded_status=$$decoded_status"; \
