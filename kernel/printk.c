@@ -72,6 +72,37 @@ static void append_unsigned(char **dst, size_t *remaining, size_t *written, unsi
 	}
 }
 
+static void append_unsigned_long(char **dst, size_t *remaining, size_t *written, unsigned long value, unsigned int base,
+								 int uppercase)
+{
+	char buf[32];
+	int idx = 0;
+	if (value == 0)
+	{
+		buf[idx++] = '0';
+	}
+	else
+	{
+		while (value > 0)
+		{
+			unsigned long digit = value % base;
+			value /= base;
+			if (digit < 10)
+			{
+				buf[idx++] = (char)('0' + digit);
+			}
+			else
+			{
+				buf[idx++] = (char)((uppercase ? 'A' : 'a') + (digit - 10));
+			}
+		}
+	}
+	while (idx > 0)
+	{
+		append_char(dst, remaining, written, buf[--idx]);
+	}
+}
+
 static void append_signed(char **dst, size_t *remaining, size_t *written, int value)
 {
 	unsigned int magnitude;
@@ -131,6 +162,53 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 		case 'X':
 			append_unsigned(&out, &remaining, &written, va_arg(ap, unsigned int), 16, 1);
 			break;
+		case 'l': {
+			/* %lu, %lx, %ld などのロング修飾子 */
+			if (*fmt == 'u')
+			{
+				fmt++;
+				append_unsigned_long(&out, &remaining, &written, va_arg(ap, unsigned long), 10, 0);
+			}
+			else if (*fmt == 'x')
+			{
+				fmt++;
+				append_unsigned_long(&out, &remaining, &written, va_arg(ap, unsigned long), 16, 0);
+			}
+			else if (*fmt == 'X')
+			{
+				fmt++;
+				append_unsigned_long(&out, &remaining, &written, va_arg(ap, unsigned long), 16, 1);
+			}
+			else if (*fmt == 'd')
+			{
+				fmt++;
+				long value = va_arg(ap, long);
+				if (value < 0)
+				{
+					append_char(&out, &remaining, &written, '-');
+					append_unsigned_long(&out, &remaining, &written, (unsigned long)(-value), 10, 0);
+				}
+				else
+				{
+					append_unsigned_long(&out, &remaining, &written, (unsigned long)value, 10, 0);
+				}
+			}
+			else
+			{
+				/* %l単独の場合は % と l を出力 */
+				append_char(&out, &remaining, &written, '%');
+				append_char(&out, &remaining, &written, 'l');
+			}
+			break;
+		}
+		case 'p': {
+			/* ポインタを16進数で出力 (0xプレフィックス付き) */
+			unsigned long ptr = (unsigned long)va_arg(ap, void *);
+			append_char(&out, &remaining, &written, '0');
+			append_char(&out, &remaining, &written, 'x');
+			append_unsigned_long(&out, &remaining, &written, ptr, 16, 0);
+			break;
+		}
 		default:
 			append_char(&out, &remaining, &written, '%');
 			if (spec)

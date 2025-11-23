@@ -138,12 +138,208 @@ KFS_TEST(test_printk_format_edge_cases)
 	KFS_ASSERT_TRUE(1);
 }
 
+/*
+ * test_snprintf_pointer - %pフォーマット指定子のテスト
+ *
+ * 何を検証するか:
+ * %pでポインタが0xプレフィックス付きの16進数として正しくフォーマットされること
+ *
+ * 検証の目的:
+ * ポインタ値のデバッグ出力が正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_pointer)
+{
+	char buf[64];
+	void *ptr = (void *)0x12345678;
+
+	snprintf(buf, sizeof(buf), "ptr=%p", ptr);
+
+	/* 0xプレフィックスが付いていること */
+	KFS_ASSERT_EQ('0', buf[4]);
+	KFS_ASSERT_EQ('x', buf[5]);
+
+	/* 16進数文字列が含まれていること */
+	KFS_ASSERT_TRUE(strlen(buf) > 6);
+}
+
+/*
+ * test_snprintf_unsigned_long - %luフォーマット指定子のテスト
+ *
+ * 何を検証するか:
+ * %luでunsigned long値が10進数として正しくフォーマットされること
+ *
+ * 検証の目的:
+ * 大きな整数値（サイズ、アドレスなど）の出力が正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_unsigned_long)
+{
+	char buf[64];
+	unsigned long val = 123456789UL;
+
+	snprintf(buf, sizeof(buf), "size=%lu", val);
+	KFS_ASSERT_EQ(0, strcmp(buf, "size=123456789"));
+
+	/* ゼロの場合 */
+	snprintf(buf, sizeof(buf), "%lu", 0UL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0"));
+
+	/* 最大値付近 */
+	snprintf(buf, sizeof(buf), "%lu", 4294967295UL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "4294967295"));
+}
+
+/*
+ * test_snprintf_long_hex - %lxフォーマット指定子のテスト
+ *
+ * 何を検証するか:
+ * %lxでunsigned long値が小文字の16進数として正しくフォーマットされること
+ *
+ * 検証の目的:
+ * アドレスやビットマスクの16進数表示が正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_long_hex)
+{
+	char buf[64];
+
+	snprintf(buf, sizeof(buf), "0x%lx", 0xABCDEF12UL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0xabcdef12"));
+
+	/* 小さい値（先頭ゼロは省略される） */
+	snprintf(buf, sizeof(buf), "0x%lx", 0x1AUL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0x1a"));
+
+	/* ゼロ */
+	snprintf(buf, sizeof(buf), "0x%lx", 0UL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0x0"));
+}
+
+/*
+ * test_snprintf_long_hex_upper - %lXフォーマット指定子のテスト
+ *
+ * 何を検証するか:
+ * %lXでunsigned long値が大文字の16進数として正しくフォーマットされること
+ *
+ * 検証の目的:
+ * 大文字16進数表示オプションが正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_long_hex_upper)
+{
+	char buf[64];
+
+	snprintf(buf, sizeof(buf), "0x%lX", 0xABCDEF12UL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0xABCDEF12"));
+
+	snprintf(buf, sizeof(buf), "0x%lX", 0x1AUL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0x1A"));
+}
+
+/*
+ * test_snprintf_signed_long - %ldフォーマット指定子のテスト
+ *
+ * 何を検証するか:
+ * %ldでlong値が符号付き10進数として正しくフォーマットされること
+ *
+ * 検証の目的:
+ * 負の値を含む長整数の出力が正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_signed_long)
+{
+	char buf[64];
+
+	/* 正の値 */
+	snprintf(buf, sizeof(buf), "%ld", 123456789L);
+	KFS_ASSERT_EQ(0, strcmp(buf, "123456789"));
+
+	/* 負の値 */
+	snprintf(buf, sizeof(buf), "%ld", -987654321L);
+	KFS_ASSERT_EQ(0, strcmp(buf, "-987654321"));
+
+	/* ゼロ */
+	snprintf(buf, sizeof(buf), "%ld", 0L);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0"));
+}
+
+/*
+ * test_snprintf_mixed_long_formats - 複数のlong系フォーマット指定子の組み合わせテスト
+ *
+ * 何を検証するか:
+ * 1つのフォーマット文字列に%p、%lu、%lx、%ldが混在しても正しく処理されること
+ *
+ * 検証の目的:
+ * 実際のデバッグ出力で使われる複雑なフォーマット文字列が正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_mixed_long_formats)
+{
+	char buf[128];
+	void *ptr = (void *)0xDEADBEEF;
+	unsigned long size = 4096UL;
+	long offset = -256L;
+	unsigned long flags = 0x123UL;
+
+	snprintf(buf, sizeof(buf), "ptr=%p size=%lu offset=%ld flags=0x%lx", ptr, size, offset, flags);
+
+	/* 各フィールドが含まれていることを確認 */
+	KFS_ASSERT_TRUE(strstr(buf, "ptr=0x") != NULL);
+	KFS_ASSERT_TRUE(strstr(buf, "size=4096") != NULL);
+	KFS_ASSERT_TRUE(strstr(buf, "offset=-256") != NULL);
+	KFS_ASSERT_TRUE(strstr(buf, "flags=0x123") != NULL);
+}
+
+/*
+ * test_snprintf_null_pointer - NULLポインタの%pテスト
+ *
+ * 何を検証するか:
+ * %pでNULLポインタが0x0として表示されること
+ *
+ * 検証の目的:
+ * NULLポインタのデバッグ出力が安全に処理されることを確認
+ */
+KFS_TEST(test_snprintf_null_pointer)
+{
+	char buf[64];
+	void *null_ptr = NULL;
+
+	snprintf(buf, sizeof(buf), "ptr=%p", null_ptr);
+	KFS_ASSERT_EQ(0, strcmp(buf, "ptr=0x0"));
+}
+
+/*
+ * test_snprintf_long_modifier_invalid - 不正な%l使用のテスト
+ *
+ * 何を検証するか:
+ * %l単独や%lの後に対応していない文字が来た場合、リテラルとして出力されること
+ *
+ * 検証の目的:
+ * 不正なフォーマット指定子に対するロバスト性を確認
+ */
+KFS_TEST(test_snprintf_long_modifier_invalid)
+{
+	char buf[64];
+
+	/* %l単独（後続の文字がない） */
+	snprintf(buf, sizeof(buf), "test%l", 123);
+	/* %lがリテラルとして出力される */
+	KFS_ASSERT_TRUE(strstr(buf, "%l") != NULL);
+}
+
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_snprintf_basic),			  KFS_REGISTER_TEST(test_snprintf_null_string),
-	KFS_REGISTER_TEST(test_snprintf_size_limit),	  KFS_REGISTER_TEST(test_printk_kern_default),
-	KFS_REGISTER_TEST(test_printk_kern_cont),		  KFS_REGISTER_TEST(test_printk_multiple_levels),
-	KFS_REGISTER_TEST(test_snprintf_complex_format),  KFS_REGISTER_TEST(test_snprintf_zero_size),
+	KFS_REGISTER_TEST(test_snprintf_basic),
+	KFS_REGISTER_TEST(test_snprintf_null_string),
+	KFS_REGISTER_TEST(test_snprintf_size_limit),
+	KFS_REGISTER_TEST(test_printk_kern_default),
+	KFS_REGISTER_TEST(test_printk_kern_cont),
+	KFS_REGISTER_TEST(test_printk_multiple_levels),
+	KFS_REGISTER_TEST(test_snprintf_complex_format),
+	KFS_REGISTER_TEST(test_snprintf_zero_size),
 	KFS_REGISTER_TEST(test_printk_format_edge_cases),
+	KFS_REGISTER_TEST(test_snprintf_pointer),
+	KFS_REGISTER_TEST(test_snprintf_unsigned_long),
+	KFS_REGISTER_TEST(test_snprintf_long_hex),
+	KFS_REGISTER_TEST(test_snprintf_long_hex_upper),
+	KFS_REGISTER_TEST(test_snprintf_signed_long),
+	KFS_REGISTER_TEST(test_snprintf_mixed_long_formats),
+	KFS_REGISTER_TEST(test_snprintf_null_pointer),
+	KFS_REGISTER_TEST(test_snprintf_long_modifier_invalid),
 };
 
 int register_host_tests_printk(struct kfs_test_case **out)
