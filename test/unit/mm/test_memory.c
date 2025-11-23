@@ -12,18 +12,6 @@
 #include <kfs/mm.h>
 #include <kfs/stddef.h>
 
-/* test_memory_host.cで定義される関数 */
-extern void kfs_register_test_case(const char *name, void (*test_func)(void));
-
-/* 互換性マクロ */
-#define TEST(name) KFS_TEST(name)
-#define ASSERT_NULL(ptr) KFS_ASSERT_TRUE((ptr) == NULL)
-#define ASSERT_NOT_NULL(ptr) KFS_ASSERT_TRUE((ptr) != NULL)
-#define ASSERT_EQUAL(a, b) KFS_ASSERT_EQ((b), (a))
-#define ASSERT_NOT_EQUAL(a, b) KFS_ASSERT_TRUE((a) != (b))
-#define ASSERT_TRUE(expr) KFS_ASSERT_TRUE(expr)
-#define REGISTER_TEST(fn) kfs_register_test_case(#fn, fn)
-
 /* 外部からアクセス可能なVMAリスト（mm/memory.cで定義） */
 extern struct vm_area_struct *vm_area_list;
 
@@ -38,7 +26,7 @@ static void setup_vm_area_list(void)
  * 検証: VMAリストが空の時、NULLを返すこと
  * 目的: 初期状態やリスト削除後の安全性を確認
  */
-TEST(test_find_vma_empty_list)
+KFS_TEST(test_find_vma_empty_list)
 {
 	struct vm_area_struct *result;
 
@@ -46,7 +34,7 @@ TEST(test_find_vma_empty_list)
 
 	/* 空リストでの検索はNULLを返す */
 	result = find_vma(0x10000);
-	ASSERT_NULL(result);
+	KFS_ASSERT_TRUE(result == NULL);
 }
 
 /*
@@ -54,7 +42,7 @@ TEST(test_find_vma_empty_list)
  * 検証: 1つのVMAを正しく挿入できること
  * 目的: 基本的な挿入操作の正常動作を確認
  */
-TEST(test_insert_vm_area_single)
+KFS_TEST(test_insert_vm_area_single)
 {
 	struct vm_area_struct vma;
 	int ret;
@@ -69,11 +57,11 @@ TEST(test_insert_vm_area_single)
 
 	/* 挿入が成功すること */
 	ret = insert_vm_area(&vma);
-	ASSERT_EQUAL(ret, 0);
+	KFS_ASSERT_EQ(0, ret);
 
 	/* リストの先頭に挿入されること */
-	ASSERT_NOT_NULL(vm_area_list);
-	ASSERT_EQUAL(vm_area_list->vm_start, 0x10000UL);
+	KFS_ASSERT_TRUE(vm_area_list != NULL);
+	KFS_ASSERT_EQ(0x10000UL, vm_area_list->vm_start);
 }
 
 /*
@@ -81,7 +69,7 @@ TEST(test_insert_vm_area_single)
  * 検証: 複数のVMAがアドレス順にソートされること
  * 目的: アドレス順序の維持（検索効率化）を確認
  */
-TEST(test_insert_vm_area_multiple_sorted)
+KFS_TEST(test_insert_vm_area_multiple_sorted)
 {
 	struct vm_area_struct vma1, vma2, vma3;
 	struct vm_area_struct *current;
@@ -113,19 +101,19 @@ TEST(test_insert_vm_area_multiple_sorted)
 
 	/* アドレス昇順にソートされていること */
 	current = vm_area_list;
-	ASSERT_NOT_NULL(current);
-	ASSERT_EQUAL(current->vm_start, 0x10000UL);
+	KFS_ASSERT_TRUE(current != NULL);
+	KFS_ASSERT_EQ(0x10000UL, current->vm_start);
 
 	current = current->vm_next;
-	ASSERT_NOT_NULL(current);
-	ASSERT_EQUAL(current->vm_start, 0x20000UL);
+	KFS_ASSERT_TRUE(current != NULL);
+	KFS_ASSERT_EQ(0x20000UL, current->vm_start);
 
 	current = current->vm_next;
-	ASSERT_NOT_NULL(current);
-	ASSERT_EQUAL(current->vm_start, 0x30000UL);
+	KFS_ASSERT_TRUE(current != NULL);
+	KFS_ASSERT_EQ(0x30000UL, current->vm_start);
 
 	current = current->vm_next;
-	ASSERT_NULL(current);
+	KFS_ASSERT_TRUE(current == NULL);
 }
 
 /*
@@ -133,7 +121,7 @@ TEST(test_insert_vm_area_multiple_sorted)
  * 検証: VMA範囲内のアドレスで正しいVMAが見つかること
  * 目的: 仮想メモリアクセス時の正確なVMA特定を確認
  */
-TEST(test_find_vma_address_in_range)
+KFS_TEST(test_find_vma_address_in_range)
 {
 	struct vm_area_struct vma;
 	struct vm_area_struct *result;
@@ -149,9 +137,9 @@ TEST(test_find_vma_address_in_range)
 
 	/* 範囲内のアドレスで検索成功 */
 	result = find_vma(0x15000);
-	ASSERT_NOT_NULL(result);
-	ASSERT_EQUAL(result->vm_start, 0x10000UL);
-	ASSERT_EQUAL(result->vm_end, 0x20000UL);
+	KFS_ASSERT_TRUE(result != NULL);
+	KFS_ASSERT_EQ(0x10000UL, result->vm_start);
+	KFS_ASSERT_EQ(0x20000UL, result->vm_end);
 }
 
 /*
@@ -159,7 +147,7 @@ TEST(test_find_vma_address_in_range)
  * 検証: VMA範囲外のアドレスでNULLが返ること
  * 目的: 不正アクセス検出のための境界チェックを確認
  */
-TEST(test_find_vma_address_out_of_range)
+KFS_TEST(test_find_vma_address_out_of_range)
 {
 	struct vm_area_struct vma;
 	struct vm_area_struct *result;
@@ -175,7 +163,7 @@ TEST(test_find_vma_address_out_of_range)
 
 	/* 範囲外のアドレスではNULL */
 	result = find_vma(0x30000);
-	ASSERT_NULL(result);
+	KFS_ASSERT_TRUE(result == NULL);
 }
 
 /*
@@ -183,7 +171,7 @@ TEST(test_find_vma_address_out_of_range)
  * 検証: 指定アドレスのVMAが正しく削除されること
  * 目的: メモリ領域解放時のVMA管理を確認
  */
-TEST(test_remove_vm_area_single)
+KFS_TEST(test_remove_vm_area_single)
 {
 	struct vm_area_struct vma;
 	struct vm_area_struct *result;
@@ -199,14 +187,14 @@ TEST(test_remove_vm_area_single)
 
 	/* 削除前は見つかる */
 	result = find_vma(0x15000);
-	ASSERT_NOT_NULL(result);
+	KFS_ASSERT_TRUE(result != NULL);
 
 	/* 削除実行 */
 	remove_vm_area(0x10000);
 
 	/* 削除後は見つからない */
 	result = find_vma(0x15000);
-	ASSERT_NULL(result);
+	KFS_ASSERT_TRUE(result == NULL);
 }
 
 /*
@@ -214,7 +202,7 @@ TEST(test_remove_vm_area_single)
  * 検証: リスト中間のVMAを削除しても前後のリンクが維持されること
  * 目的: リンクリストの整合性を確認
  */
-TEST(test_remove_vm_area_middle)
+KFS_TEST(test_remove_vm_area_middle)
 {
 	struct vm_area_struct vma1, vma2, vma3;
 	struct vm_area_struct *result;
@@ -245,17 +233,17 @@ TEST(test_remove_vm_area_middle)
 
 	/* vma1はまだ存在 */
 	result = find_vma(0x15000);
-	ASSERT_NOT_NULL(result);
-	ASSERT_EQUAL(result->vm_start, 0x10000UL);
+	KFS_ASSERT_TRUE(result != NULL);
+	KFS_ASSERT_EQ(0x10000UL, result->vm_start);
 
 	/* vma2は削除済み */
 	result = find_vma(0x25000);
-	ASSERT_NULL(result);
+	KFS_ASSERT_TRUE(result == NULL);
 
 	/* vma3はまだ存在 */
 	result = find_vma(0x35000);
-	ASSERT_NOT_NULL(result);
-	ASSERT_EQUAL(result->vm_start, 0x30000UL);
+	KFS_ASSERT_TRUE(result != NULL);
+	KFS_ASSERT_EQ(0x30000UL, result->vm_start);
 }
 
 /*
@@ -263,7 +251,7 @@ TEST(test_remove_vm_area_middle)
  * 検証: VMAが存在しない時、基底アドレスから領域を取得できること
  * 目的: 初期状態での仮想メモリ割り当てを確認
  */
-TEST(test_get_unmapped_area_empty_list)
+KFS_TEST(test_get_unmapped_area_empty_list)
 {
 	unsigned long addr;
 
@@ -271,7 +259,7 @@ TEST(test_get_unmapped_area_empty_list)
 
 	/* 空リストでは基底アドレスが返る */
 	addr = get_unmapped_area(0x1000);
-	ASSERT_NOT_EQUAL(addr, 0UL);
+	KFS_ASSERT_TRUE(addr != 0UL);
 }
 
 /*
@@ -279,7 +267,7 @@ TEST(test_get_unmapped_area_empty_list)
  * 検証: 既存VMA間の十分な空き領域を見つけられること
  * 目的: メモリの断片化を避けた効率的な割り当てを確認
  */
-TEST(test_get_unmapped_area_find_gap)
+KFS_TEST(test_get_unmapped_area_find_gap)
 {
 	struct vm_area_struct vma1, vma2;
 	unsigned long addr;
@@ -303,10 +291,10 @@ TEST(test_get_unmapped_area_find_gap)
 
 	/* 隙間に収まるサイズで検索 */
 	addr = get_unmapped_area(0x8000); /* 32KB */
-	ASSERT_NOT_EQUAL(addr, 0UL);
+	KFS_ASSERT_TRUE(addr != 0UL);
 
 	/* 隙間内のアドレスが返ること */
-	ASSERT_TRUE(addr >= 0x20000UL && addr < 0x30000UL);
+	KFS_ASSERT_TRUE(addr >= 0x20000UL && addr < 0x30000UL);
 }
 
 /*
@@ -314,7 +302,7 @@ TEST(test_get_unmapped_area_find_gap)
  * 検証: どの隙間にも収まらない大きなサイズで0が返ること
  * 目的: メモリ不足時のエラーハンドリングを確認
  */
-TEST(test_get_unmapped_area_too_large)
+KFS_TEST(test_get_unmapped_area_too_large)
 {
 	struct vm_area_struct vma1, vma2;
 	unsigned long addr;
@@ -338,7 +326,7 @@ TEST(test_get_unmapped_area_too_large)
 	addr = get_unmapped_area(0x10000); /* 64KB */
 
 	/* 収まらない場合は次の領域が返る（実装依存） */
-	ASSERT_TRUE(addr == 0 || addr >= 0x30000UL);
+	KFS_ASSERT_TRUE(addr == 0 || addr >= 0x30000UL);
 }
 
 /*
@@ -346,7 +334,7 @@ TEST(test_get_unmapped_area_too_large)
  * 検証: NULLポインタを渡すとエラーが返ること
  * 目的: 不正な引数に対する防御的プログラミングを確認
  */
-TEST(test_insert_vm_area_null)
+KFS_TEST(test_insert_vm_area_null)
 {
 	int ret;
 
@@ -354,7 +342,7 @@ TEST(test_insert_vm_area_null)
 
 	/* NULLの挿入は失敗 */
 	ret = insert_vm_area(NULL);
-	ASSERT_EQUAL(ret, -1);
+	KFS_ASSERT_EQ(-1, ret);
 }
 
 /*
@@ -362,7 +350,7 @@ TEST(test_insert_vm_area_null)
  * 検証: 存在しないアドレスを指定しても安全に処理されること
  * 目的: 二重解放などの不正操作への耐性を確認
  */
-TEST(test_remove_vm_area_not_found)
+KFS_TEST(test_remove_vm_area_not_found)
 {
 	struct vm_area_struct vma;
 
@@ -379,7 +367,7 @@ TEST(test_remove_vm_area_not_found)
 	remove_vm_area(0x50000);
 
 	/* 既存のVMAは影響を受けない */
-	ASSERT_NOT_NULL(find_vma(0x15000));
+	KFS_ASSERT_TRUE(find_vma(0x15000) != NULL);
 }
 
 /*
@@ -387,7 +375,7 @@ TEST(test_remove_vm_area_not_found)
  * 検証: リストが空の状態でremove_vm_areaを呼んでも安全に処理されること
  * 目的: 初期状態や全削除後の状態での安全性を確認
  */
-TEST(test_remove_vm_area_empty_list)
+KFS_TEST(test_remove_vm_area_empty_list)
 {
 	setup_vm_area_list();
 
@@ -395,23 +383,27 @@ TEST(test_remove_vm_area_empty_list)
 	remove_vm_area(0x10000);
 
 	/* リストは空のまま */
-	ASSERT_NULL(find_vma(0x10000));
+	KFS_ASSERT_TRUE(find_vma(0x10000) == NULL);
 }
 
-/* テスト登録 */
-void register_memory_tests(void)
+static struct kfs_test_case cases[] = {
+	KFS_REGISTER_TEST(test_find_vma_empty_list),
+	KFS_REGISTER_TEST(test_insert_vm_area_single),
+	KFS_REGISTER_TEST(test_insert_vm_area_multiple_sorted),
+	KFS_REGISTER_TEST(test_find_vma_address_in_range),
+	KFS_REGISTER_TEST(test_find_vma_address_out_of_range),
+	KFS_REGISTER_TEST(test_remove_vm_area_single),
+	KFS_REGISTER_TEST(test_remove_vm_area_middle),
+	KFS_REGISTER_TEST(test_get_unmapped_area_empty_list),
+	KFS_REGISTER_TEST(test_get_unmapped_area_find_gap),
+	KFS_REGISTER_TEST(test_get_unmapped_area_too_large),
+	KFS_REGISTER_TEST(test_insert_vm_area_null),
+	KFS_REGISTER_TEST(test_remove_vm_area_not_found),
+	KFS_REGISTER_TEST(test_remove_vm_area_empty_list),
+};
+
+int register_host_tests_memory(struct kfs_test_case **out)
 {
-	REGISTER_TEST(test_find_vma_empty_list);
-	REGISTER_TEST(test_insert_vm_area_single);
-	REGISTER_TEST(test_insert_vm_area_multiple_sorted);
-	REGISTER_TEST(test_find_vma_address_in_range);
-	REGISTER_TEST(test_find_vma_address_out_of_range);
-	REGISTER_TEST(test_remove_vm_area_single);
-	REGISTER_TEST(test_remove_vm_area_middle);
-	REGISTER_TEST(test_get_unmapped_area_empty_list);
-	REGISTER_TEST(test_get_unmapped_area_find_gap);
-	REGISTER_TEST(test_get_unmapped_area_too_large);
-	REGISTER_TEST(test_insert_vm_area_null);
-	REGISTER_TEST(test_remove_vm_area_not_found);
-	REGISTER_TEST(test_remove_vm_area_empty_list);
+	*out = cases;
+	return (int)(sizeof(cases) / sizeof(cases[0]));
 }
