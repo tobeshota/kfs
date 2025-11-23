@@ -5,6 +5,7 @@
 #include <kfs/printk.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
+#include <kfs/slab.h>
 
 /* Multiboot情報構造体へのポインタ（boot.Sで設定） */
 extern struct multiboot_info *multiboot_info_ptr;
@@ -37,6 +38,9 @@ void start_kernel(void)
 
 		/* ページング初期化 */
 		paging_init();
+
+		/* Slabアロケータ初期化（kmalloc/kfree使用可能に） */
+		kmem_cache_init();
 
 		mem_init();
 	}

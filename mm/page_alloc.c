@@ -21,8 +21,9 @@ static uint8_t page_bitmap[MAX_PAGES / 8];
 
 /* メモリ統計情報 */
 static unsigned long total_pages = 0;
-static unsigned long free_pages = 0;
+static unsigned long nr_free_pages = 0; /* 空きページ数（Linux 2.6.11に倣い nr_ プレフィックス） */
 static unsigned long kernel_end_pfn = 0;
+static int page_alloc_initialized = 0; /* 初期化済みフラグ */
 
 /* 外部シンボル：カーネルの終端アドレス（linker.ldで定義） */
 extern char _kernel_end[];
@@ -113,7 +114,7 @@ static void parse_memory_map(struct multiboot_info *mbi)
 			for (unsigned long pfn = start_pfn; pfn < end_pfn && pfn < MAX_PAGES; pfn++)
 			{
 				clear_page_bit(pfn); /* 未使用としてマーク */
-				free_pages++;
+				nr_free_pages++;
 			}
 
 			if (end_pfn > total_pages && end_pfn <= MAX_PAGES)
@@ -135,6 +136,12 @@ static void parse_memory_map(struct multiboot_info *mbi)
  */
 void page_alloc_init(struct multiboot_info *mbi)
 {
+	/* 既に初期化済みなら何もしない */
+	if (page_alloc_initialized)
+	{
+		return;
+	}
+
 	printk("page_alloc_init() called\n");
 
 	/* カーネルの終端アドレスを取得（ページ境界に切り上げ） */
@@ -148,6 +155,8 @@ void page_alloc_init(struct multiboot_info *mbi)
 	printk("About to parse memory map\n");
 	parse_memory_map(mbi);
 	printk("Memory map parsed\n");
+
+	page_alloc_initialized = 1;
 }
 
 /**
@@ -168,7 +177,7 @@ unsigned long __alloc_pages(unsigned int gfp_mask)
 		{
 			/* ページを使用中としてマーク */
 			set_page_bit(pfn);
-			free_pages--;
+			nr_free_pages--;
 
 			/* 物理アドレスを計算 */
 			unsigned long phys_addr = pfn * PAGE_SIZE;
@@ -213,7 +222,56 @@ void __free_pages(unsigned long addr)
 
 	/* ページを未使用としてマーク */
 	clear_page_bit(pfn);
-	free_pages++;
+	nr_free_pages++;
+}
+
+/**
+ * alloc_pages - 物理ページを割り当てる（Linux 2.6.11互換ラッパー）
+ * @gfp_mask: GFPフラグ
+ * @order: ページオーダー（0 = 1ページ、1 = 2ページ、...）
+ * @return: ページ構造体へのポインタ（物理アドレスとして使用可能）
+ *
+ * Linux 2.6.11では struct page* を返すが、kfs-3では簡略化のため
+ * 物理アドレスをそのままポインタとして返す
+ */
+struct page *alloc_pages(unsigned int gfp_mask, unsigned int order)
+{
+	unsigned long addr;
+
+	/* order > 0はkfs-3では未対応 */
+	if (order != 0)
+	{
+		printk(KERN_WARNING "alloc_pages: order %u not supported\n", order);
+		return NULL;
+	}
+
+	/* 1ページ割り当て */
+	addr = __alloc_pages(gfp_mask);
+	if (addr == 0)
+	{
+		return NULL;
+	}
+
+	/* 物理アドレスをポインタとして返す */
+	return (struct page *)addr;
+}
+
+/**
+ * free_pages - 物理ページを解放する（Linux 2.6.11互換ラッパー）
+ * @page: ページ構造体へのポインタ（物理アドレス）
+ * @order: ページオーダー（0 = 1ページ、1 = 2ページ、...）
+ */
+void free_pages(struct page *page, unsigned int order)
+{
+	/* order > 0はkfs-3では未対応 */
+	if (order != 0)
+	{
+		printk(KERN_WARNING "free_pages: order %u not supported\n", order);
+		return;
+	}
+
+	/* 物理アドレスとして解放 */
+	__free_pages((unsigned long)page);
 }
 
 /**

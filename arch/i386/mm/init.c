@@ -14,6 +14,9 @@ static pde_t boot_page_directory[1024] __attribute__((aligned(4096)));
  */
 static pte_t boot_page_table_0[1024] __attribute__((aligned(4096)));
 
+/* ページング初期化済みフラグ */
+static int paging_initialized = 0;
+
 /** 仮想アドレスと物理アドレスが1対1で対応する（同じ値になる）ようにページテーブルを設定する
  * 恒等写像の範囲: 0-8MB（カーネルイメージ + 初期カーネルヒープ領域）
  */
@@ -67,6 +70,12 @@ static void load_page_directory(void)
  */
 void paging_init(void)
 {
+	/* 既に初期化済みなら何もしない */
+	if (paging_initialized)
+	{
+		return;
+	}
+
 	printk("Initializing paging subsystem...\n");
 
 	/* 恒等マッピングを設定 */
@@ -81,6 +90,8 @@ void paging_init(void)
 
 	printk("Paging enabled successfully\n");
 	printk("Virtual address space initialized\n");
+
+	paging_initialized = 1;
 }
 
 /** 仮想アドレスに対応するPTEを取得する

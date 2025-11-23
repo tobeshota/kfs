@@ -110,6 +110,53 @@ static void execute_command(const char *cmd)
 		return;
 	}
 
+	/* kmalloc/kfreeテスト */
+	if (strcmp(cmd, "malloc") == 0)
+	{
+		extern void *kmalloc(size_t size);
+		extern void kfree(void *ptr);
+		extern size_t ksize(void *ptr);
+
+		/* 各サイズでテスト */
+		void *ptr32 = kmalloc(32);
+		void *ptr128 = kmalloc(128);
+		void *ptr1024 = kmalloc(1024);
+
+		printk("kmalloc test:\n");
+		printk("  32 bytes:   ptr=%p, ksize=%lu\n", ptr32, (unsigned long)ksize(ptr32));
+		printk("  128 bytes:  ptr=%p, ksize=%lu\n", ptr128, (unsigned long)ksize(ptr128));
+		printk("  1024 bytes: ptr=%p, ksize=%lu\n", ptr1024, (unsigned long)ksize(ptr1024));
+
+		/* 解放 */
+		kfree(ptr32);
+		kfree(ptr128);
+		kfree(ptr1024);
+		printk("kfree completed\n");
+		return;
+	}
+
+	/* kbrkテスト */
+	if (strcmp(cmd, "brk") == 0)
+	{
+		extern void *kbrk(intptr_t increment);
+		void *brk1, *brk2, *brk3;
+
+		printk("kbrk test:\n");
+		/* 1KB増加 */
+		brk1 = kbrk(1024);
+		printk("  kbrk(+1024):  %p\n", brk1);
+
+		/* さらに2KB増加 */
+		brk2 = kbrk(2048);
+		printk("  kbrk(+2048):  %p\n", brk2);
+
+		/* 1KB減少 */
+		brk3 = kbrk(-1024);
+		printk("  kbrk(-1024):  %p\n", brk3);
+
+		return;
+	}
+
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
 	printk("Unknown command: %s\n", cmd);
 }
