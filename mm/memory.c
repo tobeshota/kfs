@@ -189,3 +189,22 @@ unsigned long get_unmapped_area(size_t len)
 	/* 見つからない */
 	return 0;
 }
+
+/**
+ * テスト用: 仮想メモリ領域（VMA）を初期状態にリセット
+ * @details
+ * VMAリストとグローバル変数を初期状態に完全リセットする。
+ * テストの独立性を保証するために、各テスト前に呼び出す。
+ *
+ * リセット内容:
+ * - vm_area_listをNULLに設定（全VMAを削除）
+ * - 次に割り当て可能な仮想アドレスを初期位置に戻す
+ */
+void vm_reset_for_test(void)
+{
+	/* VMAリストをクリア（全て削除） */
+	vm_area_list = NULL;
+
+	/* 次の割り当て位置を初期化 */
+	next_vm_addr = KERNEL_VM_START;
+}

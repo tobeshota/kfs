@@ -405,3 +405,43 @@ void *kbrk(intptr_t increment)
 	/* 新しいブレイクポイントを返す */
 	return (void *)new_brk;
 }
+
+/** テスト用: Slabアロケータを初期状態にリセット
+ * @details
+ * 各キャッシュを初期化直後の状態に完全リセットする。
+ * テストの独立性を保証するために、各テスト前に呼び出す。
+ *
+ * リセット内容:
+ * - 各キャッシュのフリーリストを初期状態に再構築
+ * - 割り当てカウンタをリセット
+ * - 追加割り当てされたページは保持（シンプルさ優先）
+ */
+void kmem_cache_reset_for_test(void)
+{
+	int i;
+	struct kmem_cache *cache;
+
+	/* 初期化されていなければ何もしない */
+	if (!slab_initialized)
+	{
+		return;
+	}
+
+	/* 各キャッシュを初期状態にリセット */
+	for (i = 0; i < NR_CACHES; i++)
+	{
+		cache = &kmalloc_caches[i];
+
+		/* フリーリストをクリア */
+		cache->freelist = NULL;
+
+		/* キャッシュを再構築（最初の1ページで初期化） */
+		if (kmem_cache_grow(cache, i) < 0)
+		{
+			panic("kmem_cache_reset_for_test: failed to regrow cache %s", cache->name);
+		}
+	}
+
+	/* ヒープのブレイクポイントを初期位置にリセット */
+	kernel_heap_brk = kernel_heap_start;
+}

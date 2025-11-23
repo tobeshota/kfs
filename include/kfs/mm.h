@@ -50,4 +50,8 @@ void paging_init(void);
 /* メモリ初期化関数 */
 void mem_init(void);
 
+/* テスト用リセット関数 */
+void page_allocator_reset_for_test(void);
+void vm_reset_for_test(void);
+
 #endif /* _KFS_MM_H */

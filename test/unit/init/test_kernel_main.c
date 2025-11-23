@@ -1,4 +1,5 @@
 #include "../support/terminal_test_support.h"
+#include "../test_reset.h"
 #include "host_test_framework.h"
 #include <kfs/console.h>
 
@@ -22,6 +23,18 @@ static inline uint16_t cell(char c, uint8_t color)
 	return (uint16_t)c | (uint16_t)color << 8;
 }
 
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
+
 KFS_TEST(test_start_kernel_does_not_crash)
 {
 	kfs_terminal_set_buffer(term_stub);
@@ -34,7 +47,7 @@ KFS_TEST(test_start_kernel_does_not_crash)
 }
 
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_start_kernel_does_not_crash),
+	KFS_REGISTER_TEST_WITH_SETUP(test_start_kernel_does_not_crash, setup_test, teardown_test),
 };
 
 int register_host_tests_start_kernel(struct kfs_test_case **out)

@@ -1,3 +1,4 @@
+#include "../../../test_reset.h"
 #include "host_test_framework.h"
 #include <kfs/printk.h>
 #include <kfs/stdint.h>
@@ -12,6 +13,18 @@ extern char stack_top[];
 
 /* 前方宣言 */
 size_t test_stacktrace_count(void);
+
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
 
 /* 基本的なshow_stack呼び出しテスト */
 static void test_show_stack_with_null(void)
@@ -76,13 +89,13 @@ static void test_show_stack_deep_call(void)
 }
 
 struct kfs_test_case test_stacktrace_cases[] = {
-	{"test_show_stack_with_null", test_show_stack_with_null},
-	{"test_show_stack_with_explicit_esp", test_show_stack_with_explicit_esp},
-	{"test_dump_stack", test_dump_stack},
-	{"test_show_stack_out_of_bounds", test_show_stack_out_of_bounds},
-	{"test_show_stack_at_stack_top", test_show_stack_at_stack_top},
-	{"test_dump_stack_multiple_times", test_dump_stack_multiple_times},
-	{"test_show_stack_deep_call", test_show_stack_deep_call},
+	KFS_REGISTER_TEST_WITH_SETUP(test_show_stack_with_null, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_show_stack_with_explicit_esp, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_dump_stack, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_show_stack_out_of_bounds, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_show_stack_at_stack_top, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_dump_stack_multiple_times, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_show_stack_deep_call, setup_test, teardown_test),
 };
 
 int register_host_tests_stacktrace(struct kfs_test_case **out)

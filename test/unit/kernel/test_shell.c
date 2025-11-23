@@ -1,3 +1,4 @@
+#include "../test_reset.h"
 #include "host_test_framework.h"
 #include <kfs/shell.h>
 #include <kfs/string.h>
@@ -5,6 +6,18 @@
 /* シェルの内部関数を外部から呼び出せるように宣言 */
 extern int shell_keyboard_handler(char c);
 extern void shell_init(void);
+
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
 
 KFS_TEST(test_shell_init)
 {
@@ -239,23 +252,23 @@ KFS_TEST(test_shell_long_command)
 }
 
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_shell_init),
-	KFS_REGISTER_TEST(test_shell_keyboard_handler_printable),
-	KFS_REGISTER_TEST(test_shell_keyboard_handler_enter),
-	KFS_REGISTER_TEST(test_shell_keyboard_handler_backspace),
-	KFS_REGISTER_TEST(test_shell_execute_help_command),
-	KFS_REGISTER_TEST(test_shell_execute_meminfo_command),
-	KFS_REGISTER_TEST(test_shell_execute_unknown_command),
-	KFS_REGISTER_TEST(test_shell_keyboard_handler_arrow_keys),
-	KFS_REGISTER_TEST(test_shell_keyboard_handler_ctrl_c),
-	KFS_REGISTER_TEST(test_shell_keyboard_handler_empty_enter),
-	KFS_REGISTER_TEST(test_shell_keyboard_handler_del_key),
-	KFS_REGISTER_TEST(test_shell_keyboard_handler_multiple_backspace),
-	KFS_REGISTER_TEST(test_shell_backspace_at_prompt),
-	KFS_REGISTER_TEST(test_shell_right_arrow_at_end),
-	KFS_REGISTER_TEST(test_shell_left_arrow_at_prompt),
-	KFS_REGISTER_TEST(test_shell_keyboard_handler_carriage_return),
-	KFS_REGISTER_TEST(test_shell_long_command),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_init, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_printable, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_enter, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_backspace, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_help_command, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_meminfo_command, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_unknown_command, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_arrow_keys, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_ctrl_c, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_empty_enter, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_del_key, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_multiple_backspace, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_backspace_at_prompt, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_right_arrow_at_end, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_left_arrow_at_prompt, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_carriage_return, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_long_command, setup_test, teardown_test),
 };
 
 int register_host_tests_shell(struct kfs_test_case **out)

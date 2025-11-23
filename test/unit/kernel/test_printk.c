@@ -1,8 +1,21 @@
 #include "../host_test_framework.h"
+#include "../test_reset.h"
 #include <kfs/printk.h>
 #include <kfs/string.h>
 
 /* snprintf()のテスト */
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
+
 KFS_TEST(test_snprintf_basic)
 {
 	char buf[32];
@@ -323,23 +336,23 @@ KFS_TEST(test_snprintf_long_modifier_invalid)
 }
 
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_snprintf_basic),
-	KFS_REGISTER_TEST(test_snprintf_null_string),
-	KFS_REGISTER_TEST(test_snprintf_size_limit),
-	KFS_REGISTER_TEST(test_printk_kern_default),
-	KFS_REGISTER_TEST(test_printk_kern_cont),
-	KFS_REGISTER_TEST(test_printk_multiple_levels),
-	KFS_REGISTER_TEST(test_snprintf_complex_format),
-	KFS_REGISTER_TEST(test_snprintf_zero_size),
-	KFS_REGISTER_TEST(test_printk_format_edge_cases),
-	KFS_REGISTER_TEST(test_snprintf_pointer),
-	KFS_REGISTER_TEST(test_snprintf_unsigned_long),
-	KFS_REGISTER_TEST(test_snprintf_long_hex),
-	KFS_REGISTER_TEST(test_snprintf_long_hex_upper),
-	KFS_REGISTER_TEST(test_snprintf_signed_long),
-	KFS_REGISTER_TEST(test_snprintf_mixed_long_formats),
-	KFS_REGISTER_TEST(test_snprintf_null_pointer),
-	KFS_REGISTER_TEST(test_snprintf_long_modifier_invalid),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_null_string, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_size_limit, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_printk_kern_default, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_printk_kern_cont, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_printk_multiple_levels, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_complex_format, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_zero_size, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_printk_format_edge_cases, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_pointer, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_unsigned_long, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_long_hex, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_long_hex_upper, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_signed_long, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_mixed_long_formats, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_null_pointer, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_long_modifier_invalid, setup_test, teardown_test),
 };
 
 int register_host_tests_printk(struct kfs_test_case **out)

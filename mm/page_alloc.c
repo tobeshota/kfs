@@ -293,3 +293,36 @@ void mem_init(void)
 	printk("Memory initialization complete\n");
 	show_mem_info();
 }
+
+/**
+ * テスト用: ページアロケータを初期状態にリセット
+ * @details
+ * ページビットマップを初期化直後の状態に完全リセットする。
+ * テストの独立性を保証するために、各テスト前に呼び出す。
+ *
+ * リセット内容:
+ * - ページビットマップを初期状態（カーネル領域以外は空き）に戻す
+ * - 空きページ数カウンタをリセット
+ */
+void page_allocator_reset_for_test(void)
+{
+	unsigned long pfn;
+
+	/* 初期化されていなければ何もしない */
+	if (!page_alloc_initialized)
+	{
+		return;
+	}
+
+	/* 全ページを空きとしてマーク */
+	memset(page_bitmap, 0x00, sizeof(page_bitmap));
+
+	/* カーネル使用領域を使用中としてマーク */
+	for (pfn = 0; pfn < kernel_end_pfn && pfn < MAX_PAGES; pfn++)
+	{
+		set_page_bit(pfn);
+	}
+
+	/* 空きページ数をリセット */
+	nr_free_pages = total_pages - kernel_end_pfn;
+}

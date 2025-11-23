@@ -8,6 +8,7 @@
  * - get_unmapped_area(): 未使用の仮想アドレス領域を取得
  */
 
+#include "../test_reset.h"
 #include "host_test_framework.h"
 #include <kfs/mm.h>
 #include <kfs/stddef.h>
@@ -15,10 +16,16 @@
 /* 外部からアクセス可能なVMAリスト（mm/memory.cで定義） */
 extern struct vm_area_struct *vm_area_list;
 
-/* テスト前にVMAリストをクリア */
-static void setup_vm_area_list(void)
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
 {
-	vm_area_list = NULL;
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
 }
 
 /*
@@ -29,8 +36,6 @@ static void setup_vm_area_list(void)
 KFS_TEST(test_find_vma_empty_list)
 {
 	struct vm_area_struct *result;
-
-	setup_vm_area_list();
 
 	/* 空リストでの検索はNULLを返す */
 	result = find_vma(0x10000);
@@ -46,8 +51,6 @@ KFS_TEST(test_insert_vm_area_single)
 {
 	struct vm_area_struct vma;
 	int ret;
-
-	setup_vm_area_list();
 
 	/* VMAを設定 */
 	vma.vm_start = 0x10000;
@@ -73,8 +76,6 @@ KFS_TEST(test_insert_vm_area_multiple_sorted)
 {
 	struct vm_area_struct vma1, vma2, vma3;
 	struct vm_area_struct *current;
-
-	setup_vm_area_list();
 
 	/* VMA1: 中間のアドレス */
 	vma1.vm_start = 0x20000;
@@ -126,8 +127,6 @@ KFS_TEST(test_find_vma_address_in_range)
 	struct vm_area_struct vma;
 	struct vm_area_struct *result;
 
-	setup_vm_area_list();
-
 	vma.vm_start = 0x10000;
 	vma.vm_end = 0x20000;
 	vma.vm_flags = VM_READ | VM_WRITE;
@@ -152,8 +151,6 @@ KFS_TEST(test_find_vma_address_out_of_range)
 	struct vm_area_struct vma;
 	struct vm_area_struct *result;
 
-	setup_vm_area_list();
-
 	vma.vm_start = 0x10000;
 	vma.vm_end = 0x20000;
 	vma.vm_flags = VM_READ;
@@ -175,8 +172,6 @@ KFS_TEST(test_remove_vm_area_single)
 {
 	struct vm_area_struct vma;
 	struct vm_area_struct *result;
-
-	setup_vm_area_list();
 
 	vma.vm_start = 0x10000;
 	vma.vm_end = 0x20000;
@@ -206,8 +201,6 @@ KFS_TEST(test_remove_vm_area_middle)
 {
 	struct vm_area_struct vma1, vma2, vma3;
 	struct vm_area_struct *result;
-
-	setup_vm_area_list();
 
 	vma1.vm_start = 0x10000;
 	vma1.vm_end = 0x20000;
@@ -255,8 +248,6 @@ KFS_TEST(test_get_unmapped_area_empty_list)
 {
 	unsigned long addr;
 
-	setup_vm_area_list();
-
 	/* 空リストでは基底アドレスが返る */
 	addr = get_unmapped_area(0x1000);
 	KFS_ASSERT_TRUE(addr != 0UL);
@@ -271,8 +262,6 @@ KFS_TEST(test_get_unmapped_area_find_gap)
 {
 	struct vm_area_struct vma1, vma2;
 	unsigned long addr;
-
-	setup_vm_area_list();
 
 	/* VMA1: 0x10000-0x20000 */
 	vma1.vm_start = 0x10000;
@@ -307,8 +296,6 @@ KFS_TEST(test_get_unmapped_area_too_large)
 	struct vm_area_struct vma1, vma2;
 	unsigned long addr;
 
-	setup_vm_area_list();
-
 	vma1.vm_start = 0x10000;
 	vma1.vm_end = 0x20000;
 	vma1.vm_flags = VM_READ;
@@ -338,8 +325,6 @@ KFS_TEST(test_insert_vm_area_null)
 {
 	int ret;
 
-	setup_vm_area_list();
-
 	/* NULLの挿入は失敗 */
 	ret = insert_vm_area(NULL);
 	KFS_ASSERT_EQ(-1, ret);
@@ -353,8 +338,6 @@ KFS_TEST(test_insert_vm_area_null)
 KFS_TEST(test_remove_vm_area_not_found)
 {
 	struct vm_area_struct vma;
-
-	setup_vm_area_list();
 
 	vma.vm_start = 0x10000;
 	vma.vm_end = 0x20000;
@@ -377,7 +360,6 @@ KFS_TEST(test_remove_vm_area_not_found)
  */
 KFS_TEST(test_remove_vm_area_empty_list)
 {
-	setup_vm_area_list();
 
 	/* 空リストで削除（クラッシュしないこと） */
 	remove_vm_area(0x10000);
@@ -387,19 +369,19 @@ KFS_TEST(test_remove_vm_area_empty_list)
 }
 
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_find_vma_empty_list),
-	KFS_REGISTER_TEST(test_insert_vm_area_single),
-	KFS_REGISTER_TEST(test_insert_vm_area_multiple_sorted),
-	KFS_REGISTER_TEST(test_find_vma_address_in_range),
-	KFS_REGISTER_TEST(test_find_vma_address_out_of_range),
-	KFS_REGISTER_TEST(test_remove_vm_area_single),
-	KFS_REGISTER_TEST(test_remove_vm_area_middle),
-	KFS_REGISTER_TEST(test_get_unmapped_area_empty_list),
-	KFS_REGISTER_TEST(test_get_unmapped_area_find_gap),
-	KFS_REGISTER_TEST(test_get_unmapped_area_too_large),
-	KFS_REGISTER_TEST(test_insert_vm_area_null),
-	KFS_REGISTER_TEST(test_remove_vm_area_not_found),
-	KFS_REGISTER_TEST(test_remove_vm_area_empty_list),
+	KFS_REGISTER_TEST_WITH_SETUP(test_find_vma_empty_list, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_insert_vm_area_single, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_insert_vm_area_multiple_sorted, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_find_vma_address_in_range, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_find_vma_address_out_of_range, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_remove_vm_area_single, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_remove_vm_area_middle, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_get_unmapped_area_empty_list, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_get_unmapped_area_find_gap, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_get_unmapped_area_too_large, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_insert_vm_area_null, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_remove_vm_area_not_found, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_remove_vm_area_empty_list, setup_test, teardown_test),
 };
 
 int register_host_tests_memory(struct kfs_test_case **out)

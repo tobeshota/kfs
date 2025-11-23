@@ -1,5 +1,18 @@
+#include "../test_reset.h"
 #include "host_test_framework.h"
 #include "kfs/string.h"
+
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
 
 KFS_TEST(test_strlen)
 {
@@ -185,20 +198,20 @@ KFS_TEST(test_memcmp_and_memchr)
 }
 
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_strlen),
-	KFS_REGISTER_TEST(test_strnlen_clamps),
-	KFS_REGISTER_TEST(test_strcpy_basic),
-	KFS_REGISTER_TEST(test_strncpy_pads_with_nuls),
-	KFS_REGISTER_TEST(test_strncpy_zero_count),
-	KFS_REGISTER_TEST(test_strncpy_empty_source),
-	KFS_REGISTER_TEST(test_strlcpy_behaviour),
-	KFS_REGISTER_TEST(test_strcat_and_strncat),
-	KFS_REGISTER_TEST(test_strncat_empty_source),
-	KFS_REGISTER_TEST(test_strcmp_family),
-	KFS_REGISTER_TEST(test_strchr_strrchr_strstr),
-	KFS_REGISTER_TEST(test_memset_and_memcpy),
-	KFS_REGISTER_TEST(test_memmove_handles_overlap),
-	KFS_REGISTER_TEST(test_memcmp_and_memchr),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strlen, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strnlen_clamps, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strcpy_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strncpy_pads_with_nuls, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strncpy_zero_count, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strncpy_empty_source, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strlcpy_behaviour, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strcat_and_strncat, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strncat_empty_source, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strcmp_family, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strchr_strrchr_strstr, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_memset_and_memcpy, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_memmove_handles_overlap, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_memcmp_and_memchr, setup_test, teardown_test),
 };
 
 int register_host_tests_string(struct kfs_test_case **out)

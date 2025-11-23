@@ -8,9 +8,22 @@
  * - kbrk(): ヒープブレイクポイント変更
  */
 
+#include "../test_reset.h"
 #include "host_test_framework.h"
 #include <kfs/slab.h>
 #include <kfs/stddef.h>
+
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
 
 /*
  * テスト: kmalloc - 小さいサイズの割り当て
@@ -456,16 +469,26 @@ KFS_TEST(test_kfree_invalid_cache_index)
 }
 
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_kmalloc_small_size),	   KFS_REGISTER_TEST(test_kmalloc_medium_size),
-	KFS_REGISTER_TEST(test_kmalloc_large_size),	   KFS_REGISTER_TEST(test_kmalloc_zero_size),
-	KFS_REGISTER_TEST(test_kmalloc_too_large),	   KFS_REGISTER_TEST(test_kmalloc_multiple_sizes),
-	KFS_REGISTER_TEST(test_ksize_valid_pointer),   KFS_REGISTER_TEST(test_ksize_null_pointer),
-	KFS_REGISTER_TEST(test_ksize_various_sizes),   KFS_REGISTER_TEST(test_kfree_and_reuse),
-	KFS_REGISTER_TEST(test_kfree_null_pointer),	   KFS_REGISTER_TEST(test_kfree_multiple_cycles),
-	KFS_REGISTER_TEST(test_kbrk_increase),		   KFS_REGISTER_TEST(test_kbrk_decrease),
-	KFS_REGISTER_TEST(test_kbrk_zero_increment),   KFS_REGISTER_TEST(test_kbrk_exceed_limit),
-	KFS_REGISTER_TEST(test_kmalloc_boundary_size), KFS_REGISTER_TEST(test_kmalloc_kfree_no_leak),
-	KFS_REGISTER_TEST(test_kfree_invalid_magic),   KFS_REGISTER_TEST(test_kfree_invalid_cache_index),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kmalloc_small_size, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kmalloc_medium_size, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kmalloc_large_size, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kmalloc_zero_size, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kmalloc_too_large, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kmalloc_multiple_sizes, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_ksize_valid_pointer, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_ksize_null_pointer, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_ksize_various_sizes, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kfree_and_reuse, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kfree_null_pointer, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kfree_multiple_cycles, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kbrk_increase, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kbrk_decrease, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kbrk_zero_increment, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kbrk_exceed_limit, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kmalloc_boundary_size, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kmalloc_kfree_no_leak, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kfree_invalid_magic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kfree_invalid_cache_index, setup_test, teardown_test),
 };
 
 int register_host_tests_slab(struct kfs_test_case **out)

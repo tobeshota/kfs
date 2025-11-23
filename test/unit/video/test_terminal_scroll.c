@@ -1,4 +1,5 @@
 #include "../support/terminal_test_support.h"
+#include "../test_reset.h"
 #include "host_test_framework.h"
 #include <kfs/console.h>
 #include <kfs/printk.h>
@@ -26,6 +27,18 @@ static void setup_terminal(void)
 }
 
 /* スクロール機能の基本テスト: 画面が満杯になってスクロールした後、上矢印でスクロールアップできる */
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
+
 KFS_TEST(test_scroll_up_after_full_screen)
 {
 	setup_terminal();
@@ -594,24 +607,24 @@ KFS_TEST(test_cursor_right_wrap_to_next_line)
 }
 
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_scroll_up_after_full_screen),
-	KFS_REGISTER_TEST(test_scroll_down_returns_to_latest),
-	KFS_REGISTER_TEST(test_multiple_scroll_up),
-	KFS_REGISTER_TEST(test_scroll_down_at_bottom_is_noop),
-	KFS_REGISTER_TEST(test_scroll_up_beyond_limit),
-	KFS_REGISTER_TEST(test_new_output_resets_scroll_offset),
-	KFS_REGISTER_TEST(test_scroll_on_empty_screen),
-	KFS_REGISTER_TEST(test_scroll_per_console),
-	KFS_REGISTER_TEST(test_scrollback_buffer_wraparound),
-	KFS_REGISTER_TEST(test_cursor_move_clamp),
-	KFS_REGISTER_TEST(test_line_wrap_at_edge),
-	KFS_REGISTER_TEST(test_scrollback_ring_buffer_edge),
-	KFS_REGISTER_TEST(test_terminal_setcolor),
-	KFS_REGISTER_TEST(test_terminal_putchar_overwrite),
-	KFS_REGISTER_TEST(test_terminal_delete_char),
-	KFS_REGISTER_TEST(test_terminal_get_color_and_active_console),
-	KFS_REGISTER_TEST(test_cursor_left_movement),
-	KFS_REGISTER_TEST(test_cursor_right_wrap_to_next_line),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scroll_up_after_full_screen, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scroll_down_returns_to_latest, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_multiple_scroll_up, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scroll_down_at_bottom_is_noop, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scroll_up_beyond_limit, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_new_output_resets_scroll_offset, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scroll_on_empty_screen, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scroll_per_console, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scrollback_buffer_wraparound, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cursor_move_clamp, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_line_wrap_at_edge, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scrollback_ring_buffer_edge, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_terminal_setcolor, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_terminal_putchar_overwrite, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_terminal_delete_char, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_terminal_get_color_and_active_console, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cursor_left_movement, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cursor_right_wrap_to_next_line, setup_test, teardown_test),
 };
 
 int register_host_tests_terminal_scroll(struct kfs_test_case **out)

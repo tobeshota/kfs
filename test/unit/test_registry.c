@@ -52,8 +52,6 @@ int register_host_tests(struct kfs_test_case **out)
 		{
 			merged[idx++] = cases_term_scroll[i];
 		}
-		// for (int i = 0; i < count_serial && idx < KFS_MAX_TESTS; i++)
-		// 	merged[idx++] = cases_serial[i];
 		for (int i = 0; i < count_kernel && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_kernel[i];

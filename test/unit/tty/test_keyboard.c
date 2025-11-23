@@ -1,3 +1,4 @@
+#include "../test_reset.h"
 #include "host_test_framework.h"
 
 #include <kfs/console.h>
@@ -21,6 +22,18 @@ static void reset_handler_state(void)
 }
 
 /* 通常の文字入力テスト */
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
+
 KFS_TEST(test_keyboard_printable_chars)
 {
 	kfs_keyboard_reset();
@@ -394,23 +407,23 @@ KFS_TEST(test_keyboard_poll_when_not_initialized)
 int register_host_tests_keyboard(struct kfs_test_case **out_cases)
 {
 	static struct kfs_test_case cases[] = {
-		{"test_keyboard_printable_chars", test_keyboard_printable_chars},
-		{"test_keyboard_shift_modifier", test_keyboard_shift_modifier},
-		{"test_keyboard_right_shift", test_keyboard_right_shift},
-		{"test_keyboard_caps_lock", test_keyboard_caps_lock},
-		{"test_keyboard_caps_lock_with_shift", test_keyboard_caps_lock_with_shift},
-		{"test_keyboard_backspace", test_keyboard_backspace},
-		{"test_keyboard_enter", test_keyboard_enter},
-		{"test_keyboard_arrow_keys", test_keyboard_arrow_keys},
-		{"test_keyboard_alt_f_keys", test_keyboard_alt_f_keys},
-		{"test_keyboard_digit_keys", test_keyboard_digit_keys},
-		{"test_keyboard_space", test_keyboard_space},
-		{"test_keyboard_tab", test_keyboard_tab},
-		{"test_keyboard_key_release", test_keyboard_key_release},
-		{"test_keyboard_symbol_keys", test_keyboard_symbol_keys},
-		{"test_keyboard_e1_prefix", test_keyboard_e1_prefix},
-		{"test_keyboard_without_handler", test_keyboard_without_handler},
-		{"test_keyboard_poll_when_not_initialized", test_keyboard_poll_when_not_initialized},
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_printable_chars, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_shift_modifier, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_right_shift, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_caps_lock, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_caps_lock_with_shift, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_backspace, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_enter, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_arrow_keys, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_alt_f_keys, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_digit_keys, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_space, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_tab, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_key_release, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_symbol_keys, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_e1_prefix, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_without_handler, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_poll_when_not_initialized, setup_test, teardown_test),
 	};
 	*out_cases = cases;
 	return sizeof(cases) / sizeof(cases[0]);

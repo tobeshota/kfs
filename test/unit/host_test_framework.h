@@ -4,11 +4,15 @@
 #include <kfs/printk.h>
 
 typedef void (*kfs_test_fn)(void);
+typedef void (*kfs_test_init_fn)(void);
+typedef void (*kfs_test_exit_fn)(void);
 
 struct kfs_test_case
 {
 	const char *name;
 	kfs_test_fn fn;
+	kfs_test_init_fn init; // テスト前に実行（NULLの場合はスキップ）
+	kfs_test_exit_fn exit; // テスト後に実行（NULLの場合はスキップ）
 };
 
 #define KFS_TEST(name) static void name(void)
@@ -40,9 +44,16 @@ struct kfs_test_case
 
 extern int kfs_test_failures;
 
+// init/exitなしのテスト登録（既存テストとの互換性維持）
 #define KFS_REGISTER_TEST(fn)                                                                                          \
 	{                                                                                                                  \
-		#fn, fn                                                                                                        \
+		#fn, fn, NULL, NULL                                                                                            \
+	}
+
+// init/exitありのテスト登録（新規）
+#define KFS_REGISTER_TEST_WITH_SETUP(fn, init_fn, exit_fn)                                                             \
+	{                                                                                                                  \
+		#fn, fn, init_fn, exit_fn                                                                                      \
 	}
 
 static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count)
@@ -51,7 +62,22 @@ static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count
 	for (int i = 0; i < count; ++i)
 	{
 		printk("[RUN ] %s\n", cases[i].name);
+
+		// テスト前のセットアップ実行
+		if (cases[i].init)
+		{
+			cases[i].init();
+		}
+
+		// テスト本体を実行
 		cases[i].fn();
+
+		// テスト後のクリーンアップ実行（失敗時も必ず実行）
+		if (cases[i].exit)
+		{
+			cases[i].exit();
+		}
+
 		if (kfs_test_failures == 0)
 		{
 			printk("[PASS] %s\n", cases[i].name);

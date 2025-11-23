@@ -55,4 +55,7 @@ void kfree(void *ptr);
 size_t ksize(void *ptr);
 void *kbrk(intptr_t increment);
 
+/* テスト用リセット関数 */
+void kmem_cache_reset_for_test(void);
+
 #endif /* _KFS_SLAB_H */
