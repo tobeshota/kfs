@@ -7,7 +7,7 @@
  *       公開ヘッダーでは宣言されていない（内部使用のみ）．
  * @see Linux 2.6.11 kbd_write_command_w(0xFE)
  */
-void machine_restart_kbd(void)
+__attribute__((weak)) void machine_restart_kbd(void)
 {
 	outb(0xFE, 0x64);
 }
