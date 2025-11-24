@@ -21,6 +21,7 @@ uint8_t value;
 /* オーバーライド */
 void machine_restart_kbd(void)
 {
+	printk("machine_restart_kbd called\n");
 	port = 0xFE;
 	value = 0x64;
 }
