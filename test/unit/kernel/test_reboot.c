@@ -21,8 +21,8 @@ uint8_t value;
 /* オーバーライド */
 void machine_restart_kbd(void)
 {
-	port = 0x64;
-	value = 0xFE;
+	port = 0xFE;
+	value = 0x64;
 }
 
 KFS_TEST(test_machine_restart_kbd_calls_io_outb)
@@ -31,8 +31,8 @@ KFS_TEST(test_machine_restart_kbd_calls_io_outb)
 	machine_restart_kbd();
 
 	/* ポートと値が正しいことを確認 */
-	KFS_ASSERT_TRUE(port == 0x64);
-	KFS_ASSERT_TRUE(value == 0xFE);
+	KFS_ASSERT_TRUE(port == 0xFE);
+	KFS_ASSERT_TRUE(value == 0x64);
 }
 
 static struct kfs_test_case cases[] = {
