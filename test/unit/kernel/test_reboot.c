@@ -15,8 +15,8 @@ static void teardown_test(void)
 	/* 必要なら後処理（現在は空） */
 }
 
-uint16_t port;
-uint8_t value;
+int port;
+int value;
 
 /* オーバーライド */
 void machine_restart_kbd(void)
@@ -31,10 +31,8 @@ KFS_TEST(test_machine_restart_kbd_calls_io_outb)
 	machine_restart_kbd();
 
 	/* ポートと値が正しいことを確認 */
-	port = 0xFE;
-	value = 0x64;
-	KFS_ASSERT_TRUE(port == (uint16_t)0xFE);
-	KFS_ASSERT_TRUE(value == (uint8_t)0x64);
+	KFS_ASSERT_TRUE(port == 0xFE);
+	KFS_ASSERT_TRUE(value == 0x64);
 }
 
 static struct kfs_test_case cases[] = {
