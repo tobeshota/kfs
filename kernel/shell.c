@@ -1,6 +1,7 @@
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
 #include <kfs/printk.h>
+#include <kfs/reboot.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
 #include <kfs/stdint.h>
@@ -51,18 +52,8 @@ static void cmd_halt(void)
 /* システムを再起動する（reboot組み込みコマンド） */
 static void cmd_reboot(void)
 {
-	printk("Rebooting...\n");
-	/* キーボードコントローラを使ってシステムをリセット
-	 * 0x64ポート(PS/2ステータス)に0xFE(リセット)を送信すると、
-	 * ほとんどの環境で即座にCPUリセットが発生し、次の行には到達しない */
-	asm volatile("outb %b0, %w1" : : "a"((uint8_t)PS2_RESET_COMMAND), "Nd"((uint16_t)PS2_STATUS_PORT));
-
-	/* ここには通常到達しない（リセットが即座に実行されるため）
-	 * 古いハードウェアやリセット未対応の環境での安全策として待機 */
-	for (;;)
-	{
-		asm volatile("hlt");
-	}
+	machine_restart();
+	/* この行には到達しない */
 } /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
 static void execute_command(const char *cmd)
 {
