@@ -120,12 +120,50 @@ pte_t *get_pte(unsigned long vaddr)
 	return &pte_table[pte_idx];
 }
 
-/** 仮想アドレスを物理アドレスにマップ
- *
- * @vaddr: 仮想アドレス（4KBアライメント）
- * @paddr: 物理アドレス（4KBアライメント）
- * @flags: ページフラグ
- * @return: 0=成功、負数=エラー
+/** ページディレクトリエントリのページテーブルを取得または作成
+ * @param vaddr 仮想アドレス
+ * @return ページテーブルへのポインタ、エラー時NULL
+ */
+static pte_t *get_or_create_page_table(unsigned long vaddr)
+{
+	int pde_idx;
+	pde_t *pde;
+	pte_t *pte_table;
+	struct page *page;
+
+	pde_idx = pgd_index(vaddr);
+	pde = &boot_page_directory[pde_idx];
+
+	/* ページテーブルが既に存在する場合 */
+	if (pde_present(*pde))
+	{
+		return (pte_t *)pde_page(*pde);
+	}
+
+	/* 新しいページテーブルを割り当て */
+	page = alloc_pages(GFP_KERNEL, 0);
+	if (page == NULL)
+	{
+		printk(KERN_WARNING "Failed to allocate page table\n");
+		return NULL;
+	}
+
+	pte_table = (pte_t *)page;
+
+	/* ページテーブルを初期化（全エントリをクリア） */
+	memset(pte_table, 0, PAGE_SIZE);
+
+	/* ページディレクトリエントリを設定 */
+	set_pde(pde, (unsigned long)pte_table, _PAGE_PRESENT | _PAGE_RW);
+
+	return pte_table;
+}
+
+/** 仮想アドレスを物理アドレスにマップ（恒等マッピング用）
+ * @param vaddr 仮想アドレス（4KBアライメント）
+ * @param paddr 物理アドレス（4KBアライメント）
+ * @param flags ページフラグ
+ * @return 0=成功、負数=エラー
  */
 int map_page(unsigned long vaddr, unsigned long paddr, unsigned long flags)
 {
@@ -156,6 +194,42 @@ int map_page(unsigned long vaddr, unsigned long paddr, unsigned long flags)
 
 	// PTEを書き換えた後にCPUのTLBを無効化しないと，
 	// 新しいマッピングがCPUに反映されず予期せぬアクセスが起こる可能性があるため
+	__flush_tlb();
+
+	return 0;
+}
+
+/** 仮想アドレスと物理アドレスを動的にマップ（vmalloc用）
+ * @param vaddr 仮想アドレス（4KBアライメント）
+ * @param paddr 物理アドレス（4KBアライメント）
+ * @param flags ページフラグ
+ * @return 0=成功、負数=エラー
+ */
+int map_page_vmalloc(unsigned long vaddr, unsigned long paddr, unsigned long flags)
+{
+	pte_t *pte_table;
+	int pte_idx;
+
+	/* アライメントチェック */
+	if ((vaddr & ~PAGE_MASK) || (paddr & ~PAGE_MASK))
+	{
+		return -1;
+	}
+
+	/* ページテーブルを取得または作成 */
+	pte_table = get_or_create_page_table(vaddr);
+	if (pte_table == NULL)
+	{
+		return -1;
+	}
+
+	/* PTEインデックスを計算 */
+	pte_idx = pte_index(vaddr);
+
+	/* ページをマップ */
+	set_pte(&pte_table[pte_idx], paddr, flags | _PAGE_PRESENT);
+
+	/* TLBをフラッシュ */
 	__flush_tlb();
 
 	return 0;

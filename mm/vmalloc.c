@@ -102,6 +102,7 @@ void *vmalloc(unsigned long size)
 	{
 		struct page *page;
 		unsigned long vaddr = addr + (i << PAGE_SHIFT);
+		unsigned long paddr;
 
 		/* 物理ページを1ページずつ割り当て */
 		page = alloc_pages(GFP_KERNEL, 0);
@@ -122,10 +123,27 @@ void *vmalloc(unsigned long size)
 			return NULL;
 		}
 
-		/* 仮想アドレスと物理ページをマッピング */
-		/* 簡略化のため、物理アドレスをそのまま仮想アドレスとして使用 */
-		/* 実際のLinuxではページテーブルを操作してマッピングを行う */
-		(void)vaddr; /* 現時点では恒等マッピングを想定 */
+		/* 物理ページのアドレスを取得 */
+		paddr = (unsigned long)page;
+
+		/* 仮想アドレスと物理アドレスをページテーブルでマッピング */
+		if (map_page_vmalloc(vaddr, paddr, _PAGE_RW) != 0)
+		{
+			/* マッピング失敗時は物理ページも含めて解放 */
+			unsigned long j;
+			free_pages(page, 0);
+			for (j = 0; j < i; j++)
+			{
+				unsigned long free_vaddr = addr + (j << PAGE_SHIFT);
+				struct page *free_page = (struct page *)virt_to_phys((void *)free_vaddr);
+				free_pages(free_page, 0);
+			}
+			remove_vm_area(addr);
+			kfree(vma);
+			kfree(vm);
+			printk(KERN_WARNING "vmalloc: failed to map page %lu/%lu\n", i, nr_pages);
+			return NULL;
+		}
 	}
 
 	/* vm_structを初期化してリストに追加 */
