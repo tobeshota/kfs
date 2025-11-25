@@ -12,6 +12,7 @@ int register_host_tests_reboot(struct kfs_test_case **out);
 int register_host_tests_stacktrace(struct kfs_test_case **out);
 int register_host_tests_memory(struct kfs_test_case **out);
 int register_host_tests_slab(struct kfs_test_case **out);
+int register_host_tests_vmalloc(struct kfs_test_case **out);
 
 #define KFS_MAX_TESTS 256
 
@@ -48,6 +49,8 @@ int register_host_tests(struct kfs_test_case **out)
 		int count_memory = register_host_tests_memory(&cases_memory);
 		struct kfs_test_case *cases_slab = 0;
 		int count_slab = register_host_tests_slab(&cases_slab);
+		struct kfs_test_case *cases_vmalloc = 0;
+		int count_vmalloc = register_host_tests_vmalloc(&cases_vmalloc);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
@@ -94,6 +97,10 @@ int register_host_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_slab && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_slab[i];
+		}
+		for (int i = 0; i < count_vmalloc && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_vmalloc[i];
 		}
 		all_cases = merged;
 		all_count = idx;

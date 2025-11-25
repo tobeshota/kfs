@@ -173,6 +173,7 @@ static int kmem_cache_grow(struct kmem_cache *cache, int cache_idx)
 
 /** slabアロケータを初期化する
  * @details 各固定サイズキャッシュkmalloc_cachesに初期ページを割り当てる
+ *          これにより，kmalloc/kfreeが使用可能になる
  */
 void kmem_cache_init(void)
 {

@@ -6,6 +6,7 @@
 
 #include <kfs/mm.h>
 #include <kfs/slab.h>
+#include <kfs/vmalloc.h>
 
 /**
  * 全サブシステムを初期状態にリセット
@@ -17,6 +18,7 @@
  * - 仮想メモリ領域（VMA）
  * - ページアロケータ
  * - Slabアロケータ
+ * - vmallocアロケータ
  */
 void reset_all_state_for_test(void)
 {
@@ -28,4 +30,7 @@ void reset_all_state_for_test(void)
 
 	/* Slabアロケータをリセット（ページアロケータに依存） */
 	kmem_cache_reset_for_test();
+
+	/* vmallocアロケータを初期化（Slabアロケータに依存） */
+	vmalloc_init();
 }

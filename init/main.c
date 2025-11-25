@@ -6,6 +6,7 @@
 #include <kfs/serial.h>
 #include <kfs/shell.h>
 #include <kfs/slab.h>
+#include <kfs/vmalloc.h>
 
 /* Multiboot情報構造体へのポインタ（boot.Sで設定） */
 extern struct multiboot_info *multiboot_info_ptr;
@@ -41,6 +42,9 @@ void start_kernel(void)
 
 		/* Slabアロケータ初期化（kmalloc/kfree使用可能に） */
 		kmem_cache_init();
+
+		/* 仮想メモリアロケータ初期化（vmalloc/vfree使用可能に） */
+		vmalloc_init();
 
 		mem_init();
 	}

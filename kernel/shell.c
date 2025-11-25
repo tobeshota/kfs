@@ -148,6 +148,31 @@ static void execute_command(const char *cmd)
 		return;
 	}
 
+	/* vmalloc/vfreeテスト */
+	if (strcmp(cmd, "vmalloc") == 0)
+	{
+		extern void *vmalloc(unsigned long size);
+		extern void vfree(void *addr);
+		extern size_t vsize(void *addr);
+
+		/* 各サイズでテスト */
+		void *ptr1 = vmalloc(4096);	 /* 1ページ */
+		void *ptr2 = vmalloc(8192);	 /* 2ページ */
+		void *ptr3 = vmalloc(16384); /* 4ページ */
+
+		printk("vmalloc test:\n");
+		printk("  4096 bytes:  ptr=%p, vsize=%lu\n", ptr1, (unsigned long)vsize(ptr1));
+		printk("  8192 bytes:  ptr=%p, vsize=%lu\n", ptr2, (unsigned long)vsize(ptr2));
+		printk("  16384 bytes: ptr=%p, vsize=%lu\n", ptr3, (unsigned long)vsize(ptr3));
+
+		/* 解放 */
+		vfree(ptr1);
+		vfree(ptr2);
+		vfree(ptr3);
+		printk("vfree completed\n");
+		return;
+	}
+
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
 	printk("Unknown command: %s\n", cmd);
 }
