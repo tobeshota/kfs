@@ -7,9 +7,15 @@
 /* ========== ページテーブルエントリ定義 ========== */
 
 /* ページディレクトリ/テーブルエントリのフラグ */
-#define _PAGE_PRESENT 0x001 /* ページが存在 */
-#define _PAGE_RW 0x002		/* 読み書き可能 */
-#define _PAGE_USER 0x004	/* ユーザーモード */
+#define _PAGE_PRESENT 0x001	 /* P: ページが物理メモリに存在 */
+#define _PAGE_RW 0x002		 /* R/W: 読み書き可能（1=書き込み可） */
+#define _PAGE_USER 0x004	 /* U/S: ユーザーモードアクセス許可（1=許可） */
+#define _PAGE_PWT 0x008		 /* PWT: Page Write-Through */
+#define _PAGE_PCD 0x010		 /* PCD: Page Cache Disable */
+#define _PAGE_ACCESSED 0x020 /* A: ページ/テーブルがアクセスされた */
+#define _PAGE_DIRTY 0x040	 /* D: ページが書き込まれた（PTEのみ） */
+#define _PAGE_PSE 0x080		 /* PS: ページサイズ（0=4KB, 1=4MB、PDEのみ） */
+#define _PAGE_GLOBAL 0x100	 /* G: グローバルページ（TLBフラッシュ時も保持） */
 
 /* ページディレクトリ/テーブルエントリの型 */
 typedef uint32_t pte_t; /* ページテーブルエントリ */
