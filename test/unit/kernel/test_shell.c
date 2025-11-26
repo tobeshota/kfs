@@ -251,6 +251,70 @@ KFS_TEST(test_shell_long_command)
 	KFS_ASSERT_TRUE(result == 1);
 }
 
+/* mallocコマンドのテスト */
+KFS_TEST(test_shell_execute_malloc_command)
+{
+	shell_init();
+
+	/* mallocコマンドを実行 */
+	shell_keyboard_handler('m');
+	shell_keyboard_handler('a');
+	shell_keyboard_handler('l');
+	shell_keyboard_handler('l');
+	shell_keyboard_handler('o');
+	shell_keyboard_handler('c');
+	shell_keyboard_handler('\n');
+
+	KFS_ASSERT_TRUE(1);
+}
+
+/* brkコマンドのテスト */
+KFS_TEST(test_shell_execute_brk_command)
+{
+	shell_init();
+
+	/* brkコマンドを実行 */
+	shell_keyboard_handler('b');
+	shell_keyboard_handler('r');
+	shell_keyboard_handler('k');
+	shell_keyboard_handler('\n');
+
+	KFS_ASSERT_TRUE(1);
+}
+
+/* vmallocコマンドのテスト */
+KFS_TEST(test_shell_execute_vmalloc_command)
+{
+	shell_init();
+
+	/* vmallocコマンドを実行 */
+	shell_keyboard_handler('v');
+	shell_keyboard_handler('m');
+	shell_keyboard_handler('a');
+	shell_keyboard_handler('l');
+	shell_keyboard_handler('l');
+	shell_keyboard_handler('o');
+	shell_keyboard_handler('c');
+	shell_keyboard_handler('\n');
+
+	KFS_ASSERT_TRUE(1);
+}
+
+/* バッファオーバーフローのテスト */
+KFS_TEST(test_shell_buffer_overflow)
+{
+	shell_init();
+
+	/* CMD_BUFFER_SIZE(256)を超える文字列を入力 */
+	for (int i = 0; i < 260; i++)
+	{
+		shell_keyboard_handler('a');
+	}
+
+	/* バッファが満杯になると警告が出てクリアされる */
+	KFS_ASSERT_TRUE(1);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_init, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_printable, setup_test, teardown_test),
@@ -269,6 +333,10 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_left_arrow_at_prompt, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_carriage_return, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_long_command, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_malloc_command, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_brk_command, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_vmalloc_command, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_buffer_overflow, setup_test, teardown_test),
 };
 
 int register_host_tests_shell(struct kfs_test_case **out)

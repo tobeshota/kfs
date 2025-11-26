@@ -296,19 +296,98 @@ KFS_TEST(test_vsize_invalid_address)
 }
 
 /*
- * テスト: vbrk - 動作確認
- * 検証: vbrk()は割り当てたアドレスを返すこと
- * 目的: 動作確認
+ * テスト: vbrk - 初回呼び出し（初期化）
+ * 検証: vbrk()初回呼び出しで初期ヒープが確保されること
+ * 目的: 初期化処理の確認
  */
-KFS_TEST(test_vbrk_stub)
+KFS_TEST(test_vbrk_initial)
 {
 	void *result;
 
-	/* vbrk()を呼び出し */
+	/* 初回呼び出し（正の値） */
 	result = vbrk(1024);
 
 	/* 割り当てたアドレスが返ること */
 	KFS_ASSERT_TRUE(result != NULL);
+}
+
+/*
+ * テスト: vbrk - increment=0（現在のヒープ境界取得）
+ * 検証: increment=0で現在のヒープ境界を返すこと
+ * 目的: クエリモードの確認
+ */
+KFS_TEST(test_vbrk_query)
+{
+	void *brk1, *brk2;
+
+	/* 初回呼び出しで初期化 */
+	brk1 = vbrk(1024);
+	KFS_ASSERT_TRUE(brk1 != NULL);
+
+	/* increment=0で現在値を取得 */
+	brk2 = vbrk(0);
+	KFS_ASSERT_TRUE(brk2 != NULL);
+	KFS_ASSERT_EQ((unsigned long)brk1, (unsigned long)brk2);
+}
+
+/*
+ * テスト: vbrk - 正の値（ヒープ拡張）
+ * 検証: 正のincrementでヒープが拡張されること
+ * 目的: 拡張処理の確認
+ */
+KFS_TEST(test_vbrk_expand)
+{
+	void *brk1, *brk2;
+
+	/* 初回呼び出し */
+	brk1 = vbrk(1024);
+	KFS_ASSERT_TRUE(brk1 != NULL);
+
+	/* さらに拡張 */
+	brk2 = vbrk(2048);
+	KFS_ASSERT_TRUE(brk2 != NULL);
+
+	/* 拡張されたこと（brk2 > brk1） */
+	KFS_ASSERT_TRUE((unsigned long)brk2 > (unsigned long)brk1);
+}
+
+/*
+ * テスト: vbrk - 負の値（ヒープ縮小）
+ * 検証: 負のincrementでヒープが縮小されること
+ * 目的: 縮小処理の確認
+ */
+KFS_TEST(test_vbrk_shrink)
+{
+	void *brk1, *brk2;
+
+	/* 初回呼び出し */
+	brk1 = vbrk(4096);
+	KFS_ASSERT_TRUE(brk1 != NULL);
+
+	/* 縮小 */
+	brk2 = vbrk(-2048);
+	KFS_ASSERT_TRUE(brk2 != NULL);
+
+	/* 縮小されたこと（brk2 < brk1） */
+	KFS_ASSERT_TRUE((unsigned long)brk2 < (unsigned long)brk1);
+}
+
+/*
+ * テスト: vbrk - 大きな拡張（追加領域確保）
+ * 検証: 初期ヒープを超える拡張で追加領域が確保されること
+ * 目的: 追加vmalloc呼び出しの確認
+ */
+KFS_TEST(test_vbrk_large_expand)
+{
+	void *brk1, *brk2;
+
+	/* 初回呼び出し（1MB確保される） */
+	brk1 = vbrk(1024);
+	KFS_ASSERT_TRUE(brk1 != NULL);
+
+	/* 1MBを超える拡張（2MB） */
+	brk2 = vbrk(2 * 1024 * 1024);
+	KFS_ASSERT_TRUE(brk2 != NULL);
 }
 
 /*
@@ -407,7 +486,11 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_vsize_normal, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_vsize_multiple, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_vsize_invalid_address, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_vbrk_stub, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_vbrk_initial, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_vbrk_query, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_vbrk_expand, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_vbrk_shrink, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_vbrk_large_expand, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_vmalloc_vfree_cycle, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_vmalloc_vfree_out_of_order, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_vmalloc_vfree_partial, setup_test, teardown_test),
