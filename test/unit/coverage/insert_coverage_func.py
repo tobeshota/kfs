@@ -88,11 +88,13 @@ def instrument_functions(content, file_path):
     2. 制御構文（if/while/for/switch）の前にCOVERAGE_LINE()を挿入
     3. return文の前にCOVERAGE_LINE()を挿入
     4. ただし、宣言のみやコメント行は除外
+    5. 配列/構造体初期化子の中では挿入しない
     """
     lines = content.split('\n')
     result = []
     in_function = False
     brace_depth = 0
+    initializer_depth = 0  # 配列/構造体初期化子の深さ
     i = 0
 
     while i < len(lines):
@@ -107,6 +109,22 @@ def instrument_functions(content, file_path):
 
         # プリプロセッサディレクティブはそのまま追加
         if stripped.startswith('#'):
+            result.append(line)
+            i += 1
+            continue
+
+        # 配列/構造体初期化子の検出
+        # "変数名[] = {" や "変数名 = {" のパターンを検出
+        if '[] = {' in line or (re.search(r'\w+\s*=\s*\{', line) and not stripped.startswith('if') and not stripped.startswith('while') and not stripped.startswith('for')):
+            # 初期化子の開始
+            initializer_depth += line.count('{') - line.count('}')
+            result.append(line)
+            i += 1
+            continue
+
+        # 初期化子の中にいる場合
+        if initializer_depth > 0:
+            initializer_depth += line.count('{') - line.count('}')
             result.append(line)
             i += 1
             continue
