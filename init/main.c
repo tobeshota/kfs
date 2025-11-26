@@ -1,3 +1,4 @@
+#include <asm-i386/desc.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
 #include <kfs/mm.h>
@@ -30,6 +31,9 @@ void start_kernel(void)
 	asm volatile("mov %%ds, %0" : "=r"(ds)); /* 現在のDSレジスタ %%ds を C変数 ds に書き込む */
 	asm volatile("mov %%ss, %0" : "=r"(ss)); /* 現在のSSレジスタ %%ss を C変数 ss に書き込む */
 	printk("GDT loaded: CS=%x DS=%x SS=%x\n", cs, ds, ss);
+
+	/* IDT初期化（割り込み/例外ハンドラを登録） */
+	idt_init();
 
 	/* メモリ管理システムの初期化 */
 	if (multiboot_info_ptr != NULL)
