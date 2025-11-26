@@ -43,6 +43,91 @@ typedef uint32_t pde_t; /* ページディレクトリエントリ */
 #define pte_present(pte) (pte_val(pte) & _PAGE_PRESENT)
 #define pde_present(pde) (pde_val(pde) & _PAGE_PRESENT)
 
+/* U/S: ユーザーモードアクセス許可の確認 */
+#define pte_user(pte) (pte_val(pte) & _PAGE_USER)
+#define pde_user(pde) (pde_val(pde) & _PAGE_USER)
+
+/* R/W: 書き込み可能かの確認 */
+#define pte_write(pte) (pte_val(pte) & _PAGE_RW)
+#define pde_write(pde) (pde_val(pde) & _PAGE_RW)
+
+/* A: アクセス済みかの確認 */
+#define pte_accessed(pte) (pte_val(pte) & _PAGE_ACCESSED)
+#define pde_accessed(pde) (pde_val(pde) & _PAGE_ACCESSED)
+
+/* D: ダーティ（書き込み済み）かの確認（PTEのみ） */
+#define pte_dirty(pte) (pte_val(pte) & _PAGE_DIRTY)
+
+/* PS: ページサイズの確認（PDEのみ、0=4KB, 1=4MB） */
+#define pde_large(pde) (pde_val(pde) & _PAGE_PSE)
+
+/* ========== 標準フラグ組み合わせ（Linux 2.6.11互換） ========== */
+
+/* カーネル用ページのデフォルトフラグ（R/W可、ユーザーアクセス不可） */
+#define _PAGE_KERNEL (_PAGE_PRESENT | _PAGE_RW)
+
+/* ユーザー用ページのデフォルトフラグ（R/W可、ユーザーアクセス可） */
+#define _PAGE_USER_RW (_PAGE_PRESENT | _PAGE_RW | _PAGE_USER)
+
+/* ユーザー用読み取り専用ページのフラグ */
+#define _PAGE_USER_RO (_PAGE_PRESENT | _PAGE_USER)
+
+/* ========== フラグ操作ヘルパー ========== */
+
+/** PTEにユーザーモードアクセスを許可 */
+static inline void pte_set_user(pte_t *pte)
+{
+	*pte |= _PAGE_USER;
+}
+
+/** PTEからユーザーモードアクセスを除去 */
+static inline void pte_clear_user(pte_t *pte)
+{
+	*pte &= ~_PAGE_USER;
+}
+
+/** PTEを書き込み可能に設定 */
+static inline void pte_set_write(pte_t *pte)
+{
+	*pte |= _PAGE_RW;
+}
+
+/** PTEを読み取り専用に設定 */
+static inline void pte_clear_write(pte_t *pte)
+{
+	*pte &= ~_PAGE_RW;
+}
+
+/** PTEのアクセスフラグをクリア */
+static inline void pte_clear_accessed(pte_t *pte)
+{
+	*pte &= ~_PAGE_ACCESSED;
+}
+
+/** PTEのダーティフラグをクリア */
+static inline void pte_clear_dirty(pte_t *pte)
+{
+	*pte &= ~_PAGE_DIRTY;
+}
+
+/** PDEにユーザーモードアクセスを許可 */
+static inline void pde_set_user(pde_t *pde)
+{
+	*pde |= _PAGE_USER;
+}
+
+/** PDEからユーザーモードアクセスを除去 */
+static inline void pde_clear_user(pde_t *pde)
+{
+	*pde &= ~_PAGE_USER;
+}
+
+/** PDEのアクセスフラグをクリア */
+static inline void pde_clear_accessed(pde_t *pde)
+{
+	*pde &= ~_PAGE_ACCESSED;
+}
+
 /* ========== CR3操作 ========== */
 
 /** CR3レジスタにページディレクトリを書き込む

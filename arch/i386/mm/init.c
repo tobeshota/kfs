@@ -33,16 +33,16 @@ static void setup_identity_mapping(void)
 	/* 最初のページテーブル（0-4MB）を初期化 */
 	memset(boot_page_table_0, 0, sizeof(boot_page_table_0));
 
-	/* 0-4MBの恒等マッピングを設定 */
+	/* 0-4MBの恒等マッピングを設定（カーネル専用、ユーザーアクセス不可） */
 	for (addr = 0; addr < 0x400000; addr += PAGE_SIZE)
 	{
 		pte_idx = pte_index(addr);
-		set_pte(&boot_page_table_0[pte_idx], addr, _PAGE_PRESENT | _PAGE_RW);
+		set_pte(&boot_page_table_0[pte_idx], addr, _PAGE_KERNEL);
 	}
 
 	/* ページディレクトリの最初のエントリに上記テーブルを設定 */
 	pde_idx = pgd_index(0);
-	set_pde(&boot_page_directory[pde_idx], (unsigned long)boot_page_table_0, _PAGE_PRESENT | _PAGE_RW);
+	set_pde(&boot_page_directory[pde_idx], (unsigned long)boot_page_table_0, _PAGE_KERNEL);
 
 	printk("Identity mapping established\n");
 }
@@ -153,8 +153,8 @@ static pte_t *get_or_create_page_table(unsigned long vaddr)
 	/* ページテーブルを初期化（全エントリをクリア） */
 	memset(pte_table, 0, PAGE_SIZE);
 
-	/* ページディレクトリエントリを設定 */
-	set_pde(pde, (unsigned long)pte_table, _PAGE_PRESENT | _PAGE_RW);
+	/* ページディレクトリエントリを設定（カーネル用） */
+	set_pde(pde, (unsigned long)pte_table, _PAGE_KERNEL);
 
 	return pte_table;
 }

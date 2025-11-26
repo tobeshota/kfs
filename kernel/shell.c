@@ -1,3 +1,4 @@
+#include <asm-i386/pgtable.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
 #include <kfs/printk.h>
@@ -170,6 +171,58 @@ static void execute_command(const char *cmd)
 		vfree(ptr2);
 		vfree(ptr3);
 		printk("vfree completed\n");
+		return;
+	}
+
+	/* ページ情報表示コマンド */
+	if (strcmp(cmd, "pginfo") == 0)
+	{
+		extern pte_t *get_pte(unsigned long vaddr);
+
+		/* いくつかの仮想アドレスのページ情報を表示 */
+		unsigned long test_addrs[] = {
+			0x00001000, /* カーネル恒等マッピング領域 */
+			0x00100000, /* カーネル恒等マッピング領域 */
+			0xC0000000, /* vmalloc開始アドレス付近 */
+		};
+
+		printk("Page Table Entry Information:\n");
+		for (size_t i = 0; i < sizeof(test_addrs) / sizeof(test_addrs[0]); i++)
+		{
+			unsigned long vaddr = test_addrs[i];
+			pte_t *pte = get_pte(vaddr);
+
+			if (pte == NULL || !pte_present(*pte))
+			{
+				printk("  0x%08lx: NOT PRESENT\n", vaddr);
+				continue;
+			}
+
+			printk("  0x%08lx: phys=0x%08lx flags=", vaddr, pte_page(*pte));
+
+			if (pte_present(*pte))
+			{
+				printk("P");
+			}
+			if (pte_write(*pte))
+			{
+				printk("W");
+			}
+			if (pte_user(*pte))
+			{
+				printk("U");
+			}
+			if (pte_accessed(*pte))
+			{
+				printk("A");
+			}
+			if (pte_dirty(*pte))
+			{
+				printk("D");
+			}
+
+			printk("\n");
+		}
 		return;
 	}
 
