@@ -296,9 +296,9 @@ KFS_TEST(test_vsize_invalid_address)
 }
 
 /*
- * テスト: vbrk - スタブ実装
- * 検証: vbrk()はNULLを返すこと（未実装）
- * 目的: スタブ実装の動作を確認
+ * テスト: vbrk - 動作確認
+ * 検証: vbrk()は割り当てたアドレスを返すこと
+ * 目的: 動作確認
  */
 KFS_TEST(test_vbrk_stub)
 {
@@ -307,8 +307,8 @@ KFS_TEST(test_vbrk_stub)
 	/* vbrk()を呼び出し */
 	result = vbrk(1024);
 
-	/* NULLが返ること（未実装） */
-	KFS_ASSERT_TRUE(result == NULL);
+	/* 割り当てたアドレスが返ること */
+	KFS_ASSERT_TRUE(result != NULL);
 }
 
 /*

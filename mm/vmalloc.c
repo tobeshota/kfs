@@ -23,6 +23,11 @@ struct vm_struct
 /* vmalloc領域のリスト */
 static struct vm_struct *vmlist = NULL;
 
+/* vbrk用の仮想メモリヒープ境界 */
+static void *vheap_start = NULL;
+static void *vheap_end = NULL;
+static void *vheap_brk = NULL;
+
 /** vmalloc領域を初期化する
  * @details これにより，vmalloc/vfreeが使用可能になる
  * @note Linux 2.6.11のvmalloc_init()に相当する
@@ -31,6 +36,12 @@ void vmalloc_init(void)
 {
 	/* 初期化時はリストを空にする */
 	vmlist = NULL;
+
+	/* vbrk用のヒープ境界を初期化 */
+	vheap_start = NULL;
+	vheap_end = NULL;
+	vheap_brk = NULL;
+
 	printk(KERN_INFO "vmalloc initialized\n");
 }
 
@@ -248,15 +259,87 @@ size_t vsize(void *addr)
 	return 0;
 }
 
-/** 仮想メモリヒープの拡張する（スタブ実装）
+/** 仮想メモリヒープの拡張する
  * @param increment 増減サイズ（バイト単位）
  * @return 新しいヒープ境界、失敗時はNULL
- * @note Linux 2.6.11にはない独自関数
+ * @note Linux 2.6.11にはない独自関数（kbrk()の仮想メモリ版）
+ * @details
+ * - increment > 0: ヒープを拡張
+ * - increment < 0: ヒープを縮小
+ * - increment == 0: 現在のヒープ境界を返す
  */
 void *vbrk(long increment)
 {
-	/* KFS-3では実装しない（スタブ） */
-	(void)increment;
-	printk(KERN_WARNING "vbrk: not implemented\n");
-	return NULL;
+	void *new_brk;
+	unsigned long expand_size;
+	void *new_region;
+
+	/* 初回呼び出し時：初期ヒープ領域を確保 */
+	if (vheap_start == NULL)
+	{
+		/* 初期サイズ：1MB */
+		vheap_start = vmalloc(1024 * 1024);
+		if (vheap_start == NULL)
+		{
+			printk(KERN_WARNING "vbrk: failed to initialize heap\n");
+			return NULL;
+		}
+		vheap_end = (void *)((unsigned long)vheap_start + 1024 * 1024);
+		vheap_brk = vheap_start;
+		printk(KERN_INFO "vbrk: initialized heap at 0x%lx-0x%lx\n", (unsigned long)vheap_start,
+			   (unsigned long)vheap_end);
+	}
+
+	/* increment == 0: 現在のヒープ境界を返す */
+	if (increment == 0)
+	{
+		return vheap_brk;
+	}
+
+	new_brk = (void *)((long)vheap_brk + increment);
+
+	/* ヒープ縮小の場合 */
+	if (increment < 0)
+	{
+		/* ヒープ開始位置より前には戻せない */
+		if (new_brk < vheap_start)
+		{
+			printk(KERN_WARNING "vbrk: cannot shrink below heap start\n");
+			return NULL;
+		}
+		vheap_brk = new_brk;
+		printk(KERN_INFO "vbrk: shrunk by %ld bytes to 0x%lx\n", -increment, (unsigned long)new_brk);
+		return new_brk;
+	}
+
+	/* ヒープ拡張の場合 */
+	/* 現在の割り当て済み領域内に収まる場合 */
+	if (new_brk <= vheap_end)
+	{
+		vheap_brk = new_brk;
+		printk(KERN_INFO "vbrk: expanded by %ld bytes to 0x%lx\n", increment, (unsigned long)new_brk);
+		return new_brk;
+	}
+
+	/* 現在の領域を超える場合：新しい領域を追加で確保 */
+	expand_size = (unsigned long)new_brk - (unsigned long)vheap_end;
+	/* ページサイズに切り上げ */
+	expand_size = (expand_size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+	new_region = vmalloc(expand_size);
+	if (new_region == NULL)
+	{
+		printk(KERN_WARNING "vbrk: failed to expand heap by %lu bytes\n", expand_size);
+		return NULL;
+	}
+
+	printk(KERN_INFO "vbrk: allocated additional region at 0x%lx (%lu bytes)\n", (unsigned long)new_region,
+		   expand_size);
+
+	/* ヒープ終端を更新（注意：追加領域は連続していない可能性がある） */
+	vheap_end = (void *)((unsigned long)vheap_end + expand_size);
+	vheap_brk = new_brk;
+
+	printk(KERN_INFO "vbrk: expanded by %ld bytes to 0x%lx\n", increment, (unsigned long)new_brk);
+	return new_brk;
 }
