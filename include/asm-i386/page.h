@@ -4,7 +4,7 @@
 /* ページサイズ */
 #define PAGE_SHIFT 12
 #define PAGE_SIZE (1UL << PAGE_SHIFT) /* 4096バイト */
-#define PAGE_MASK (~(PAGE_SIZE - 1))
+#define PAGE_MASK (~(PAGE_SIZE - 1))  /* ページアラインされたアドレスを取り出すマスク */
 
 /* ページアライメント */
 #define PAGE_ALIGN(addr) (((addr) + PAGE_SIZE - 1) & PAGE_MASK)

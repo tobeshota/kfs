@@ -21,7 +21,7 @@ typedef uint32_t pde_t; /* ページディレクトリエントリ */
 #define __pte(x) ((pte_t){(x)})
 #define __pde(x) ((pde_t){(x)})
 
-/* ページディレクトリ/テーブル内のインデックス計算
+/** ページディレクトリ/テーブル内のインデックス計算
  * @note pgd_indexの"pgd"は"page global directory"のこと．
  *       pgd_indexの由来はページディレクトリが多段化する64ビットISAと名称を合わせるため．
  *       i386ではページディレクトリが多段化しないため，実質的にはPDEのインデックスと同じ．
@@ -75,10 +75,12 @@ static inline void enable_paging(void)
 }
 
 /** TLBをフラッシュする
- * @brief CPUはCR3に書き込みが行われると，現在のTLB[Translation Lookaside
- *        Buffer]の値を古いものとみなし，使わないようにする．そこで，
- *        CR3レジスタの値をtmpregに書き，それを再度CR3レジスタに書き込むことで
- *        CPUに今のTLBを無効化して再ロードさせる．
+ * @brief    CPUはCR3に書き込みが行われると，現在のTLB[Translation Lookaside
+ *           Buffer]の値を古いものとみなし，使わないようにする．そこで，
+ *           CR3レジスタの値をtmpregに書き，それを再度CR3レジスタに書き込むことで
+ *           CPUに今のTLBを無効化して再ロードさせる．
+ * @example  PTEを書き換えた後は__flush_tlb()を実行してCPUのTLBを無効化する必要がある．
+ *           その理由は，新しいマッピングがCPUに反映されず予期せぬアクセスが起こる可能性があるため．
  */
 static inline void __flush_tlb(void)
 {

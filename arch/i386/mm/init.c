@@ -120,7 +120,7 @@ pte_t *get_pte(unsigned long vaddr)
 	return &pte_table[pte_idx];
 }
 
-/** ページディレクトリエントリのページテーブルを取得または作成
+/** 仮想アドレスから対応するページテーブルを取得または作成する
  * @param vaddr 仮想アドレス
  * @return ページテーブルへのポインタ、エラー時NULL
  */
@@ -210,13 +210,24 @@ int map_page_vmalloc(unsigned long vaddr, unsigned long paddr, unsigned long fla
 	pte_t *pte_table;
 	int pte_idx;
 
-	/* アライメントチェック */
+	/** ページ境界（4KB）でアラインされているかを調べる
+	 * @details
+	 * vaddrとpaddrの両方がページサイズの倍数であり，ページ境界に揃っていることを確認する．
+	 * ページテーブルへのエントリ作成や物理フレームへのマッピングはページ単位で行う必要があるため，
+	 * 仮想アドレス・物理アドレスともにページ境界で揃っていることが前提となる．
+	 * @note
+	 * - ~PAGE_MASK: ページ内のオフセットを取り出すマスク
+	 * - vaddr & ~PAGE_MASK: vaddr のページ内のオフセット
+	 *                       これが0のとき，vaddrはページサイズの倍数であり，ページ境界に揃っている
+	 * - paddr & ~PAGE_MASK: paddr のページ内のオフセット
+	 *                       これが0のとき，paddrはページサイズの倍数であり，ページ境界に揃っている
+	 */
 	if ((vaddr & ~PAGE_MASK) || (paddr & ~PAGE_MASK))
 	{
 		return -1;
 	}
 
-	/* ページテーブルを取得または作成 */
+	/* vaddrから対応するページテーブルを取得または作成する */
 	pte_table = get_or_create_page_table(vaddr);
 	if (pte_table == NULL)
 	{
@@ -226,10 +237,14 @@ int map_page_vmalloc(unsigned long vaddr, unsigned long paddr, unsigned long fla
 	/* PTEインデックスを計算 */
 	pte_idx = pte_index(vaddr);
 
-	/* ページをマップ */
+	/** ページをマップ
+	 * @details 仮想アドレスvaddrから取得したページテーブルpte_tableのエントリpte_table[pte_idx]と
+	 *          物理アドレスpaddrをマッピングする
+	 */
 	set_pte(&pte_table[pte_idx], paddr, flags | _PAGE_PRESENT);
 
-	/* TLBをフラッシュ */
+	// PTEを書き換えた後にCPUのTLBを無効化しないと，
+	// 新しいマッピングがCPUに反映されず予期せぬアクセスが起こる可能性があるため
 	__flush_tlb();
 
 	return 0;

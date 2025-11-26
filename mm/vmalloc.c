@@ -53,8 +53,14 @@ void *vmalloc(unsigned long size)
 		return NULL;
 	}
 
-	/* サイズをページ境界に切り上げ */
+	/** sizeをPAGE_SIZEの倍数に切り上げて揃える
+	 * @details
+	 * - size + PAGE_SIZE - 1 上方向へ丸めるための調整
+	 * - ~(PAGE_SIZE - 1) 下位ビットをクリアしてページ境界に揃える
+	 */
 	aligned_size = (size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+	/* ページ数を計算 */
 	nr_pages = aligned_size >> PAGE_SHIFT;
 
 	/* 未使用の仮想アドレス領域を探す */
