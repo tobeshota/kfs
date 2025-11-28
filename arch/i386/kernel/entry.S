@@ -119,8 +119,9 @@ EXCEPTION_NOERRCODE simd_coprocessor_error, 19	/* 0x13: SIMD Floating-Point */
  */
 common_interrupt:
 	SAVE_ALL
-	movl %esp, %eax		/* pt_regsへのポインタを第1引数に */
+	pushl %esp			/* pt_regsへのポインタを引数としてpush */
 	call do_IRQ			/* CのIRQハンドラを呼び出し */
+	addl $4, %esp		/* 引数をpopしてスタックを復元 */
 	RESTORE_ALL
 
 /**
