@@ -128,11 +128,12 @@ common_interrupt:
  * IRQエントリポイント用マクロ
  * @param name  エントリポイント名
  * @param irq   IRQ番号 (0-15)
+ * @note  CPUはerror_codeをpushしないので、スタック構造を例外と同じにする
+ *        orig_eaxの位置にIRQ番号を置く
  */
 .macro IRQ_ENTRY name, irq
 .globl \name
 \name:
-	pushl $0			/* ダミーのerror_code */
 	pushl $\irq			/* IRQ番号をorig_eaxの位置に */
 	jmp common_interrupt
 .endm
