@@ -9,7 +9,7 @@
  */
 __attribute__((weak)) void machine_restart_kbd(void)
 {
-	outb(0xFE, 0x64);
+	outb(0x64, 0xFE);
 }
 
 /** システムを再起動する
