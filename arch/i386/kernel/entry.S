@@ -57,8 +57,9 @@
  */
 common_exception:
 	SAVE_ALL
-	movl %esp, %eax		/* pt_regsへのポインタを第1引数に */
+	pushl %esp			/* pt_regsへのポインタを引数としてpush */
 	call do_exception	/* Cのハンドラを呼び出し */
+	addl $4, %esp		/* 引数をpopしてスタックを復元 */
 	RESTORE_ALL
 
 /**
