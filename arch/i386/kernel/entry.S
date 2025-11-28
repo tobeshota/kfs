@@ -87,7 +87,7 @@ common_exception:
 	jmp common_exception
 .endm
 
-/* ========== CPU例外エントリポイント (0x00-0x13) ========== */
+/* ========== 例外エントリポイント (0x00-0x13) ========== */
 
 EXCEPTION_NOERRCODE divide_error, 0				/* 0x00: Division by Zero */
 EXCEPTION_NOERRCODE debug, 1					/* 0x01: Debug */
@@ -109,3 +109,47 @@ EXCEPTION_NOERRCODE coprocessor_error, 16		/* 0x10: x87 FPU Error */
 EXCEPTION_ERRCODE   alignment_check, 17			/* 0x11: Alignment Check (error code) */
 EXCEPTION_NOERRCODE machine_check, 18			/* 0x12: Machine Check */
 EXCEPTION_NOERRCODE simd_coprocessor_error, 19	/* 0x13: SIMD Floating-Point */
+
+/* ========== ハードウェア割り込みエントリポイント (0x20-0x2F) ========== */
+
+/**
+ * 共通IRQハンドラ
+ * スタック上にpt_regsを構築し、do_IRQ()を呼び出す
+ * 入力: スタックにIRQ番号がorig_eaxとして積まれている
+ */
+common_interrupt:
+	SAVE_ALL
+	movl %esp, %eax		/* pt_regsへのポインタを第1引数に */
+	call do_IRQ			/* CのIRQハンドラを呼び出し */
+	RESTORE_ALL
+
+/**
+ * IRQエントリポイント用マクロ
+ * @param name  エントリポイント名
+ * @param irq   IRQ番号 (0-15)
+ */
+.macro IRQ_ENTRY name, irq
+.globl \name
+\name:
+	pushl $0			/* ダミーのerror_code */
+	pushl $\irq			/* IRQ番号をorig_eaxの位置に */
+	jmp common_interrupt
+.endm
+
+/* IRQ0-15のエントリポイント */
+IRQ_ENTRY irq0, 0		/* IRQ0: PIT (Programmable Interval Timer) */
+IRQ_ENTRY irq1, 1		/* IRQ1: Keyboard */
+IRQ_ENTRY irq2, 2		/* IRQ2: 8259A */
+IRQ_ENTRY irq3, 3		/* IRQ3: COM2 */
+IRQ_ENTRY irq4, 4		/* IRQ4: COM1 */
+IRQ_ENTRY irq5, 5		/* IRQ5: LPT2 */
+IRQ_ENTRY irq6, 6		/* IRQ6: Floppy */
+IRQ_ENTRY irq7, 7		/* IRQ7: LPT1 / Spurious */
+IRQ_ENTRY irq8, 8		/* IRQ8: RTC (Real-Time Clock) */
+IRQ_ENTRY irq9, 9		/* IRQ9: ACPI */
+IRQ_ENTRY irq10, 10		/* IRQ10: Available */
+IRQ_ENTRY irq11, 11		/* IRQ11: Available */
+IRQ_ENTRY irq12, 12		/* IRQ12: PS/2 Mouse */
+IRQ_ENTRY irq13, 13		/* IRQ13: FPU */
+IRQ_ENTRY irq14, 14		/* IRQ14: Primary ATA */
+IRQ_ENTRY irq15, 15		/* IRQ15: Secondary ATA */

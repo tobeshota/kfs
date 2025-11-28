@@ -19,10 +19,6 @@ void kfs_keyboard_init(void);
 void kfs_keyboard_reset(void);
 void kfs_keyboard_feed_scancode(uint8_t scancode);
 void kfs_keyboard_poll(void);
-
-/** カスタムキーボードハンドラを設定する
- * @param handler ハンドラ関数ポインタ（NULLでデフォルト動作に戻す）
- */
 void kfs_keyboard_set_handler(keyboard_handler_t handler);
 
 #endif /* KFS_KEYBOARD_H */

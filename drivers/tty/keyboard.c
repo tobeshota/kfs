@@ -286,7 +286,9 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 	}
 }
 
-/* カスタムキーボードハンドラを設定する */
+/** カスタムキーボードハンドラを設定する
+ * @param handler ハンドラ関数ポインタ（NULLでデフォルト動作に戻す）
+ */
 void kfs_keyboard_set_handler(keyboard_handler_t handler)
 {
 	custom_handler = handler;

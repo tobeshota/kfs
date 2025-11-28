@@ -30,7 +30,7 @@ struct pt_regs
 	uint32_t gs;
 
 	/* 割り込み/例外発生時にCPUが自動的にpushする値 */
-	uint32_t orig_eax; /* システムコール番号 or エラーコード */
+	uint32_t orig_eax; /* 割り込みまたは例外の番号 */
 	uint32_t eip;	   /* 割り込み発生時の命令ポインタ */
 	uint32_t cs;	   /* コードセグメント */
 	uint32_t eflags;   /* フラグレジスタ */

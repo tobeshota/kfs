@@ -1,4 +1,5 @@
 #include <asm-i386/desc.h>
+#include <asm-i386/i8259.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
 #include <kfs/mm.h>
@@ -34,6 +35,10 @@ void start_kernel(void)
 
 	/* IDT初期化（割り込み/例外ハンドラを登録） */
 	idt_init();
+
+	/* PIC(8259A)初期化（IRQをベクタ0x20-0x2Fにリマップ） */
+	printk("Initializing 8259A PIC...\n");
+	init_8259A();
 
 	/* メモリ管理システムの初期化 */
 	if (multiboot_info_ptr != NULL)

@@ -1,20 +1,14 @@
-/**
- * traps.c - IDT設定とCPU例外ハンドラ
- *
- * IDTの初期化、ゲート設定、CPU例外処理を行う
- * @see Linux 2.6.11: arch/i386/kernel/traps.c
- */
-
 #include <asm-i386/desc.h>
 #include <asm-i386/ptrace.h>
+#include <kfs/irq.h>
 #include <kfs/panic.h>
 #include <kfs/printk.h>
 #include <kfs/string.h>
 
 /* ========== IDT管理 ========== */
 
-/* IDTテーブル（256エントリ × 8バイト = 2KB） */
-static struct idt_entry idt[IDT_ENTRIES];
+/* IDTテーブル（256エントリ × 8バイト = 2KB）*/
+struct idt_entry idt[IDT_ENTRIES];
 
 /* IDTR用ポインタ構造体 */
 static struct desc_ptr idt_ptr;
@@ -101,10 +95,8 @@ void do_exception(struct pt_regs *regs)
 	unsigned int trap_no = regs->orig_eax;
 	const char *name = get_exception_name(trap_no);
 
-	printk("\n========== EXCEPTION ==========\n");
 	printk("Exception %d: %s\n", trap_no, name);
 	show_regs(regs);
-	printk("===============================\n");
 
 	/* Breakpoint(0x03)とOverflow(0x04)は継続可能 */
 	if (trap_no != 3 && trap_no != 4)
@@ -115,7 +107,7 @@ void do_exception(struct pt_regs *regs)
 
 /* ========== 初期化 ========== */
 
-/** CPU例外ハンドラをIDTに登録する（Linux 2.6.11: trap_init()） */
+/** 例外ハンドラをIDTに登録する */
 void trap_init(void)
 {
 	set_intr_gate(0, divide_error);				   /* 0x00: Division by Zero */
@@ -150,8 +142,11 @@ void idt_init(void)
 	/* IDTテーブルをゼロクリア */
 	memset(idt, 0, sizeof(idt));
 
-	/* CPU例外ハンドラを設定 */
+	/* 例外ハンドラをIDTに登録する */
 	trap_init();
+
+	/* ハードウェア割り込みハンドラをIDTに登録する */
+	init_IRQ();
 
 	/* IDTRポインタを設定 */
 	idt_ptr.size = sizeof(idt) - 1;		 /* サイズ - 1 */

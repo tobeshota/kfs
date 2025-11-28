@@ -15,6 +15,8 @@ int register_host_tests_slab(struct kfs_test_case **out);
 int register_host_tests_vmalloc(struct kfs_test_case **out);
 int register_host_tests_pgtable(struct kfs_test_case **out);
 int register_host_tests_traps(struct kfs_test_case **out);
+int register_host_tests_i8259(struct kfs_test_case **out);
+int register_host_tests_irq(struct kfs_test_case **out);
 
 #define KFS_MAX_TESTS 256
 
@@ -57,6 +59,10 @@ int register_host_tests(struct kfs_test_case **out)
 		int count_pgtable = register_host_tests_pgtable(&cases_pgtable);
 		struct kfs_test_case *cases_traps = 0;
 		int count_traps = register_host_tests_traps(&cases_traps);
+		struct kfs_test_case *cases_i8259 = 0;
+		int count_i8259 = register_host_tests_i8259(&cases_i8259);
+		struct kfs_test_case *cases_irq = 0;
+		int count_irq = register_host_tests_irq(&cases_irq);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
@@ -115,6 +121,14 @@ int register_host_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_traps && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_traps[i];
+		}
+		for (int i = 0; i < count_i8259 && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_i8259[i];
+		}
+		for (int i = 0; i < count_irq && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_irq[i];
 		}
 		all_cases = merged;
 		all_count = idx;
