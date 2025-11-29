@@ -20,7 +20,6 @@ void start_kernel(void)
 {
 	serial_init();
 	terminal_initialize();
-	kfs_keyboard_init();
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK));
 
 	/* Integration test expects '42' on the serial (COM1) output. */
@@ -39,6 +38,9 @@ void start_kernel(void)
 	/* PIC(8259A)初期化（IRQをベクタ0x20-0x2Fにリマップ） */
 	printk("Initializing 8259A PIC...\n");
 	init_8259A();
+
+	/* PS/2キーボードドライバを初期化する */
+	kfs_keyboard_init();
 
 	/* メモリ管理システムの初期化 */
 	if (multiboot_info_ptr != NULL)

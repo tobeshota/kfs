@@ -33,6 +33,12 @@ multiboot_info_ptr:
 .type _start, @function /* _startシンボルが関数であることをリンカに伝える */
 .extern gdt_init
 _start:
+    /** 割り込みを無効化（IDT設定前に割り込みが来ないようにするため）
+     * @note 割り込みの有効化は
+     *       arch/i386/drivers/tty/keyboard.c: kfs_keyboard_init() で行われる
+     */
+    cli
+
     /* Multiboot情報構造体へのポインタを保存（EBXレジスタ） */
     mov %ebx, (multiboot_info_ptr)
 

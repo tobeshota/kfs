@@ -29,7 +29,24 @@ extern void irq15(void);
 /* 外部IDTテーブル（traps.cで定義） */
 extern struct idt_entry idt[];
 
-/* set interrupt gate */
+/** Interrupt Vector番号とISRアドレスを対応づける
+ * @param n    Interrupt Vector番号 (Interrupt Descriptor Tableのインデックス)
+ * @param addr ISR (Interrupt Service Routine) のアドレス
+ * @details    CPUがInterrupt Vector番号を受け取ったとき，
+ *             どのISRのアドレスにジャンプするかを設定する
+ * IDT (Interrupt Descriptor Table)
+ * ┌─────────────────────────────┬─────────────────────────────────────┐
+ * │ Interrupt Vector number (n) │ ISR address (addr)                  │
+ * ├─────────────────────────────┼─────────────────────────────────────┤
+ * │    0x00                     │   divide_error's address            │
+ * │    0x01                     │   debug's address                   │
+ * │    ...                      │   ...                               │
+ * │    0x21                     │   irq1's address                    │
+ * │    ...                      │   ...                               │
+ * └─────────────────────────────┴─────────────────────────────────────┘
+ * @note set_intr_gate() は set interrupt gate の略
+ * @note init_8259A(): IRQ番号とInterrupt Vector番号を対応づける
+ */
 #define set_intr_gate(n, addr) _set_gate(idt, n, addr, IDT_GATE_INTERRUPT)
 
 /** 8259A PIC IRQマスクキャッシュ
@@ -117,9 +134,10 @@ void mask_and_ack_8259A(unsigned int irq)
 /** 8259A PICを初期化する
  * @details マスタPIC/スレーブPICのICW (Initialization Command Word) を初期化する
  *   ICW1: 初期化開始，エッジトリガ，カスケード接続あり
- *   ICW2: IRQ0-7に割込ベクタ0x20-0x27を割り当てる
+ *   ICW2: IRQ番号とInterrupt Vector番号を対応づける
  *   ICW3: カスケード接続設定
  *   ICW4: 8086モード
+ * @note set_intr_gate(): Interrupt Vector番号とISRアドレスを対応づける
  * @see https://stanislavs.org/helppc/8259.html
  */
 void init_8259A(void)
@@ -142,7 +160,7 @@ void init_8259A(void)
 	 * bit0:   1 = ICW4 is needed
 	 */
 	outb(PIC_MASTER_CMD, 0x11);
-	/** ICW2: IRQ0-7に割込ベクタ0x20-0x27を割り当てる 0x20 = 0010 0000
+	/** ICW2: IRQ番号とInterrupt Vector番号を対応づける 0x20 = 0010 0000
 	 * bit7-3: 0x04 = A7-A3 of interrupt vector
 	 * bit2-0: 0 = must be 000 on 80x86 systems
 	 * 結果: (IRQ0, INT 0x20), (IRQ1, INT 0x21), ..., (IRQ7, INT 0x27)
@@ -176,7 +194,7 @@ void init_8259A(void)
 	 * bit0:   1 = ICW4 is needed
 	 */
 	outb(PIC_SLAVE_CMD, 0x11);
-	/** ICW2: IRQ0-7に割込ベクタ0x20-0x27を割り当てる 0x20 = 0010 0000
+	/** ICW2: IRQ番号とInterrupt Vector番号を対応づける 0x20 = 0010 0000
 	 * bit7-3: 0x04 = A7-A3 of interrupt vector
 	 * bit2-0: 0 = must be 000 on 80x86 systems
 	 * 結果: (IRQ0, INT 0x20), (IRQ1, INT 0x21), ..., (IRQ7, INT 0x27)

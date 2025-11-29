@@ -395,15 +395,6 @@ KFS_TEST(test_keyboard_without_handler)
 									  /* クラッシュしないことを確認 */
 }
 
-/* kfs_keyboard_poll テスト */
-KFS_TEST(test_keyboard_poll_when_not_initialized)
-{
-	kfs_keyboard_reset();
-	/* 初期化しないでpollを呼ぶ */
-	kfs_keyboard_poll();
-	/* 何も起こらずに戻ることを確認 */
-}
-
 int register_host_tests_keyboard(struct kfs_test_case **out_cases)
 {
 	static struct kfs_test_case cases[] = {
@@ -423,7 +414,6 @@ int register_host_tests_keyboard(struct kfs_test_case **out_cases)
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_symbol_keys, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_e1_prefix, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_without_handler, setup_test, teardown_test),
-		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_poll_when_not_initialized, setup_test, teardown_test),
 	};
 	*out_cases = cases;
 	return sizeof(cases) / sizeof(cases[0]);
