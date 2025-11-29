@@ -38,26 +38,26 @@ run_kernel_capture() {
 	if [[ -n "$input_file" && -f "$input_file" ]]; then
 		monitor_script=$(mktemp)
 		# カーネル起動待ち（シェルプロンプト表示まで）
-		echo "{ \"execute\": \"qmp_capabilities\" }" > "$monitor_script"
+		echo "{ \"execute\": \"qmp_capabilities\" }" >"$monitor_script"
 		# 入力ファイルの各文字をsendkeyコマンドに変換
 		while IFS= read -r -n1 char || [[ -n "$char" ]]; do
 			local key=""
 			case "$char" in
-				[a-z]) key="$char" ;;
-				[A-Z]) key="shift-$(echo "$char" | tr '[:upper:]' '[:lower:]')" ;;
-				[0-9]) key="$char" ;;
-				' ') key="spc" ;;
-				$'\n'|'') key="ret" ;;
-				'-') key="minus" ;;
-				'_') key="shift-minus" ;;
-				'.') key="dot" ;;
-				'/') key="slash" ;;
-				*) continue ;;
+			[a-z]) key="$char" ;;
+			[A-Z]) key="shift-$(echo "$char" | tr '[:upper:]' '[:lower:]')" ;;
+			[0-9]) key="$char" ;;
+			' ') key="spc" ;;
+			$'\n' | '') key="ret" ;;
+			'-') key="minus" ;;
+			'_') key="shift-minus" ;;
+			'.') key="dot" ;;
+			'/') key="slash" ;;
+			*) continue ;;
 			esac
 			if [[ -n "$key" ]]; then
-				echo "{ \"execute\": \"send-key\", \"arguments\": { \"keys\": [{\"type\": \"qcode\", \"data\": \"$key\"}] } }" >> "$monitor_script"
+				echo "{ \"execute\": \"send-key\", \"arguments\": { \"keys\": [{\"type\": \"qcode\", \"data\": \"$key\"}] } }" >>"$monitor_script"
 			fi
-		done < "$input_file"
+		done <"$input_file"
 	fi
 
 	# 2. ホストで直接 QEMU が動く場合
@@ -66,9 +66,9 @@ run_kernel_capture() {
 			# QMPモニターを使用してキーボード入力をシミュレート
 			local qemu_args="-kernel $REPO_ROOT/kfs.bin -serial file:$tmp_log -display none -no-reboot -no-shutdown -qmp stdio"
 			(
-				sleep 1  # カーネル起動待ち
+				sleep 1 # カーネル起動待ち
 				cat "$monitor_script"
-				sleep 3  # コマンド実行待ち
+				sleep 3 # コマンド実行待ち
 			) | "$TIMEOUT_BIN" "${TIMEOUT_SECS}s" $qemu_bin $qemu_args >/dev/null 2>&1 || true
 		else
 			# 入力ファイルがない場合は -serial file を使用
