@@ -32,12 +32,44 @@ run_kernel_capture() {
 		make -C "$REPO_ROOT" -s kernel || return 1
 	fi
 
+	# 入力ファイルがある場合、QEMUモニターのsendkeyコマンドに変換
+	# これにより実際のキーボード割り込み（IRQ1）が発生する
+	local monitor_script=""
+	if [[ -n "$input_file" && -f "$input_file" ]]; then
+		monitor_script=$(mktemp)
+		# カーネル起動待ち（シェルプロンプト表示まで）
+		echo "{ \"execute\": \"qmp_capabilities\" }" > "$monitor_script"
+		# 入力ファイルの各文字をsendkeyコマンドに変換
+		while IFS= read -r -n1 char || [[ -n "$char" ]]; do
+			local key=""
+			case "$char" in
+				[a-z]) key="$char" ;;
+				[A-Z]) key="shift-$(echo "$char" | tr '[:upper:]' '[:lower:]')" ;;
+				[0-9]) key="$char" ;;
+				' ') key="spc" ;;
+				$'\n'|'') key="ret" ;;
+				'-') key="minus" ;;
+				'_') key="shift-minus" ;;
+				'.') key="dot" ;;
+				'/') key="slash" ;;
+				*) continue ;;
+			esac
+			if [[ -n "$key" ]]; then
+				echo "{ \"execute\": \"send-key\", \"arguments\": { \"keys\": [{\"type\": \"qcode\", \"data\": \"$key\"}] } }" >> "$monitor_script"
+			fi
+		done < "$input_file"
+	fi
+
 	# 2. ホストで直接 QEMU が動く場合
 	if command -v "$qemu_bin" >/dev/null 2>&1; then
-		if [[ -n "$input_file" && -f "$input_file" ]]; then
-			# 入力ファイルがある場合は、1つ目のシリアルポートを出力用、stdioを入力用に使用
-			local qemu_args="-kernel $REPO_ROOT/kfs.bin -serial file:$tmp_log -serial stdio -display none -no-reboot -no-shutdown"
-			"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" $qemu_bin $qemu_args <"$input_file" >/dev/null 2>&1 || true
+		if [[ -n "$monitor_script" && -f "$monitor_script" ]]; then
+			# QMPモニターを使用してキーボード入力をシミュレート
+			local qemu_args="-kernel $REPO_ROOT/kfs.bin -serial file:$tmp_log -display none -no-reboot -no-shutdown -qmp stdio"
+			(
+				sleep 1  # カーネル起動待ち
+				cat "$monitor_script"
+				sleep 3  # コマンド実行待ち
+			) | "$TIMEOUT_BIN" "${TIMEOUT_SECS}s" $qemu_bin $qemu_args >/dev/null 2>&1 || true
 		else
 			# 入力ファイルがない場合は -serial file を使用
 			local qemu_args="-kernel $REPO_ROOT/kfs.bin -serial file:$tmp_log -display none -no-reboot -no-shutdown"
@@ -54,12 +86,17 @@ run_kernel_capture() {
 			#  -> /work/test/integration/_artifacts/foo.log.tmp
 			local container_tmp_log="${tmp_log/#$REPO_ROOT/$container_root}"
 
-			if [[ -n "$input_file" && -f "$input_file" ]]; then
-				# 入力ファイルがある場合は、1つ目のシリアルポートを出力用、stdioを入力用に使用
-				local container_input="${input_file/#$REPO_ROOT/$container_root}"
-				local qemu_args="-kernel $container_root/kfs.bin -serial file:$container_tmp_log -serial stdio -display none -no-reboot -no-shutdown"
+			if [[ -n "$monitor_script" && -f "$monitor_script" ]]; then
+				# QMPモニターを使用してキーボード入力をシミュレート
+				local container_monitor="${monitor_script/#$REPO_ROOT/$container_root}"
+				# モニタースクリプトをコンテナ内にコピーするため、tmpファイルの位置をartifacts内に
+				local container_monitor_script="$ARTIFACTS_DIR/monitor_script.tmp"
+				cp "$monitor_script" "$container_monitor_script"
+				local container_monitor_path="${container_monitor_script/#$REPO_ROOT/$container_root}"
+				local qemu_args="-kernel $container_root/kfs.bin -serial file:$container_tmp_log -display none -no-reboot -no-shutdown -qmp stdio"
 				"$docker_bin" run --rm -v "$REPO_ROOT":$container_root -w $container_root "$image" \
-					bash -c "timeout ${TIMEOUT_SECS}s qemu-system-$ISA $qemu_args <$container_input" >/dev/null 2>&1 || true
+					bash -c "(sleep 1; cat $container_monitor_path; sleep 3) | timeout ${TIMEOUT_SECS}s qemu-system-$ISA $qemu_args" >/dev/null 2>&1 || true
+				rm -f "$container_monitor_script"
 			else
 				# 入力ファイルがない場合は -serial file を使用
 				local qemu_args="-kernel $container_root/kfs.bin -serial file:$container_tmp_log -display none -no-reboot -no-shutdown"
@@ -69,13 +106,12 @@ run_kernel_capture() {
 			fi
 		else
 			# 4. それでも QEMU を直接起動できない場合は既存の make run-kernel にフォールバック
-			if [[ -n "$input_file" && -f "$input_file" ]]; then
-				"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" make -s -C "$REPO_ROOT" run-kernel <"$input_file" >/dev/null 2>&1 || true
-			else
-				"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" make -s -C "$REPO_ROOT" run-kernel >/dev/null 2>&1 || true
-			fi
+			"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" make -s -C "$REPO_ROOT" run-kernel >/dev/null 2>&1 || true
 		fi
 	fi
+
+	# クリーンアップ
+	[[ -n "$monitor_script" && -f "$monitor_script" ]] && rm -f "$monitor_script"
 
 	# Docker 内で /work/... に生成されたファイルはマウントによりホスト側 $tmp_log と同一。
 	tr -d '\r' <"$tmp_log" >"$log_file" 2>/dev/null || true
