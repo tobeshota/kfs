@@ -9,7 +9,7 @@
  */
 
 #include "../test_reset.h"
-#include "host_test_framework.h"
+#include "unit_test_framework.h"
 #include <kfs/mm.h>
 #include <kfs/stddef.h>
 
@@ -384,7 +384,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_remove_vm_area_empty_list, setup_test, teardown_test),
 };
 
-int register_host_tests_memory(struct kfs_test_case **out)
+int register_unit_tests_memory(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));

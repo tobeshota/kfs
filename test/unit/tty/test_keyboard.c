@@ -1,5 +1,5 @@
 #include "../test_reset.h"
-#include "host_test_framework.h"
+#include "unit_test_framework.h"
 
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
@@ -395,7 +395,7 @@ KFS_TEST(test_keyboard_without_handler)
 									  /* クラッシュしないことを確認 */
 }
 
-int register_host_tests_keyboard(struct kfs_test_case **out_cases)
+int register_unit_tests_keyboard(struct kfs_test_case **out_cases)
 {
 	static struct kfs_test_case cases[] = {
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_printable_chars, setup_test, teardown_test),

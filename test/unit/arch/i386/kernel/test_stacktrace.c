@@ -1,5 +1,5 @@
 #include "../../../test_reset.h"
-#include "host_test_framework.h"
+#include "unit_test_framework.h"
 #include <kfs/printk.h>
 #include <kfs/stdint.h>
 
@@ -98,7 +98,7 @@ struct kfs_test_case test_stacktrace_cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_show_stack_deep_call, setup_test, teardown_test),
 };
 
-int register_host_tests_stacktrace(struct kfs_test_case **out)
+int register_unit_tests_stacktrace(struct kfs_test_case **out)
 {
 	*out = test_stacktrace_cases;
 	return (int)test_stacktrace_count();

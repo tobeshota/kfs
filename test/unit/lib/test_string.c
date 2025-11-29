@@ -1,6 +1,6 @@
 #include "../test_reset.h"
-#include "host_test_framework.h"
 #include "kfs/string.h"
+#include "unit_test_framework.h"
 
 /* 全テストで共通のセットアップ関数 */
 static void setup_test(void)
@@ -214,7 +214,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_memcmp_and_memchr, setup_test, teardown_test),
 };
 
-int register_host_tests_string(struct kfs_test_case **out)
+int register_unit_tests_string(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));

@@ -1,5 +1,5 @@
-#ifndef KFS_HOST_TEST_FRAMEWORK_H
-#define KFS_HOST_TEST_FRAMEWORK_H
+#ifndef KFS_UNIT_TEST_FRAMEWORK_H
+#define KFS_UNIT_TEST_FRAMEWORK_H
 
 #include <kfs/printk.h>
 
@@ -99,4 +99,4 @@ static inline int kfs_run_all_tests(const struct kfs_test_case *cases, int count
 	return kfs_test_failures == 0 ? 0 : 1;
 }
 
-#endif // KFS_HOST_TEST_FRAMEWORK_H
+#endif // KFS_UNIT_TEST_FRAMEWORK_H

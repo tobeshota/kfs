@@ -1,6 +1,6 @@
 #include "../support/terminal_test_support.h"
 #include "../test_reset.h"
-#include "host_test_framework.h"
+#include "unit_test_framework.h"
 #include <kfs/console.h>
 #include <kfs/printk.h>
 
@@ -627,7 +627,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_cursor_right_wrap_to_next_line, setup_test, teardown_test),
 };
 
-int register_host_tests_terminal_scroll(struct kfs_test_case **out)
+int register_unit_tests_terminal_scroll(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));

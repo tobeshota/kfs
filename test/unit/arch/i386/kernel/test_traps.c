@@ -1,5 +1,5 @@
 #include "../../../test_reset.h"
-#include "host_test_framework.h"
+#include "unit_test_framework.h"
 #include <asm-i386/desc.h>
 #include <asm-i386/ptrace.h>
 #include <kfs/stdint.h>
@@ -281,7 +281,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_exception_overflow_continues, setup_test, teardown_test),
 };
 
-int register_host_tests_traps(struct kfs_test_case **out)
+int register_unit_tests_traps(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));

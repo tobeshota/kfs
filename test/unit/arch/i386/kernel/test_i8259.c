@@ -1,5 +1,5 @@
 #include "../../../test_reset.h"
-#include "host_test_framework.h"
+#include "unit_test_framework.h"
 #include <asm-i386/i8259.h>
 #include <kfs/stdint.h>
 
@@ -90,7 +90,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_icw4_defaults, setup_test, teardown_test),
 };
 
-int register_host_tests_i8259(struct kfs_test_case **out)
+int register_unit_tests_i8259(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));

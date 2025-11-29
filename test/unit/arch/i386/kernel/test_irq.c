@@ -1,5 +1,5 @@
 #include "../../../test_reset.h"
-#include "host_test_framework.h"
+#include "unit_test_framework.h"
 #include <asm-i386/ptrace.h>
 #include <kfs/irq.h>
 #include <kfs/stddef.h>
@@ -253,7 +253,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_IRQ_invalid_irq, setup_test, teardown_test),
 };
 
-int register_host_tests_irq(struct kfs_test_case **out)
+int register_unit_tests_irq(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));

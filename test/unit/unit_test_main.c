@@ -1,5 +1,5 @@
 #include "coverage/simple_coverage.h"
-#include "host_test_framework.h"
+#include "unit_test_framework.h"
 #include <asm-i386/io.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
@@ -34,9 +34,9 @@ void start_unit_test_kernel(void)
 		kmem_cache_init();
 	}
 
-	extern int register_host_tests(struct kfs_test_case * *out);
+	extern int register_unit_tests(struct kfs_test_case * *out);
 	struct kfs_test_case *cases = 0;
-	int count = register_host_tests(&cases);
+	int count = register_unit_tests(&cases);
 	int result = kfs_run_all_tests(cases, count);
 
 	/* Dump coverage data before exit */

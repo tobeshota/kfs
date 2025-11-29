@@ -10,7 +10,7 @@
  */
 
 #include "../test_reset.h"
-#include "host_test_framework.h"
+#include "unit_test_framework.h"
 #include <kfs/stddef.h>
 #include <kfs/vmalloc.h>
 
@@ -496,7 +496,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_vmalloc_vfree_partial, setup_test, teardown_test),
 };
 
-int register_host_tests_vmalloc(struct kfs_test_case **out)
+int register_unit_tests_vmalloc(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));
