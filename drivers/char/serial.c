@@ -1,7 +1,7 @@
 #include <asm-i386/io.h>
 #include <kfs/serial.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <kfs/stddef.h>
+#include <kfs/stdint.h>
 
 /* Communication Port。
  * カーネルのデバッグ用途として、現在communication portへの出力をQEMUがstdioにリダイレクトしている。
@@ -9,19 +9,14 @@
 #define COM1_PORT 0x3F8
 #define COM2_PORT 0x2F8 /* 入力用として2つ目のシリアルポートを使用 */
 
-/* I/O indirection layer (weak so tests can override) */
-/* weak シンボルはテストで差し替え可能な I/O 間接層。
- * 将来: kfs_io_outb/inb は asm-i386/io.h の outb/inb に薄く委譲する別コンパイルユニットへ抽出可。
- */
-__attribute__((weak)) void kfs_io_outb(uint16_t port, uint8_t val)
+/* I/O indirection layer */
+void kfs_io_outb(uint16_t port, uint8_t val)
 {
 	outb(port, val);
 }
-/*
-kfs_io_inb(PS2_DATA_PORT); は「I/O ポート 0x60 (PS/2 コントローラのデータポート) から 1
-バイト読み取る」ための低レベル入力命令ラッパ呼び出しです。
-*/
-__attribute__((weak)) uint8_t kfs_io_inb(uint16_t port)
+
+/* I/O port read wrapper */
+uint8_t kfs_io_inb(uint16_t port)
 {
 	return inb(port);
 }
@@ -51,7 +46,9 @@ static int serial_received(void)
 int serial_read(void)
 {
 	if (!serial_received())
+	{
 		return -1;
+	}
 	return (int)kfs_io_inb(COM2_PORT);
 }
 

@@ -1,6 +1,6 @@
 /*このカーネルをどう扱ってロードしてほしいかを伝える設定 #defineみたいなもの */
 .set ALIGN,    1<<0             /* ページサイズ（通常4 KiB）に揃えて読み込んでほしい、と通知するフラグ */
-.set MEMINFO,  1<<1             /* ブートローダからカーネルに mem_lower/mem_upper 情報を multiboot_info に詰めて渡すよう要求するフラグ */
+.set MEMINFO,  1<<1             /* カーネルがブートローダに対して， mem_lower/mem_upper 情報を multiboot_info に詰めて渡すよう要求するフラグ */
 .set FLAGS,    ALIGN | MEMINFO  /* 上記フラグをまとめたもの */
 .set MAGIC,    0x1BADB002       /* 「マルチブートヘッダが正しく存在すること」をブートローダへ知らせるための固定値 */
 .set CHECKSUM, -(MAGIC + FLAGS) /* 破損検出のための軽量チェック。 */
@@ -21,11 +21,27 @@ stack_bottom:
 .globl stack_top /* スタック領域の上端（高位アドレス） */
 stack_top:
 
+/* Multiboot情報構造体へのポインタを保存 */
+.section .data
+.align 4
+.globl multiboot_info_ptr
+multiboot_info_ptr:
+.long 0
+
 .section .text /* コードセクションの開始 */
 .global _start /* リンカに_startシンボルをエクスポートするよう指示 */
 .type _start, @function /* _startシンボルが関数であることをリンカに伝える */
 .extern gdt_init
 _start:
+    /** 割り込みを無効化（IDT設定前に割り込みが来ないようにするため）
+     * @note 割り込みの有効化は
+     *       arch/i386/drivers/tty/keyboard.c: kfs_keyboard_init() で行われる
+     */
+    cli
+
+    /* Multiboot情報構造体へのポインタを保存（EBXレジスタ） */
+    mov %ebx, (multiboot_info_ptr)
+
     /* スタックを設定 */
     mov $stack_top, %esp
 

@@ -1,7 +1,7 @@
 #ifndef KFS_TERMINAL_TEST_SUPPORT_H
 #define KFS_TERMINAL_TEST_SUPPORT_H
-#include <stddef.h>
-#include <stdint.h>
+#include <kfs/stddef.h>
+#include <kfs/stdint.h>
 
 /* Externs exposing internal terminal state for tests (not for production use). */
 extern size_t kfs_terminal_row;

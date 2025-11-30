@@ -1,6 +1,8 @@
+#include <asm-i386/pgtable.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
 #include <kfs/printk.h>
+#include <kfs/reboot.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
 #include <kfs/stdint.h>
@@ -51,24 +53,16 @@ static void cmd_halt(void)
 /* システムを再起動する（reboot組み込みコマンド） */
 static void cmd_reboot(void)
 {
-	printk("Rebooting...\n");
-	/* キーボードコントローラを使ってシステムをリセット
-	 * 0x64ポート(PS/2ステータス)に0xFE(リセット)を送信すると、
-	 * ほとんどの環境で即座にCPUリセットが発生し、次の行には到達しない */
-	asm volatile("outb %b0, %w1" : : "a"((uint8_t)PS2_RESET_COMMAND), "Nd"((uint16_t)PS2_STATUS_PORT));
-
-	/* ここには通常到達しない（リセットが即座に実行されるため）
-	 * 古いハードウェアやリセット未対応の環境での安全策として待機 */
-	for (;;)
-	{
-		asm volatile("hlt");
-	}
+	machine_restart();
+	/* この行には到達しない */
 } /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
 static void execute_command(const char *cmd)
 {
 	/* 空コマンドは無視 */
 	if (cmd[0] == '\0')
+	{
 		return;
+	}
 
 	/* halt コマンド */
 	if (strcmp(cmd, "halt") == 0)
@@ -92,12 +86,144 @@ static void execute_command(const char *cmd)
 		return;
 	}
 
-	/* カーネルパニックテスト（KFS-3 Phase 2） */
+	/* カーネルパニックテスト */
 	if (strcmp(cmd, "panic") == 0)
 	{
 		extern void panic(const char *fmt, ...);
 		panic("Test panic from shell command");
 		return; /* この行には到達しない */
+	}
+
+	/* メモリ情報表示 */
+	if (strcmp(cmd, "meminfo") == 0)
+	{
+		extern void show_mem_info(void);
+		show_mem_info();
+		return;
+	}
+
+	/* kmalloc/kfreeテスト */
+	if (strcmp(cmd, "malloc") == 0)
+	{
+		extern void *kmalloc(size_t size);
+		extern void kfree(void *ptr);
+		extern size_t ksize(void *ptr);
+
+		/* 各サイズでテスト */
+		void *ptr32 = kmalloc(32);
+		void *ptr128 = kmalloc(128);
+		void *ptr1024 = kmalloc(1024);
+
+		printk("kmalloc test:\n");
+		printk("  32 bytes:   ptr=%p, ksize=%lu\n", ptr32, (unsigned long)ksize(ptr32));
+		printk("  128 bytes:  ptr=%p, ksize=%lu\n", ptr128, (unsigned long)ksize(ptr128));
+		printk("  1024 bytes: ptr=%p, ksize=%lu\n", ptr1024, (unsigned long)ksize(ptr1024));
+
+		/* 解放 */
+		kfree(ptr32);
+		kfree(ptr128);
+		kfree(ptr1024);
+		printk("kfree completed\n");
+		return;
+	}
+
+	/* kbrkテスト */
+	if (strcmp(cmd, "brk") == 0)
+	{
+		extern void *kbrk(intptr_t increment);
+		void *brk1, *brk2, *brk3;
+
+		printk("kbrk test:\n");
+		/* 1KB増加 */
+		brk1 = kbrk(1024);
+		printk("  kbrk(+1024):  %p\n", brk1);
+
+		/* さらに2KB増加 */
+		brk2 = kbrk(2048);
+		printk("  kbrk(+2048):  %p\n", brk2);
+
+		/* 1KB減少 */
+		brk3 = kbrk(-1024);
+		printk("  kbrk(-1024):  %p\n", brk3);
+
+		return;
+	}
+
+	/* vmalloc/vfreeテスト */
+	if (strcmp(cmd, "vmalloc") == 0)
+	{
+		extern void *vmalloc(unsigned long size);
+		extern void vfree(void *addr);
+		extern size_t vsize(void *addr);
+
+		/* 各サイズでテスト */
+		void *ptr1 = vmalloc(4096);	 /* 1ページ */
+		void *ptr2 = vmalloc(8192);	 /* 2ページ */
+		void *ptr3 = vmalloc(16384); /* 4ページ */
+
+		printk("vmalloc test:\n");
+		printk("  4096 bytes:  ptr=%p, vsize=%lu\n", ptr1, (unsigned long)vsize(ptr1));
+		printk("  8192 bytes:  ptr=%p, vsize=%lu\n", ptr2, (unsigned long)vsize(ptr2));
+		printk("  16384 bytes: ptr=%p, vsize=%lu\n", ptr3, (unsigned long)vsize(ptr3));
+
+		/* 解放 */
+		vfree(ptr1);
+		vfree(ptr2);
+		vfree(ptr3);
+		printk("vfree completed\n");
+		return;
+	}
+
+	/* ページ情報表示コマンド */
+	if (strcmp(cmd, "pginfo") == 0)
+	{
+		extern pte_t *get_pte(unsigned long vaddr);
+
+		/* いくつかの仮想アドレスのページ情報を表示 */
+		unsigned long test_addrs[] = {
+			0x00001000, /* カーネル恒等マッピング領域 */
+			0x00100000, /* カーネル恒等マッピング領域 */
+			0xC0000000, /* vmalloc開始アドレス付近 */
+		};
+
+		printk("Page Table Entry Information:\n");
+		for (size_t i = 0; i < sizeof(test_addrs) / sizeof(test_addrs[0]); i++)
+		{
+			unsigned long vaddr = test_addrs[i];
+			pte_t *pte = get_pte(vaddr);
+
+			if (pte == NULL || !pte_present(*pte))
+			{
+				printk("  0x%08lx: NOT PRESENT\n", vaddr);
+				continue;
+			}
+
+			printk("  0x%08lx: phys=0x%08lx flags=", vaddr, pte_page(*pte));
+
+			if (pte_present(*pte))
+			{
+				printk("P");
+			}
+			if (pte_write(*pte))
+			{
+				printk("W");
+			}
+			if (pte_user(*pte))
+			{
+				printk("U");
+			}
+			if (pte_accessed(*pte))
+			{
+				printk("A");
+			}
+			if (pte_dirty(*pte))
+			{
+				printk("D");
+			}
+
+			printk("\n");
+		}
+		return;
 	}
 
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
@@ -112,7 +238,9 @@ int shell_keyboard_handler(char c)
 {
 	/* シェルが初期化されていない場合は処理しない（デフォルト動作に任せる） */
 	if (!shell_state.initialized)
+	{
 		return 0;
+	}
 
 	/* 左矢印キー (0x1C) */
 	if (c == '\x1C')
@@ -122,7 +250,9 @@ int shell_keyboard_handler(char c)
 
 		/* プロンプト開始位置より左には移動させない */
 		if (row < shell_state.prompt_row || (row == shell_state.prompt_row && col <= shell_state.prompt_col))
+		{
 			return 1; /* 処理済み扱い */
+		}
 
 		/* 通常のカーソル左移動 */
 		kfs_terminal_cursor_left();
@@ -140,7 +270,9 @@ int shell_keyboard_handler(char c)
 
 		/* 同じ行で、かつ入力末尾より右には移動しない */
 		if (row == shell_state.prompt_row && col >= input_end_col)
+		{
 			return 1; /* 処理済み扱い */
+		}
 
 		/* 通常のカーソル右移動 */
 		kfs_terminal_cursor_right();
@@ -170,7 +302,9 @@ int shell_keyboard_handler(char c)
 
 			/* プロンプト開始位置より左には移動させない */
 			if (row < shell_state.prompt_row || (row == shell_state.prompt_row && col <= shell_state.prompt_col))
+			{
 				return 1; /* 処理済み扱い */
+			}
 
 			/* カーソル位置に対応するバッファ内のインデックスを計算 */
 			size_t cursor_index = col - shell_state.prompt_col;
@@ -206,7 +340,9 @@ int shell_keyboard_handler(char c)
 
 	/* 制御文字は無視（タブなど将来拡張可能） */
 	if (c < 32 && c != '\t')
+	{
 		return 1; /* 処理した（無視） */
+	}
 
 	/* 通常文字をバッファに追加して画面に表示 */
 	shell_state.cmd_buffer[shell_state.cmd_len++] = c;
@@ -221,7 +357,9 @@ int shell_keyboard_handler(char c)
 void shell_init(void)
 {
 	if (shell_state.initialized)
+	{
 		return;
+	}
 
 	clear_command_buffer();
 	shell_state.initialized = 1;
@@ -234,26 +372,30 @@ void shell_init(void)
 
 /** シェルのメインループ
  * キーボード入力を受け付けてコマンドを処理する
- * テスト環境ではオーバーライドされる
+ *
+ * この関数はweak symbolとして定義されており、
+ * テスト環境では別の実装でオーバーライドできる
  */
 __attribute__((weak)) void shell_run(void)
 {
 	shell_init();
 
-	/* キーボードとシリアル入力の無限ポーリングループ
-	 * 割り込みが実装されるまではhltを使わずポーリングで処理 */
+	/* メインループ: 割り込みでキーボード入力を処理
+	 * hltでCPUを休止し、割り込みで起きる */
 	for (;;)
 	{
-		/* キーボード入力をポーリング */
-		kfs_keyboard_poll();
-
-		/* シリアルポート入力をポーリング */
+		/** シリアルポート入力を確認
+		 * @note シリアルI/Oはデバッグ用途のためIRQラインではなくポーリング方式を用いる
+		 */
 		int c = serial_read();
 		if (c != -1)
 		{
 			/* シリアルからの入力を処理（キーボードハンドラを再利用） */
 			shell_keyboard_handler((char)c);
 		}
+
+		/* CPUを休止して割り込みを待つ */
+		__asm__ __volatile__("hlt");
 	}
 }
 

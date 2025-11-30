@@ -1,9 +1,9 @@
 #include <kfs/console.h>
 #include <kfs/printk.h>
 #include <kfs/serial.h>
+#include <kfs/stddef.h>
+#include <kfs/stdint.h>
 #include <kfs/string.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <video/vga.h>
 
 #define VGA_WIDTH KFS_VGA_WIDTH
@@ -75,32 +75,44 @@ static void console_fill_blank(struct kfs_console_state *con)
 {
 	uint16_t blank = kfs_vga_make_entry(' ', con->color);
 	for (size_t i = 0; i < VGA_WIDTH * VGA_HEIGHT; ++i)
+	{
 		con->shadow[i] = blank;
+	}
 }
 
 /* シャドウバッファをVGAに書き込む */
 static void console_flush_to_hw(const struct kfs_console_state *con)
 {
 	if (!kfs_terminal_buffer)
+	{
 		return;
+	}
 	for (size_t i = 0; i < VGA_WIDTH * VGA_HEIGHT; ++i)
+	{
 		kfs_terminal_buffer[i] = con->shadow[i];
+	}
 }
 
 /* VGAに書き込まれた値をシャドウバッファに書き込む */
 static void console_capture_from_hw(struct kfs_console_state *con)
 {
 	if (!kfs_terminal_buffer)
+	{
 		return;
+	}
 	for (size_t i = 0; i < VGA_WIDTH * VGA_HEIGHT; ++i)
+	{
 		con->shadow[i] = kfs_terminal_buffer[i];
+	}
 }
 
 /* 全コンソールを' '文字、背景黒で埋める */
 static void ensure_console_bootstrap(void)
 {
 	if (kfs_console_bootstrap_completed)
+	{
 		return;
+	}
 	uint8_t default_color = kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 	for (size_t i = 0; i < KFS_VIRTUAL_CONSOLE_COUNT; ++i)
 	{
@@ -116,7 +128,9 @@ static void ensure_console_bootstrap(void)
 		/* スクロールバックバッファも空白で初期化 */
 		uint16_t blank = kfs_vga_make_entry(' ', default_color);
 		for (size_t j = 0; j < SCROLLBACK_LINES * VGA_WIDTH; ++j)
+		{
 			con->scrollback[j] = blank;
+		}
 	}
 	kfs_console_active = 0;
 	kfs_console_bootstrap_completed = 1;
@@ -152,7 +166,9 @@ static void console_activate_if_needed(struct kfs_console_state *con)
 		con->initialized = 1;
 		console_fill_blank(con);
 		if (console_is_active(con))
+		{
 			console_flush_to_hw(con);
+		}
 	}
 }
 
@@ -174,7 +190,9 @@ void terminal_initialize(void)
 	/* スクロールバックバッファも空白で埋める */
 	uint16_t blank = kfs_vga_make_entry(' ', con->color);
 	for (size_t j = 0; j < SCROLLBACK_LINES * VGA_WIDTH; ++j)
+	{
 		con->scrollback[j] = blank;
+	}
 	console_flush_to_hw(con);
 	sync_globals_from_console(con);
 }
@@ -190,7 +208,9 @@ static void terminal_putentryat(struct kfs_console_state *con, char c, size_t x,
 	uint16_t entry = kfs_vga_make_entry(c, con->color);
 	con->shadow[y * VGA_WIDTH + x] = entry;
 	if (console_is_active(con) && kfs_terminal_buffer)
+	{
 		kfs_terminal_buffer[y * VGA_WIDTH + x] = entry;
+	}
 }
 
 /* カーソル位置に文字を挿入し、右側の文字列をシフトする（挿入モード） */
@@ -204,14 +224,18 @@ static void terminal_insert_char_at(struct kfs_console_state *con, char c, size_
 	{
 		con->shadow[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i - 1];
 		if (console_is_active(con) && kfs_terminal_buffer)
+		{
 			kfs_terminal_buffer[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i];
+		}
 	}
 
 	/* カーソル位置に新しい文字を挿入 */
 	uint16_t entry = kfs_vga_make_entry(c, con->color);
 	con->shadow[y * VGA_WIDTH + x] = entry;
 	if (console_is_active(con) && kfs_terminal_buffer)
+	{
 		kfs_terminal_buffer[y * VGA_WIDTH + x] = entry;
+	}
 
 	/* 行末を超えた文字を次の行の先頭に移動（空白文字でない場合のみ） */
 	char last_char_value = (char)(last_char & 0xFF);
@@ -226,17 +250,23 @@ static void terminal_insert_char_at(struct kfs_console_state *con, char c, size_
 static void terminal_scroll_if_needed(struct kfs_console_state *con)
 {
 	if (con->row < VGA_HEIGHT)
+	{
 		return;
+	}
 
 	/* スクロールアウトする最初の行をスクロールバックバッファに保存 */
 	size_t save_pos = con->scrollback_pos * VGA_WIDTH;
 	for (size_t x = 0; x < VGA_WIDTH; x++)
+	{
 		con->scrollback[save_pos + x] = con->shadow[x];
+	}
 
 	/* スクロールバックバッファの位置を更新（リングバッファ） */
 	con->scrollback_pos = (con->scrollback_pos + 1) % SCROLLBACK_LINES;
 	if (con->scrollback_lines < SCROLLBACK_LINES)
+	{
 		con->scrollback_lines++;
+	}
 
 	/* VGAに書き込んだ各行を1行上に上げる */
 	int flush_hw = console_is_active(con) && kfs_terminal_buffer;
@@ -247,7 +277,9 @@ static void terminal_scroll_if_needed(struct kfs_console_state *con)
 			uint16_t value = con->shadow[y * VGA_WIDTH + x];
 			con->shadow[(y - 1) * VGA_WIDTH + x] = value;
 			if (flush_hw)
+			{
 				kfs_terminal_buffer[(y - 1) * VGA_WIDTH + x] = value;
+			}
 		}
 	}
 
@@ -257,7 +289,9 @@ static void terminal_scroll_if_needed(struct kfs_console_state *con)
 	{
 		con->shadow[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = blank;
 		if (flush_hw)
+		{
 			kfs_terminal_buffer[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = blank;
+		}
 	}
 	con->row = VGA_HEIGHT - 1;
 
@@ -321,14 +355,18 @@ void terminal_delete_char(void)
 	{
 		con->shadow[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i + 1];
 		if (console_is_active(con) && kfs_terminal_buffer)
+		{
 			kfs_terminal_buffer[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i];
+		}
 	}
 
 	/* 行末を空白で埋める */
 	uint16_t blank = kfs_vga_make_entry(' ', con->color);
 	con->shadow[y * VGA_WIDTH + (VGA_WIDTH - 1)] = blank;
 	if (console_is_active(con) && kfs_terminal_buffer)
+	{
 		kfs_terminal_buffer[y * VGA_WIDTH + (VGA_WIDTH - 1)] = blank;
+	}
 
 	sync_globals_from_console(con);
 }
@@ -337,7 +375,9 @@ void terminal_delete_char(void)
 void terminal_write(const char *data, size_t size)
 {
 	for (size_t i = 0; i < size; i++)
+	{
 		terminal_putchar(data[i]);
+	}
 }
 
 void terminal_writestring(const char *s)
@@ -351,9 +391,13 @@ void kfs_terminal_move_cursor(size_t row, size_t column)
 	ensure_console_bootstrap();
 	struct kfs_console_state *con = active_console();
 	if (row >= VGA_HEIGHT)
+	{
 		row = VGA_HEIGHT - 1;
+	}
 	if (column >= VGA_WIDTH)
+	{
 		column = VGA_WIDTH - 1;
+	}
 	con->row = row;
 	con->column = column;
 	sync_globals_from_console(con);
@@ -364,9 +408,13 @@ void kfs_terminal_get_cursor(size_t *row, size_t *column)
 	ensure_console_bootstrap();
 	struct kfs_console_state *con = active_console();
 	if (row)
+	{
 		*row = con->row;
+	}
 	if (column)
+	{
 		*column = con->column;
+	}
 }
 
 /* 現在使用してるコンソールで出力する文字の色を設定 */
@@ -401,10 +449,14 @@ void kfs_terminal_switch_console(size_t index)
 {
 	ensure_console_bootstrap();
 	if (index >= KFS_VIRTUAL_CONSOLE_COUNT || index == kfs_console_active)
+	{
 		return;
+	}
 	struct kfs_console_state *current = active_console();
 	if (current->initialized)
+	{
 		console_capture_from_hw(current);
+	}
 	kfs_console_active = index;
 	struct kfs_console_state *next = active_console();
 	console_activate_if_needed(next);
@@ -416,7 +468,9 @@ void kfs_terminal_switch_console(size_t index)
 static void redraw_with_scroll_offset(struct kfs_console_state *con)
 {
 	if (!kfs_terminal_buffer || !console_is_active(con))
+	{
 		return;
+	}
 
 	if (con->scroll_offset == 0)
 	{
@@ -428,9 +482,13 @@ static void redraw_with_scroll_offset(struct kfs_console_state *con)
 	/* スクロールオフセットをクランプ */
 	int offset = con->scroll_offset;
 	if (offset > (int)con->scrollback_lines)
+	{
 		offset = (int)con->scrollback_lines;
+	}
 	if (offset > (int)VGA_HEIGHT)
+	{
 		offset = (int)VGA_HEIGHT;
+	}
 
 	/* スクロールバックから何行表示するか */
 	int lines_from_scrollback = offset;
@@ -438,7 +496,9 @@ static void redraw_with_scroll_offset(struct kfs_console_state *con)
 	/* 現在のshadowから何行表示するか */
 	int lines_from_shadow = VGA_HEIGHT - offset;
 	if (lines_from_shadow < 0)
+	{
 		lines_from_shadow = 0;
+	}
 
 	/* スクロールバックバッファの読み取り開始位置を計算 */
 	/* scrollback_posは次に書き込む位置 */
@@ -457,9 +517,13 @@ static void redraw_with_scroll_offset(struct kfs_console_state *con)
 		/* scrollback_posは次に書き込む位置 = scrollback_lines */
 		/* offset行スクロールアップするとき、(scrollback_pos - offset)の位置から読む */
 		if (offset <= (int)con->scrollback_pos)
+		{
 			scrollback_read_pos = con->scrollback_pos - offset;
+		}
 		else
+		{
 			scrollback_read_pos = 0; /* オフセットが大きすぎる場合は最古の行から */
+		}
 	}
 	else
 	{
@@ -530,7 +594,9 @@ void kfs_terminal_cursor_left(void)
 
 	/* スクロール中は無効 */
 	if (con->scroll_offset != 0)
+	{
 		return;
+	}
 
 	if (con->column > 0)
 	{
@@ -554,7 +620,9 @@ void kfs_terminal_cursor_right(void)
 
 	/* スクロール中は無効 */
 	if (con->scroll_offset != 0)
+	{
 		return;
+	}
 
 	if (con->column < VGA_WIDTH - 1)
 	{

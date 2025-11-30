@@ -1,7 +1,7 @@
 #ifndef ASM_I386_IO_H
 #define ASM_I386_IO_H
 
-#include <stdint.h>
+#include <kfs/stdint.h>
 
 /** ポートマップドI/O **/
 /* I/Oポート番号port指定のデバイスに対してvalを出力する */
