@@ -75,10 +75,10 @@ while IFS=: read -r file line; do
 
 	# この行が実行されたかチェック
 	if grep -q "^${file}:${line}$" /tmp/executed_lines.txt; then
-		# 実行済み: COVERAGE_LINE()を +	COVERAGE_LINE() に置換
+		# 実行済み: ${line}行目のCOVERAGE_LINE()を +	COVERAGE_LINE() に置換
 		sed -i '' "${line}s/^[[:space:]]*COVERAGE_LINE();$/+	COVERAGE_LINE();/" /tmp/current_report.c
 	else
-		# 未実行: COVERAGE_LINE()を -	COVERAGE_LINE() に置換
+		# 未実行: ${line}行目のCOVERAGE_LINE()を -	COVERAGE_LINE() に置換
 		sed -i '' "${line}s/^[[:space:]]*COVERAGE_LINE();$/-	COVERAGE_LINE();/" /tmp/current_report.c
 	fi
 
