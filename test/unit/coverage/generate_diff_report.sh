@@ -1,12 +1,13 @@
 #!/bin/bash
-# Generate diff-style coverage report by copying instrumented files and marking COVERAGE_LINE()
+# diff形式のカバレッジレポートを生成する
+# インストルメント済みファイルをコピーし、COVERAGE_LINE()をマークする
 
 COVERAGE_DIR="build/coverage"
 REPORT_DIR="coverage/report"
 SERIAL_LOG="coverage/log/qemu_serial.log"
 MANIFEST_FILE="coverage/log/coverage_manifest.txt"
 
-# Check if required files exist
+# 必要なファイルが存在するか確認
 if [ ! -f "$SERIAL_LOG" ]; then
 	echo "Error: $SERIAL_LOG not found. Run 'make unit' first."
 	exit 1
@@ -22,48 +23,48 @@ if [ ! -d "$COVERAGE_DIR" ]; then
 	exit 1
 fi
 
-# Clean and create report directory
+# レポートディレクトリをクリーンアップして作成
 rm -rf "$REPORT_DIR"
 mkdir -p "$REPORT_DIR"
 
-# Extract executed lines from QEMU log
-# Format: filename:line:executed (where executed=1 means executed, 0 means not executed)
+# QEMUログから実行された行を抽出
+# 形式: ファイル名:行番号:実行フラグ (1=実行済み, 0=未実行)
 awk '/COVERAGE_START/,/COVERAGE_END/' "$SERIAL_LOG" |
 	grep -v 'COVERAGE_START\|COVERAGE_END' |
 	tr -d '\r' |
 	awk -F: '$3 == "1" {print $1":"$2}' |
 	sort -u >/tmp/executed_lines.txt
 
-# Wait for file to be written
+# ファイル書き込み完了を待機
 sync
 
 echo "Generating diff-style coverage report..."
 
-# Process each file in manifest
+# マニフェスト内の各ファイルを処理
 current_file=""
 while IFS=: read -r file line; do
 	[ -z "$file" ] || [ -z "$line" ] && continue
 
-	# New file encountered
+	# 新しいファイルを検出
 	if [ "$file" != "$current_file" ]; then
-		# Save previous file if it exists
+		# 前のファイルが存在すれば保存
 		if [ -n "$current_file" ] && [ -f "/tmp/current_report.c" ]; then
-			# Extract relative path (remove build/coverage/ prefix)
+			# 相対パスを抽出（build/coverage/プレフィックスを除去）
 			rel_path="${current_file#build/coverage/}"
 			output_file="$REPORT_DIR/${rel_path}.diff"
 
-			# Create directory structure
+			# ディレクトリ構造を作成
 			mkdir -p "$(dirname "$output_file")"
 
-			# Move temporary file to final location
+			# 一時ファイルを最終場所に移動
 			mv /tmp/current_report.c "$output_file"
 			echo "  ✓ $rel_path.diff"
 		fi
 
-		# Start processing new file
+		# 新しいファイルの処理を開始
 		current_file="$file"
 
-		# Copy original instrumented file to temp
+		# インストルメント済みファイルを一時ファイルにコピー
 		if [ -f "$file" ]; then
 			cp "$file" /tmp/current_report.c
 		else
@@ -72,18 +73,18 @@ while IFS=: read -r file line; do
 		fi
 	fi
 
-	# Check if this line was executed
+	# この行が実行されたかチェック
 	if grep -q "^${file}:${line}$" /tmp/executed_lines.txt; then
-		# Mark as executed: replace COVERAGE_LINE() with +	COVERAGE_LINE()
+		# 実行済み: COVERAGE_LINE()を +	COVERAGE_LINE() に置換
 		sed -i '' "${line}s/^[[:space:]]*COVERAGE_LINE();$/+	COVERAGE_LINE();/" /tmp/current_report.c
 	else
-		# Mark as not executed: replace COVERAGE_LINE() with -	COVERAGE_LINE()
+		# 未実行: COVERAGE_LINE()を -	COVERAGE_LINE() に置換
 		sed -i '' "${line}s/^[[:space:]]*COVERAGE_LINE();$/-	COVERAGE_LINE();/" /tmp/current_report.c
 	fi
 
 done <"$MANIFEST_FILE"
 
-# Save the last file
+# 最後のファイルを保存
 if [ -n "$current_file" ] && [ -f "/tmp/current_report.c" ]; then
 	rel_path="${current_file#build/coverage/}"
 	output_file="$REPORT_DIR/${rel_path}.diff"
@@ -92,7 +93,7 @@ if [ -n "$current_file" ] && [ -f "/tmp/current_report.c" ]; then
 	echo "  ✓ $rel_path.diff"
 fi
 
-# Cleanup
+# 一時ファイルをクリーンアップ
 rm -f /tmp/executed_lines.txt /tmp/current_report.c
 
 echo ""
