@@ -2,6 +2,13 @@
 # diff形式のカバレッジレポートを生成する
 # インストルメント済みファイルをコピーし、COVERAGE_LINE()をマークする
 
+# OS判定: macOSとLinuxでsed -iの挙動が異なる
+if [[ "$(uname)" == "Darwin" ]]; then
+	SED_INPLACE="sed -i ''"
+else
+	SED_INPLACE="sed -i"
+fi
+
 COVERAGE_DIR="build/coverage"
 REPORT_DIR="coverage/report"
 SERIAL_LOG="coverage/log/qemu_serial.log"
@@ -77,10 +84,10 @@ while IFS=: read -r file line; do
 	# この行が実行されたかチェック
 	if grep -q "^${file}:${line}$" /tmp/executed_lines.txt; then
 		# 実行済み: ${line}行目のCOVERAGE_LINE()を +	COVERAGE_LINE() に置換
-		sed -i '' "${line}s/^[[:space:]]*COVERAGE_LINE();$/+	COVERAGE_LINE();/" /tmp/current_report.c
+		$SED_INPLACE "${line}s/^[[:space:]]*COVERAGE_LINE();$/+	COVERAGE_LINE();/" /tmp/current_report.c
 	else
 		# 未実行: ${line}行目のCOVERAGE_LINE()を -	COVERAGE_LINE() に置換
-		sed -i '' "${line}s/^[[:space:]]*COVERAGE_LINE();$/-	COVERAGE_LINE();/" /tmp/current_report.c
+		$SED_INPLACE "${line}s/^[[:space:]]*COVERAGE_LINE();$/-	COVERAGE_LINE();/" /tmp/current_report.c
 	fi
 
 done <"$MANIFEST_FILE"
