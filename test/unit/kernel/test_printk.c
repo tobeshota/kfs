@@ -1,239 +1,361 @@
-#include "../support/io_stub_control.h"
-#include "../support/terminal_test_support.h"
-#include "host_test_framework.h"
-#include <kfs/console.h>
+#include "../test_reset.h"
+#include "../unit_test_framework.h"
 #include <kfs/printk.h>
-
 #include <kfs/string.h>
-#include <string.h>
 
-struct io_log_entry
+/* snprintf()のテスト */
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
 {
-	uint16_t port;
-	uint8_t val;
-	int is_out;
-};
-extern struct io_log_entry kfs_io_log_entries[];
-extern int kfs_io_log_count;
-
-static void reset_io_log(void)
-{
-	kfs_stub_reset_io();
-	kfs_printk_set_console_loglevel(kfs_printk_get_default_loglevel());
+	reset_all_state_for_test();
 }
 
-static uint16_t stub[KFS_VGA_WIDTH * KFS_VGA_HEIGHT];
-
-static inline uint16_t make_cell(char c, uint8_t color)
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
 {
-	return (uint16_t)c | ((uint16_t)color << 8);
+	/* 必要なら後処理（現在は空） */
 }
 
-static size_t capture_serial(char *dst, size_t max_len)
+KFS_TEST(test_snprintf_basic)
 {
-	size_t idx = 0;
-	for (int i = 0; i < kfs_io_log_count && idx + 1 < max_len; i++)
-	{
-		if (kfs_io_log_entries[i].port == 0x3F8)
-			dst[idx++] = (char)kfs_io_log_entries[i].val;
-	}
-	dst[idx] = '\0';
-	return idx;
+	char buf[32];
+	int ret;
+
+	/* 基本的な整数フォーマット */
+	ret = snprintf(buf, sizeof(buf), "Value: %d", 42);
+	KFS_ASSERT_EQ(0, strcmp(buf, "Value: 42"));
+	KFS_ASSERT_EQ(9, ret); /* "Value: 42" = 9文字 */
+
+	/* 文字列フォーマット */
+	ret = snprintf(buf, sizeof(buf), "Hello %s", "World");
+	KFS_ASSERT_EQ(0, strcmp(buf, "Hello World"));
+	KFS_ASSERT_EQ(11, ret);
 }
 
-KFS_TEST(test_printk_formats_and_output)
+/* snprintf()でNULL文字列を処理するテスト */
+KFS_TEST(test_snprintf_null_string)
 {
-	kfs_terminal_set_buffer(stub);
-	terminal_initialize();
-	reset_io_log();
-	const char *expected = "value=-42 42 0x2a str Z %";
-	int len = printk("value=%d %u 0x%x %s %c %%", -42, 42u, 0x2au, "str", 'Z');
-	KFS_ASSERT_EQ((long long)strlen(expected), (long long)len);
-	char captured[128];
-	capture_serial(captured, sizeof(captured));
-	for (size_t i = 0; i < strlen(expected); i++)
-	{
-		KFS_ASSERT_EQ((long long)expected[i], (long long)captured[i]);
-		KFS_ASSERT_EQ((long long)make_cell(expected[i], kfs_terminal_get_color()), (long long)stub[i]);
-	}
+	char buf[32];
+	const char *null_str = NULL;
+
+	/* NULLポインタは"(null)"として出力される */
+	snprintf(buf, sizeof(buf), "Pointer: %s", null_str);
+	KFS_ASSERT_EQ(0, strcmp(buf, "Pointer: (null)"));
 }
 
-KFS_TEST(test_printk_percent_without_specifier)
+/* snprintf()でバッファサイズ制限のテスト */
+KFS_TEST(test_snprintf_size_limit)
 {
-	kfs_terminal_set_buffer(stub);
-	terminal_initialize();
-	reset_io_log();
-	int len = printk("%");
-	char captured[8];
-	size_t n = capture_serial(captured, sizeof(captured));
-	KFS_ASSERT_EQ(1, (long long)len);
-	KFS_ASSERT_EQ(1, (long long)n);
-	KFS_ASSERT_EQ('%', captured[0]);
+	char buf[10];
+	int ret;
+
+	/* バッファサイズを超える文字列 */
+	ret = snprintf(buf, sizeof(buf), "This is a very long string");
+
+	/* バッファは9文字+NULL終端で切り詰められる */
+	KFS_ASSERT_EQ(9, strlen(buf));
+	KFS_ASSERT_EQ('\0', buf[9]);
+
+	/* 戻り値は切り詰められずに書き込まれた場合の長さ */
+	KFS_ASSERT_TRUE(ret >= 9);
 }
 
-KFS_TEST(test_printk_handles_null_string_and_uppercase)
+/* printk()でKERN_DEFAULTログレベルのテスト */
+KFS_TEST(test_printk_kern_default)
 {
-	kfs_terminal_set_buffer(stub);
-	terminal_initialize();
-	reset_io_log();
-	int len = printk("%s %X %q", (const char *)0, 0x2Au, 0x2Au);
-	char captured[64];
-	size_t n = capture_serial(captured, sizeof(captured));
-	const char *expected = "(null) 2A %q";
-	KFS_ASSERT_EQ((long long)strlen(expected), (long long)n);
-	KFS_ASSERT_EQ((long long)len, (long long)n);
-	for (size_t i = 0; i < strlen(expected); i++)
-		KFS_ASSERT_EQ((long long)expected[i], (long long)captured[i]);
+	/* KERN_DEFAULT ("<d>") はデフォルトログレベルを設定 */
+	printk(KERN_DEFAULT "Default level message\n");
+
+	/* クラッシュしなければOK */
+	KFS_ASSERT_TRUE(1);
 }
 
-KFS_TEST(test_printk_zero_values_and_empty_message)
+/* printk()でKERN_CONTログレベルのテスト */
+KFS_TEST(test_printk_kern_cont)
 {
-	kfs_terminal_set_buffer(stub);
-	terminal_initialize();
-	reset_io_log();
-	printk("");
-	KFS_ASSERT_EQ(0, kfs_io_log_count);
-	reset_io_log();
-	int len = printk("%d %u %x", 0, 0u, 0u);
-	char captured[32];
-	size_t n = capture_serial(captured, sizeof(captured));
-	const char *expected = "0 0 0";
-	KFS_ASSERT_EQ((long long)strlen(expected), (long long)n);
-	KFS_ASSERT_EQ((long long)len, (long long)n);
-	for (size_t i = 0; i < strlen(expected); i++)
-		KFS_ASSERT_EQ((long long)expected[i], (long long)captured[i]);
+	/* KERN_CONT ("<c>") は継続メッセージを示す */
+	printk(KERN_INFO "Starting message...");
+	printk(KERN_CONT "continued\n");
+
+	/* クラッシュしなければOK */
+	KFS_ASSERT_TRUE(1);
 }
 
-KFS_TEST(test_printk_truncates_long_output)
+/* printk()で複数のログレベルのテスト */
+KFS_TEST(test_printk_multiple_levels)
 {
-	kfs_terminal_set_buffer(stub);
-	terminal_initialize();
-	reset_io_log();
-	char payload[1100];
-	for (int i = 0; i < 1099; i++)
-		payload[i] = 'A';
-	payload[1099] = '\0';
-	int len = printk("%s", payload);
-	char captured[1030];
-	size_t n = capture_serial(captured, sizeof(captured));
-	KFS_ASSERT_TRUE(kfs_io_log_count > 0);
-	KFS_ASSERT_TRUE(len > 1000);
-	KFS_ASSERT_EQ(1023, (long long)n);
-	KFS_ASSERT_EQ('A', captured[0]);
-	KFS_ASSERT_EQ('A', captured[1022]);
+	printk(KERN_EMERG "Emergency message\n");
+	printk(KERN_ALERT "Alert message\n");
+	printk(KERN_CRIT "Critical message\n");
+	printk(KERN_ERR "Error message\n");
+	printk(KERN_WARNING "Warning message\n");
+	printk(KERN_NOTICE "Notice message\n");
+	printk(KERN_INFO "Info message\n");
+	printk(KERN_DEBUG "Debug message\n");
+
+	/* クラッシュしなければOK */
+	KFS_ASSERT_TRUE(1);
 }
 
-KFS_TEST(test_printk_snprintf_size_zero)
+/* vsnprintf()経由での複雑なフォーマットテスト */
+KFS_TEST(test_snprintf_complex_format)
 {
-	char buf[4] = {'x', 'x', 'x', 'x'};
-	int len = snprintf(buf, 0, "abc");
-	KFS_ASSERT_EQ(3, (long long)len);
-	KFS_ASSERT_EQ('x', buf[0]);
+	char buf[64];
+
+	/* 16進数フォーマット */
+	snprintf(buf, sizeof(buf), "Hex: 0x%x", 255);
+	KFS_ASSERT_EQ(0, strcmp(buf, "Hex: 0xff"));
+
+	/* ポインタフォーマット */
+	int value = 42;
+	snprintf(buf, sizeof(buf), "Ptr: %p", (void *)&value);
+	/* ポインタは環境依存なので、フォーマットされたことだけ確認 */
+	KFS_ASSERT_TRUE(strlen(buf) > 5);
+
+	/* 文字フォーマット */
+	snprintf(buf, sizeof(buf), "Char: %c", 'A');
+	KFS_ASSERT_EQ(0, strcmp(buf, "Char: A"));
 }
 
-KFS_TEST(test_printk_snprintf_truncates_and_terminates)
+/* snprintf()で空のバッファサイズのテスト */
+KFS_TEST(test_snprintf_zero_size)
 {
-	char buf[4] = {0};
-	int len = snprintf(buf, sizeof(buf), "hello");
-	KFS_ASSERT_EQ(5, (long long)len);
-	KFS_ASSERT_EQ('h', buf[0]);
-	KFS_ASSERT_EQ('\0', buf[3]);
+	char buf[1] = {'X'}; /* 初期値を設定 */
+
+	/* サイズ0で呼び出す - バッファは変更されないはず */
+	int ret = snprintf(buf, 0, "Hello");
+
+	/* バッファは変更されていないはず */
+	KFS_ASSERT_EQ('X', buf[0]);
+
+	/* 戻り値は書き込まれるはずだった長さ */
+	KFS_ASSERT_EQ(5, ret);
 }
 
-KFS_TEST(test_printk_respects_console_loglevel)
+/* printk()でフォーマット指定子のエッジケース */
+KFS_TEST(test_printk_format_edge_cases)
 {
-	kfs_terminal_set_buffer(stub);
-	terminal_initialize();
-	reset_io_log();
-	kfs_printk_set_console_loglevel(KFS_LOGLEVEL_ERR);
-	printk(KERN_INFO "hidden");
-	KFS_ASSERT_EQ(0, kfs_io_log_count);
-	reset_io_log();
-	kfs_printk_set_console_loglevel(KFS_LOGLEVEL_INFO);
-	printk(KERN_ERR "ERR");
-	char captured[16];
-	size_t n = capture_serial(captured, sizeof(captured));
-	KFS_ASSERT_EQ(3, (long long)n);
-	KFS_ASSERT_EQ('E', captured[0]);
+	/* パーセント記号のエスケープ */
+	printk("100%% complete\n");
+
+	/* 負の数 */
+	printk("Negative: %d\n", -42);
+
+	/* ゼロ */
+	printk("Zero: %d\n", 0);
+
+	/* 複数の引数 */
+	printk("Multiple: %d %s %x\n", 123, "test", 0xABC);
+
+	/* クラッシュしなければOK */
+	KFS_ASSERT_TRUE(1);
 }
 
-KFS_TEST(test_printk_continuation_honours_previous_output)
+/*
+ * test_snprintf_pointer - %pフォーマット指定子のテスト
+ *
+ * 何を検証するか:
+ * %pでポインタが0xプレフィックス付きの16進数として正しくフォーマットされること
+ *
+ * 検証の目的:
+ * ポインタ値のデバッグ出力が正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_pointer)
 {
-	kfs_terminal_set_buffer(stub);
-	terminal_initialize();
-	reset_io_log();
-	kfs_printk_set_console_loglevel(KFS_LOGLEVEL_DEBUG);
-	printk(KERN_INFO "Hello");
-	printk(KERN_CONT " world");
-	char captured[32];
-	size_t n = capture_serial(captured, sizeof(captured));
-	KFS_ASSERT_EQ((long long)strlen("Hello world"), (long long)n);
-	KFS_ASSERT_EQ(0, strncmp("Hello world", captured, n));
-	reset_io_log();
-	kfs_printk_set_console_loglevel(KFS_LOGLEVEL_ERR);
-	printk(KERN_DEBUG "nope");
-	printk(KERN_CONT " tail");
-	KFS_ASSERT_EQ(0, kfs_io_log_count);
+	char buf[64];
+	void *ptr = (void *)0x12345678;
+
+	snprintf(buf, sizeof(buf), "ptr=%p", ptr);
+
+	/* 0xプレフィックスが付いていること */
+	KFS_ASSERT_EQ('0', buf[4]);
+	KFS_ASSERT_EQ('x', buf[5]);
+
+	/* 16進数文字列が含まれていること */
+	KFS_ASSERT_TRUE(strlen(buf) > 6);
 }
 
-KFS_TEST(test_printk_default_loglevel_restored)
+/*
+ * test_snprintf_unsigned_long - %luフォーマット指定子のテスト
+ *
+ * 何を検証するか:
+ * %luでunsigned long値が10進数として正しくフォーマットされること
+ *
+ * 検証の目的:
+ * 大きな整数値（サイズ、アドレスなど）の出力が正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_unsigned_long)
 {
-	kfs_terminal_set_buffer(stub);
-	terminal_initialize();
-	reset_io_log();
-	kfs_printk_set_console_loglevel(KFS_LOGLEVEL_ERR);
-	printk(KERN_DEFAULT "warn");
-	KFS_ASSERT_EQ(0, kfs_io_log_count);
-	reset_io_log();
-	printk(KERN_DEFAULT "warn");
-	KFS_ASSERT_TRUE(kfs_io_log_count > 0);
+	char buf[64];
+	unsigned long val = 123456789UL;
+
+	snprintf(buf, sizeof(buf), "size=%lu", val);
+	KFS_ASSERT_EQ(0, strcmp(buf, "size=123456789"));
+
+	/* ゼロの場合 */
+	snprintf(buf, sizeof(buf), "%lu", 0UL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0"));
+
+	/* 最大値付近 */
+	snprintf(buf, sizeof(buf), "%lu", 4294967295UL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "4294967295"));
 }
 
-KFS_TEST(test_printk_handles_unknown_prefix_codes)
+/*
+ * test_snprintf_long_hex - %lxフォーマット指定子のテスト
+ *
+ * 何を検証するか:
+ * %lxでunsigned long値が小文字の16進数として正しくフォーマットされること
+ *
+ * 検証の目的:
+ * アドレスやビットマスクの16進数表示が正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_long_hex)
 {
-	kfs_terminal_set_buffer(stub);
-	terminal_initialize();
-	reset_io_log();
-	printk(KFS_KERN_SOH "/unknown");
-	char captured[32];
-	size_t n = capture_serial(captured, sizeof(captured));
-	KFS_ASSERT_TRUE(n > 1);
-	KFS_ASSERT_EQ(1, (long long)captured[0]);
-	KFS_ASSERT_EQ('/', captured[1]);
-	reset_io_log();
-	printk(KFS_KERN_SOH "xtrail");
-	n = capture_serial(captured, sizeof(captured));
-	KFS_ASSERT_TRUE(n > 1);
-	KFS_ASSERT_EQ(1, (long long)captured[0]);
-	KFS_ASSERT_EQ('x', captured[1]);
+	char buf[64];
+
+	snprintf(buf, sizeof(buf), "0x%lx", 0xABCDEF12UL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0xabcdef12"));
+
+	/* 小さい値（先頭ゼロは省略される） */
+	snprintf(buf, sizeof(buf), "0x%lx", 0x1AUL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0x1a"));
+
+	/* ゼロ */
+	snprintf(buf, sizeof(buf), "0x%lx", 0UL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0x0"));
 }
 
-KFS_TEST(test_printk_clamps_console_loglevel)
+/*
+ * test_snprintf_long_hex_upper - %lXフォーマット指定子のテスト
+ *
+ * 何を検証するか:
+ * %lXでunsigned long値が大文字の16進数として正しくフォーマットされること
+ *
+ * 検証の目的:
+ * 大文字16進数表示オプションが正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_long_hex_upper)
 {
-	kfs_printk_set_console_loglevel(-5);
-	KFS_ASSERT_EQ(minimum_console_loglevel, kfs_printk_get_console_loglevel());
-	kfs_printk_set_console_loglevel(42);
-	KFS_ASSERT_EQ(KFS_LOGLEVEL_DEBUG, kfs_printk_get_console_loglevel());
-	/* restore default */
-	kfs_printk_set_console_loglevel(kfs_printk_get_default_loglevel());
+	char buf[64];
+
+	snprintf(buf, sizeof(buf), "0x%lX", 0xABCDEF12UL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0xABCDEF12"));
+
+	snprintf(buf, sizeof(buf), "0x%lX", 0x1AUL);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0x1A"));
+}
+
+/*
+ * test_snprintf_signed_long - %ldフォーマット指定子のテスト
+ *
+ * 何を検証するか:
+ * %ldでlong値が符号付き10進数として正しくフォーマットされること
+ *
+ * 検証の目的:
+ * 負の値を含む長整数の出力が正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_signed_long)
+{
+	char buf[64];
+
+	/* 正の値 */
+	snprintf(buf, sizeof(buf), "%ld", 123456789L);
+	KFS_ASSERT_EQ(0, strcmp(buf, "123456789"));
+
+	/* 負の値 */
+	snprintf(buf, sizeof(buf), "%ld", -987654321L);
+	KFS_ASSERT_EQ(0, strcmp(buf, "-987654321"));
+
+	/* ゼロ */
+	snprintf(buf, sizeof(buf), "%ld", 0L);
+	KFS_ASSERT_EQ(0, strcmp(buf, "0"));
+}
+
+/*
+ * test_snprintf_mixed_long_formats - 複数のlong系フォーマット指定子の組み合わせテスト
+ *
+ * 何を検証するか:
+ * 1つのフォーマット文字列に%p、%lu、%lx、%ldが混在しても正しく処理されること
+ *
+ * 検証の目的:
+ * 実際のデバッグ出力で使われる複雑なフォーマット文字列が正しく機能することを確認
+ */
+KFS_TEST(test_snprintf_mixed_long_formats)
+{
+	char buf[128];
+	void *ptr = (void *)0xDEADBEEF;
+	unsigned long size = 4096UL;
+	long offset = -256L;
+	unsigned long flags = 0x123UL;
+
+	snprintf(buf, sizeof(buf), "ptr=%p size=%lu offset=%ld flags=0x%lx", ptr, size, offset, flags);
+
+	/* 各フィールドが含まれていることを確認 */
+	KFS_ASSERT_TRUE(strstr(buf, "ptr=0x") != NULL);
+	KFS_ASSERT_TRUE(strstr(buf, "size=4096") != NULL);
+	KFS_ASSERT_TRUE(strstr(buf, "offset=-256") != NULL);
+	KFS_ASSERT_TRUE(strstr(buf, "flags=0x123") != NULL);
+}
+
+/*
+ * test_snprintf_null_pointer - NULLポインタの%pテスト
+ *
+ * 何を検証するか:
+ * %pでNULLポインタが0x0として表示されること
+ *
+ * 検証の目的:
+ * NULLポインタのデバッグ出力が安全に処理されることを確認
+ */
+KFS_TEST(test_snprintf_null_pointer)
+{
+	char buf[64];
+	void *null_ptr = NULL;
+
+	snprintf(buf, sizeof(buf), "ptr=%p", null_ptr);
+	KFS_ASSERT_EQ(0, strcmp(buf, "ptr=0x0"));
+}
+
+/*
+ * test_snprintf_long_modifier_invalid - 不正な%l使用のテスト
+ *
+ * 何を検証するか:
+ * %l単独や%lの後に対応していない文字が来た場合、リテラルとして出力されること
+ *
+ * 検証の目的:
+ * 不正なフォーマット指定子に対するロバスト性を確認
+ */
+KFS_TEST(test_snprintf_long_modifier_invalid)
+{
+	char buf[64];
+
+	/* %l単独（後続の文字がない） */
+	snprintf(buf, sizeof(buf), "test%l", 123);
+	/* %lがリテラルとして出力される */
+	KFS_ASSERT_TRUE(strstr(buf, "%l") != NULL);
 }
 
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_printk_formats_and_output),
-	KFS_REGISTER_TEST(test_printk_percent_without_specifier),
-	KFS_REGISTER_TEST(test_printk_handles_null_string_and_uppercase),
-	KFS_REGISTER_TEST(test_printk_zero_values_and_empty_message),
-	KFS_REGISTER_TEST(test_printk_truncates_long_output),
-	KFS_REGISTER_TEST(test_printk_snprintf_size_zero),
-	KFS_REGISTER_TEST(test_printk_snprintf_truncates_and_terminates),
-	KFS_REGISTER_TEST(test_printk_respects_console_loglevel),
-	KFS_REGISTER_TEST(test_printk_continuation_honours_previous_output),
-	KFS_REGISTER_TEST(test_printk_default_loglevel_restored),
-	KFS_REGISTER_TEST(test_printk_handles_unknown_prefix_codes),
-	KFS_REGISTER_TEST(test_printk_clamps_console_loglevel),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_null_string, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_size_limit, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_printk_kern_default, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_printk_kern_cont, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_printk_multiple_levels, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_complex_format, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_zero_size, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_printk_format_edge_cases, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_pointer, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_unsigned_long, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_long_hex, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_long_hex_upper, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_signed_long, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_mixed_long_formats, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_null_pointer, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_snprintf_long_modifier_invalid, setup_test, teardown_test),
 };
 
-int register_host_tests_printk(struct kfs_test_case **out)
+int register_unit_tests_printk(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));

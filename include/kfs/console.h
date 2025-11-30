@@ -1,8 +1,8 @@
 #ifndef KFS_CONSOLE_H
 #define KFS_CONSOLE_H
 
-#include <stddef.h>
-#include <stdint.h>
+#include <kfs/stddef.h>
+#include <kfs/stdint.h>
 #include <video/vga.h>
 
 #define KFS_VGA_WIDTH 80			/* 1コンソールあたりの幅 */

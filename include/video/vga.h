@@ -1,8 +1,8 @@
 #ifndef KFS_VGA_H
 #define KFS_VGA_H
 
-#include <stddef.h>
-#include <stdint.h>
+#include <kfs/stddef.h>
+#include <kfs/stdint.h>
 
 /* Basic VGA color enumeration */
 enum vga_color

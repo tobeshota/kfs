@@ -1,5 +1,5 @@
 #include <kfs/printk.h>
-#include <stdint.h>
+#include <kfs/stdint.h>
 
 /* boot.Sで定義されたスタック領域の境界。スタックのオーバーフロー検出に必要 */
 extern char stack_bottom[];
@@ -27,7 +27,9 @@ void show_stack(unsigned long *esp)
 	for (unsigned long *p = sp; p < (unsigned long *)stack_top && words < 32; ++p, ++words)
 	{
 		if (!in_stack_bounds(p))
+		{
 			break;
+		}
 		printk("  [%p] %08x\n", p, (unsigned int)*p);
 	}
 
@@ -44,18 +46,22 @@ void show_stack(unsigned long *esp)
 	for (int depth = 0; depth < 16; ++depth)
 	{
 		if (!in_stack_bounds(bp) || !in_stack_bounds(bp + 1))
+		{
 			break;
+		}
 		unsigned long ret = bp[1]; /* リターンアドレス（呼び出し元のアドレス） */
 		printk("  #%d return %p (bp=%p)\n", depth, (void *)ret, (void *)bp);
 		unsigned long *next = (unsigned long *)bp[0]; /* 前のベースポインタ */
 		if (next <= bp) /* 無限ループを防止（不正なベースポインタ連鎖の検出） */
+		{
 			break;
+		}
 		bp = next;
 	}
 }
 
 /* 現在のスタックをダンプする */
-__attribute__((weak)) void dump_stack(void)
+void dump_stack(void)
 {
 	show_stack(NULL);
 }

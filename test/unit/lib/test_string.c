@@ -1,5 +1,25 @@
-#include "host_test_framework.h"
+#include "../test_reset.h"
 #include "kfs/string.h"
+#include "unit_test_framework.h"
+
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
+
+KFS_TEST(test_strlen)
+{
+	KFS_ASSERT_EQ(6, strlen("kernel"));
+	KFS_ASSERT_EQ(4, strlen("from"));
+	KFS_ASSERT_EQ(7, strlen("scratch"));
+}
 
 KFS_TEST(test_strnlen_clamps)
 {
@@ -9,6 +29,21 @@ KFS_TEST(test_strnlen_clamps)
 	KFS_ASSERT_EQ(0, (long long)strnlen(text, 0));
 }
 
+KFS_TEST(test_strcpy_basic)
+{
+	char buf[16];
+	char *ret = strcpy(buf, "hello");
+	KFS_ASSERT_TRUE(ret == buf);
+	KFS_ASSERT_TRUE(strcmp(buf, "hello") == 0);
+
+	char buf2[8];
+	strcpy(buf2, "");
+	KFS_ASSERT_TRUE(strcmp(buf2, "") == 0);
+
+	strcpy(buf, "world");
+	KFS_ASSERT_TRUE(strcmp(buf, "world") == 0);
+}
+
 KFS_TEST(test_strncpy_pads_with_nuls)
 {
 	char buf[8];
@@ -16,7 +51,9 @@ KFS_TEST(test_strncpy_pads_with_nuls)
 	KFS_ASSERT_TRUE(ret == buf);
 	KFS_ASSERT_TRUE(strcmp(buf, "abc") == 0);
 	for (size_t i = 4; i < sizeof(buf); i++)
+	{
 		KFS_ASSERT_EQ(0, (long long)buf[i]);
+	}
 	char partial[4] = {0};
 	strncpy(partial, "abcdef", 2);
 	KFS_ASSERT_TRUE(partial[0] == 'a');
@@ -38,7 +75,9 @@ KFS_TEST(test_strncpy_empty_source)
 	char *ret = strncpy(buf, "", sizeof(buf) - 1);
 	KFS_ASSERT_TRUE(ret == buf);
 	for (size_t i = 0; i < sizeof(buf) - 1; i++)
+	{
 		KFS_ASSERT_EQ(0, (long long)buf[i]);
+	}
 	KFS_ASSERT_EQ('\0', (long long)buf[3]);
 }
 
@@ -120,11 +159,15 @@ KFS_TEST(test_memset_and_memcpy)
 	unsigned char buf[6];
 	memset(buf, 0xAB, sizeof(buf));
 	for (size_t i = 0; i < sizeof(buf); i++)
+	{
 		KFS_ASSERT_EQ(0xAB, (long long)buf[i]);
+	}
 	unsigned char other[6] = {0};
 	memcpy(other, buf, sizeof(buf));
 	for (size_t i = 0; i < sizeof(buf); i++)
+	{
 		KFS_ASSERT_EQ((long long)buf[i], (long long)other[i]);
+	}
 }
 
 KFS_TEST(test_memmove_handles_overlap)
@@ -155,15 +198,23 @@ KFS_TEST(test_memcmp_and_memchr)
 }
 
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST(test_strnlen_clamps),			 KFS_REGISTER_TEST(test_strncpy_pads_with_nuls),
-	KFS_REGISTER_TEST(test_strncpy_zero_count),		 KFS_REGISTER_TEST(test_strncpy_empty_source),
-	KFS_REGISTER_TEST(test_strlcpy_behaviour),		 KFS_REGISTER_TEST(test_strcat_and_strncat),
-	KFS_REGISTER_TEST(test_strncat_empty_source),	 KFS_REGISTER_TEST(test_strcmp_family),
-	KFS_REGISTER_TEST(test_strchr_strrchr_strstr),	 KFS_REGISTER_TEST(test_memset_and_memcpy),
-	KFS_REGISTER_TEST(test_memmove_handles_overlap), KFS_REGISTER_TEST(test_memcmp_and_memchr),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strlen, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strnlen_clamps, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strcpy_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strncpy_pads_with_nuls, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strncpy_zero_count, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strncpy_empty_source, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strlcpy_behaviour, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strcat_and_strncat, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strncat_empty_source, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strcmp_family, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_strchr_strrchr_strstr, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_memset_and_memcpy, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_memmove_handles_overlap, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_memcmp_and_memchr, setup_test, teardown_test),
 };
 
-int register_host_tests_string(struct kfs_test_case **out)
+int register_unit_tests_string(struct kfs_test_case **out)
 {
 	*out = cases;
 	return (int)(sizeof(cases) / sizeof(cases[0]));

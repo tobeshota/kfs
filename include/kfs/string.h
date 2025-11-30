@@ -1,7 +1,7 @@
 #ifndef _STRING_H_
 #define _STRING_H_
 
-#include <stddef.h>
+#include <kfs/stddef.h>
 
 #ifndef __KERNEL_SIZE_T_DEFINED
 typedef size_t __kernel_size_t;
