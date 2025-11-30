@@ -41,8 +41,8 @@ static void append_string(char **dst, size_t *remaining, size_t *written, const 
 	}
 }
 
-static void append_unsigned(char **dst, size_t *remaining, size_t *written, unsigned int value, unsigned int base,
-							int uppercase)
+static void append_unsigned_with_width(char **dst, size_t *remaining, size_t *written, unsigned int value,
+									   unsigned int base, int uppercase, int width, char pad_char)
 {
 	char buf[32];
 	int idx = 0;
@@ -66,14 +66,26 @@ static void append_unsigned(char **dst, size_t *remaining, size_t *written, unsi
 			}
 		}
 	}
+	/* パディングを追加 */
+	while (idx < width)
+	{
+		append_char(dst, remaining, written, pad_char);
+		width--;
+	}
 	while (idx > 0)
 	{
 		append_char(dst, remaining, written, buf[--idx]);
 	}
 }
 
-static void append_unsigned_long(char **dst, size_t *remaining, size_t *written, unsigned long value, unsigned int base,
-								 int uppercase)
+static void append_unsigned(char **dst, size_t *remaining, size_t *written, unsigned int value, unsigned int base,
+							int uppercase)
+{
+	append_unsigned_with_width(dst, remaining, written, value, base, uppercase, 0, ' ');
+}
+
+static void append_unsigned_long_with_width(char **dst, size_t *remaining, size_t *written, unsigned long value,
+											unsigned int base, int uppercase, int width, char pad_char)
 {
 	char buf[32];
 	int idx = 0;
@@ -97,10 +109,22 @@ static void append_unsigned_long(char **dst, size_t *remaining, size_t *written,
 			}
 		}
 	}
+	/* パディングを追加 */
+	while (idx < width)
+	{
+		append_char(dst, remaining, written, pad_char);
+		width--;
+	}
 	while (idx > 0)
 	{
 		append_char(dst, remaining, written, buf[--idx]);
 	}
+}
+
+static void append_unsigned_long(char **dst, size_t *remaining, size_t *written, unsigned long value, unsigned int base,
+								 int uppercase)
+{
+	append_unsigned_long_with_width(dst, remaining, written, value, base, uppercase, 0, ' ');
 }
 
 static void append_signed(char **dst, size_t *remaining, size_t *written, int value)
@@ -136,6 +160,23 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 			continue;
 		}
 		fmt++;
+
+		/* フラグの解析 */
+		char pad_char = ' ';
+		if (*fmt == '0')
+		{
+			pad_char = '0';
+			fmt++;
+		}
+
+		/* 幅の解析 */
+		int width = 0;
+		while (*fmt >= '0' && *fmt <= '9')
+		{
+			width = width * 10 + (*fmt - '0');
+			fmt++;
+		}
+
 		char spec = *fmt ? *fmt++ : '\0';
 		switch (spec)
 		{
@@ -154,30 +195,33 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 			append_signed(&out, &remaining, &written, va_arg(ap, int));
 			break;
 		case 'u':
-			append_unsigned(&out, &remaining, &written, va_arg(ap, unsigned int), 10, 0);
+			append_unsigned_with_width(&out, &remaining, &written, va_arg(ap, unsigned int), 10, 0, width, pad_char);
 			break;
 		case 'x':
-			append_unsigned(&out, &remaining, &written, va_arg(ap, unsigned int), 16, 0);
+			append_unsigned_with_width(&out, &remaining, &written, va_arg(ap, unsigned int), 16, 0, width, pad_char);
 			break;
 		case 'X':
-			append_unsigned(&out, &remaining, &written, va_arg(ap, unsigned int), 16, 1);
+			append_unsigned_with_width(&out, &remaining, &written, va_arg(ap, unsigned int), 16, 1, width, pad_char);
 			break;
 		case 'l': {
 			/* %lu, %lx, %ld などのロング修飾子 */
 			if (*fmt == 'u')
 			{
 				fmt++;
-				append_unsigned_long(&out, &remaining, &written, va_arg(ap, unsigned long), 10, 0);
+				append_unsigned_long_with_width(&out, &remaining, &written, va_arg(ap, unsigned long), 10, 0, width,
+												pad_char);
 			}
 			else if (*fmt == 'x')
 			{
 				fmt++;
-				append_unsigned_long(&out, &remaining, &written, va_arg(ap, unsigned long), 16, 0);
+				append_unsigned_long_with_width(&out, &remaining, &written, va_arg(ap, unsigned long), 16, 0, width,
+												pad_char);
 			}
 			else if (*fmt == 'X')
 			{
 				fmt++;
-				append_unsigned_long(&out, &remaining, &written, va_arg(ap, unsigned long), 16, 1);
+				append_unsigned_long_with_width(&out, &remaining, &written, va_arg(ap, unsigned long), 16, 1, width,
+												pad_char);
 			}
 			else if (*fmt == 'd')
 			{
