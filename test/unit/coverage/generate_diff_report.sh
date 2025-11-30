@@ -42,6 +42,7 @@ echo "Generating diff-style coverage report..."
 
 # マニフェスト内の各ファイルを処理
 current_file=""
+# 標準入力から1行読み，それを区切り文字":"の前後で変数fileと変数lineに格納する
 while IFS=: read -r file line; do
 	[ -z "$file" ] || [ -z "$line" ] && continue
 
