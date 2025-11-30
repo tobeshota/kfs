@@ -3,7 +3,7 @@
 
 /* boot.Sで定義されたスタック領域の境界。スタックのオーバーフロー検出に必要 */
 extern char stack_bottom[]; /* スタック領域の下限アドレス */
-extern char stack_top[];  /* スタック領域の上限アドレス */
+extern char stack_top[];	/* スタック領域の上限アドレス */
 
 /* ポインタpがスタック領域内にあるか確認する。不正なメモリアクセスを防ぐために必要 */
 static int in_stack_bounds(const void *p)
