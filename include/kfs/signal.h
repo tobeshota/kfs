@@ -1,6 +1,18 @@
 #ifndef _SIGNAL_H_
 #define _SIGNAL_H_
 
+/** シグナルの登録・発生・実行の流れ
+ * @details
+ * 1. sighandler_t signal(int sig, sighandler_t handler);
+ *    - シグナル番号sigに関数handlerを登録する
+ * 2. int raise(int sig);
+ *    - シグナル番号sigを発生させる（保留キューに追加）
+ * 3. void do_signal(void);
+ *    - 保留中の全シグナルを順に処理する
+ *    - handlerが登録済みならhandler(sig)を実行する
+ *    - SIG_IGNなら無視、SIG_DFLならデフォルトの動作をする
+ */
+
 /** シグナル番号
  * @see https://dsa.cs.tsinghua.edu.cn/oj/static/unix_signal.html
  */
