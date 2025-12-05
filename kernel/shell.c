@@ -1,6 +1,7 @@
 #include <asm-i386/pgtable.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
+#include <kfs/panic.h>
 #include <kfs/printk.h>
 #include <kfs/reboot.h>
 #include <kfs/serial.h>
@@ -38,15 +39,26 @@ static void clear_command_buffer(void)
 	shell_state.cmd_buffer[0] = '\0';
 }
 
-/* システムを停止する（halt組み込みコマンド） */
+/** システムを停止する（halt組み込みコマンド）
+ *
+ * @details 割り込みを無効化し、汎用レジスタをクリアしてからCPUを停止する。
+ *          汎用レジスタをクリアする理由は，hlt後に物理アクセスによる
+ *          メモリダンプで機密情報が漏洩することを防ぐため．
+ */
 static void cmd_halt(void)
 {
 	printk("System halted.\n");
-	/* 割り込みを無効化してからCPUを完全に停止 */
-	asm volatile("cli"); /* Clear Interrupt Flag - 割り込み無効化 */
+
+	/* 割り込みを無効化（これ以降は割り込み不可） */
+	__asm__ __volatile__("cli");
+
+	/* 汎用レジスタをクリアする（機密情報の漏洩を防ぐため） */
+	clear_gp_registers();
+
+	/* CPUを停止する */
 	for (;;)
 	{
-		asm volatile("hlt"); /* CPUを停止状態にする */
+		__asm__ __volatile__("hlt");
 	}
 }
 
