@@ -30,13 +30,16 @@ void panic(const char *fmt, ...)
 	/* パニックメッセージを表示 */
 	printk(KERN_EMERG "Kernel panic: %s\n", buf);
 
-	/* スタックトレースを表示（デバッグ用） */
+	/* スタックトレースを表示 */
 	printk(KERN_EMERG "---[ stack trace ]---\n");
 	extern void dump_stack(void);
 	dump_stack();
 
 	/* カーネル停止（無限ループ） */
 	printk(KERN_EMERG "---[ end Kernel panic ]---\n");
+
+	/* 汎用レジスタをクリア（機密情報の漏洩を防ぐため） */
+	clear_gp_registers();
 
 	/* CPUを停止する */
 	for (;;)
