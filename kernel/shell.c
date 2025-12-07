@@ -67,7 +67,44 @@ static void cmd_reboot(void)
 {
 	machine_restart();
 	/* この行には到達しない */
-} /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
+}
+
+/** キーボードレイアウトを変更する（loadkeys組み込みコマンド）
+ * @param args コマンド引数（レイアウト名）
+ * @note テスト用にstaticを外している
+ */
+void cmd_loadkeys(const char *args)
+{
+	const char *layout = args;
+
+	/* 先頭の空白をスキップ */
+	while (*layout == ' ')
+	{
+		layout++;
+	}
+
+	if (strcmp(layout, "us") == 0 || strcmp(layout, "qwerty") == 0)
+	{
+		kfs_keyboard_set_layout(KBD_LAYOUT_QWERTY);
+		printk("Keyboard layout set to QWERTY (US)\n");
+	}
+	else if (strcmp(layout, "fr") == 0 || strcmp(layout, "azerty") == 0)
+	{
+		kfs_keyboard_set_layout(KBD_LAYOUT_AZERTY);
+		printk("Keyboard layout set to AZERTY (FR)\n");
+	}
+	else if (*layout == '\0')
+	{
+		printk("Usage: loadkeys <us|fr|qwerty|azerty>\n");
+	}
+	else
+	{
+		printk("loadkeys: unknown keymap '%s'\n", layout);
+		printk("Available keymaps: us, fr, qwerty, azerty\n");
+	}
+}
+
+/* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
 static void execute_command(const char *cmd)
 {
 	/* 空コマンドは無視 */
@@ -235,6 +272,13 @@ static void execute_command(const char *cmd)
 
 			printk("\n");
 		}
+		return;
+	}
+
+	/* loadkeys コマンド */
+	if (strncmp(cmd, "loadkeys ", 9) == 0)
+	{
+		cmd_loadkeys(cmd + 9);
 		return;
 	}
 

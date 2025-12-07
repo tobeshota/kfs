@@ -1,11 +1,13 @@
 #include "../test_reset.h"
 #include "unit_test_framework.h"
+#include <kfs/keyboard.h>
 #include <kfs/shell.h>
 #include <kfs/string.h>
 
 /* シェルの内部関数を外部から呼び出せるように宣言 */
 extern int shell_keyboard_handler(char c);
 extern void shell_init(void);
+extern void cmd_loadkeys(const char *args);
 
 /* 全テストで共通のセットアップ関数 */
 static void setup_test(void)
@@ -315,6 +317,80 @@ KFS_TEST(test_shell_buffer_overflow)
 	KFS_ASSERT_TRUE(1);
 }
 
+/* loadkeys us */
+KFS_TEST(test_cmd_loadkeys_us)
+{
+	cmd_loadkeys("us");
+	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
+}
+
+/* loadkeys qwerty */
+KFS_TEST(test_cmd_loadkeys_qwerty)
+{
+	cmd_loadkeys("qwerty");
+	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
+}
+
+/* loadkeys fr */
+KFS_TEST(test_cmd_loadkeys_fr)
+{
+	cmd_loadkeys("fr");
+	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_AZERTY);
+}
+
+/* loadkeys azerty */
+KFS_TEST(test_cmd_loadkeys_azerty)
+{
+	cmd_loadkeys("azerty");
+	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_AZERTY);
+}
+
+/* loadkeys with leading spaces */
+KFS_TEST(test_cmd_loadkeys_with_spaces)
+{
+	cmd_loadkeys("   us");
+	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
+}
+
+/* loadkeys without argument */
+KFS_TEST(test_cmd_loadkeys_no_argument)
+{
+	cmd_loadkeys("");
+	/* Usage メッセージが出力される（エラーなし） */
+	KFS_ASSERT_TRUE(1);
+}
+
+/* loadkeys with spaces only */
+KFS_TEST(test_cmd_loadkeys_spaces_only)
+{
+	cmd_loadkeys("   ");
+	/* Usage メッセージが出力される */
+	KFS_ASSERT_TRUE(1);
+}
+
+/* loadkeys with invalid keymap */
+KFS_TEST(test_cmd_loadkeys_invalid)
+{
+	kbd_layout_t before = kfs_keyboard_get_layout();
+	cmd_loadkeys("invalid");
+	/* レイアウトは変更されない */
+	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), before);
+}
+
+/* 連続してレイアウトを変更 */
+KFS_TEST(test_cmd_loadkeys_switch_layouts)
+{
+	/* US → FR → US */
+	cmd_loadkeys("us");
+	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
+
+	cmd_loadkeys("fr");
+	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_AZERTY);
+
+	cmd_loadkeys("qwerty");
+	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_init, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_printable, setup_test, teardown_test),
@@ -337,6 +413,15 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_brk_command, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_vmalloc_command, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_buffer_overflow, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_us, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_qwerty, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_fr, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_azerty, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_with_spaces, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_no_argument, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_spaces_only, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_invalid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_switch_layouts, setup_test, teardown_test),
 };
 
 int register_unit_tests_shell(struct kfs_test_case **out)
