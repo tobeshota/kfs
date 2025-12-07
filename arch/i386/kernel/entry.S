@@ -125,8 +125,7 @@ common_interrupt:
 	addl $4, %esp		/* 引数をpopしてスタックを復元 */
 	RESTORE_ALL
 
-/**
- * IRQエントリポイント用マクロ
+/**　IRQエントリポイント用マクロ
  * @param name  エントリポイント名
  * @param irq   IRQ番号 (0-15)
  * @note  CPUはerror_codeをpushしないので、スタック構造を例外と同じにする
@@ -156,3 +155,95 @@ IRQ_ENTRY irq12, 12		/* IRQ12: PS/2 Mouse */
 IRQ_ENTRY irq13, 13		/* IRQ13: FPU */
 IRQ_ENTRY irq14, 14		/* IRQ14: Primary ATA */
 IRQ_ENTRY irq15, 15		/* IRQ15: Secondary ATA */
+
+/* ========== システムコールエントリポイント (INT 0x80) ========== */
+
+/** レジスタ規約
+ * EAX: システムコール番号
+ * EBX: 第1引数
+ * ECX: 第2引数
+ * EDX: 第3引数
+ * ESI: 第4引数
+ * EDI: 第5引数
+ * EAX: 戻り値
+ */
+.globl system_call
+system_call:
+	pushl %eax			/* orig_eax: システムコール番号を保存 */
+	SAVE_ALL
+	/* do_syscall(nr, arg1, arg2, arg3, arg4, arg5) を呼び出す */
+	/* pt_regs構造体: ebx(ESP+0), ecx(+4), edx(+8), esi(+12), edi(+16), ..., orig_eax(+44) */
+
+	/** システムコール番号(orig_eaxの値)をEAXレジスタに複写する
+	 * @brief
+	 * pt_regs->orig_eaxをEAXレジスタに複写する
+	 *
+	 * @details
+	 * orig_eax全体(pt_regs構造体のorig_eaxメンバの先頭アドレスから終端アドレスまでの4バイト)の値(システムコール番号)を
+	 * EAXレジスタに複写する
+	 * ┌----------┬--------------------------------------------------------------------┐
+	 * | 44(%esp) | 【SRC】システムコール番号を格納するRAM上の先頭アドレス                     |
+	 * |          | (pt_regs構造体のorig_eaxメンバの先頭アドレス)                           |
+	 * |          | (ESPレジスタが指すアドレス(pt_regs構造体の先頭)から44バイトずらしたアドレス) |
+	 * ├----------┼--------------------------------------------------------------------┤
+	 * | %eax     | 【DEST】システムコール番号を格納するCPUレジスタ(EAXレジスタ)               |
+	 * ├----------┼--------------------------------------------------------------------┤
+	 * | movl     | SRCの先頭アドレスからの4バイト(orig_eax全体)をDEST(EAXレジスタ)に複写する  |
+	 * └----------┴--------------------------------------------------------------------┘
+	 *
+	 * @note
+	 * pt_regs構造体のレイアウト
+	 * ```include/asm-i386/ptrace.h
+	 * struct pt_regs {
+	 *      uint32_t ebx;       // オフセット 0  (4バイト) <- ESPレジスタの指す先頭アドレス
+	 *      uint32_t ecx;       // オフセット 4  (4バイト)
+	 *      uint32_t edx;       // オフセット 8  (4バイト)
+	 *      uint32_t esi;       // オフセット 12 (4バイト)
+	 *      uint32_t edi;       // オフセット 16 (4バイト)
+	 *      uint32_t ebp;       // オフセット 20 (4バイト)
+	 *      uint32_t eax;       // オフセット 24 (4バイト)
+	 *      uint32_t ds;        // オフセット 28 (4バイト)
+	 *      uint32_t es;        // オフセット 32 (4バイト)
+	 *      uint32_t fs;        // オフセット 36 (4バイト)
+	 *      uint32_t gs;        // オフセット 40 (4バイト)
+	 *      uint32_t orig_eax;  // オフセット 44 (4バイト) ← ESPレジスタの指す先頭アドレスから
+	 *                          //                        44バイトずらしたアドレス
+	 *      // その他のメンバ...
+	 * };
+	 * ```
+	 */
+	movl 44(%esp), %eax
+
+	/** pt_regs->ediをdo_syscallの第5引数に設定する
+	 * @brief pt_regs->edi(現在のESPレジスタが指すアドレス(pt_regs->ebx)から16バイト先の値)を
+	 *        スタックに積む
+	 * @note pt_regs->ediはdo_syscallの第5引数
+	 *       (call命令の直前に積む6個の引数のうち1番目にpushされるため)
+	 * @note pushlでESPレジスタが4バイト減少するため，次のオフセット計算に影響する
+	 */
+	pushl 16(%esp)
+	/** pt_regs->esiをdo_syscallの第4引数に設定する
+	 * @brief pt_regs->esi(現在のESPレジスタが指すアドレス(pt_regs->ebx - 4バイト)から16バイト先の値)を
+	 *        スタックに積む
+	 * @note pt_regs->esiはdo_syscallの第4引数
+	 *       (call命令の直前に積む6個の引数のうち2番目にpushされるため)
+	 * @note pushlでESPレジスタが4バイト減少するため，次のオフセット計算に影響する
+	 */
+	pushl 16(%esp)
+	/** pt_regs->edxをdo_syscallの第3引数に設定する
+	 * @brief pt_regs->edx(現在のESPレジスタが指すアドレス(pt_regs->ebx - 8バイト)から16バイト先の値)を
+	 *        スタックに積む
+	 * @note pt_regs->edxはdo_syscallの第3引数
+	 *       (call命令の直前に積む6個の引数のうち3番目にpushされるため)
+	 * @note pushlでESPレジスタが4バイト減少するため，次のオフセット計算に影響する
+	 */
+	pushl 16(%esp)
+	pushl 16(%esp)		/* pt_regs->ecxをdo_syscallの第2引数に設定する */
+	pushl 16(%esp)		/* pt_regs->ebxをdo_syscallの第1引数に設定する */
+	pushl %eax			/* EAXレジスタの値(システムコール番号)を設定する */
+	call do_syscall
+
+	addl $24, %esp		/* 6引数分をpopする */
+	movl %eax, 24(%esp)	/* システムコールの返り値をpt_regs->eaxに設定する */
+	RESTORE_ALL
+
