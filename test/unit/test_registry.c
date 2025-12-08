@@ -16,6 +16,8 @@ int register_unit_tests_pgtable(struct kfs_test_case **out);
 int register_unit_tests_traps(struct kfs_test_case **out);
 int register_unit_tests_i8259(struct kfs_test_case **out);
 int register_unit_tests_irq(struct kfs_test_case **out);
+int register_unit_tests_signal(struct kfs_test_case **out);
+int register_unit_tests_syscall(struct kfs_test_case **out);
 
 #define KFS_MAX_TESTS 256
 
@@ -30,8 +32,6 @@ int register_unit_tests(struct kfs_test_case **out)
 	{
 		struct kfs_test_case *cases_term_scroll = 0;
 		int count_term_scroll = register_unit_tests_terminal_scroll(&cases_term_scroll);
-		// struct kfs_test_case *cases_serial = 0;
-		// int count_serial = register_unit_tests_serial(&cases_serial);
 		struct kfs_test_case *cases_kernel = 0;
 		int count_kernel = register_unit_tests_start_kernel(&cases_kernel);
 		struct kfs_test_case *cases_printk = 0;
@@ -60,6 +60,10 @@ int register_unit_tests(struct kfs_test_case **out)
 		int count_i8259 = register_unit_tests_i8259(&cases_i8259);
 		struct kfs_test_case *cases_irq = 0;
 		int count_irq = register_unit_tests_irq(&cases_irq);
+		struct kfs_test_case *cases_signal = 0;
+		int count_signal = register_unit_tests_signal(&cases_signal);
+		struct kfs_test_case *cases_syscall = 0;
+		int count_syscall = register_unit_tests_syscall(&cases_syscall);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
@@ -122,6 +126,14 @@ int register_unit_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_irq && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_irq[i];
+		}
+		for (int i = 0; i < count_signal && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_signal[i];
+		}
+		for (int i = 0; i < count_syscall && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_syscall[i];
 		}
 		all_cases = merged;
 		all_count = idx;

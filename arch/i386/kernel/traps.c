@@ -4,6 +4,7 @@
 #include <kfs/panic.h>
 #include <kfs/printk.h>
 #include <kfs/string.h>
+#include <kfs/syscall.h>
 
 /* ========== IDT管理 ========== */
 
@@ -130,6 +131,9 @@ void trap_init(void)
 	set_intr_gate(17, alignment_check);		   /* 0x11: Alignment Check */
 	set_intr_gate(18, machine_check);		   /* 0x12: Machine Check */
 	set_intr_gate(19, simd_coprocessor_error); /* 0x13: SIMD Floating-Point */
+
+	/* INT 0x80: システムコールエントリ(ユーザー空間から呼び出し可能) */
+	set_system_gate(0x80, system_call);
 }
 
 /** IDTを初期化しCPUに登録する
