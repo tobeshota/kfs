@@ -79,6 +79,31 @@ struct idt_entry
 		(idt_table)[n].flags = (type_attr);                                                                            \
 	} while (0)
 
+/** Interrupt Vector番号とISRアドレスを対応づける
+ * @param n    Interrupt Vector番号 (Interrupt Descriptor Tableのインデックス)
+ * @param addr ISR (Interrupt Service Routine) のアドレス
+ * @details    CPUがInterrupt Vector番号を受け取ったとき，
+ *             どのISRのアドレスにジャンプするかを設定する
+ * IDT (Interrupt Descriptor Table)
+ * ┌─────────────────────────────┬─────────────────────────────────────┐
+ * │ Interrupt Vector number (n) │ ISR address (addr)                  │
+ * ├─────────────────────────────┼─────────────────────────────────────┤
+ * │    0x00                     │   divide_error's address            │
+ * │    0x01                     │   debug's address                   │
+ * │    ...                      │   ...                               │
+ * │    0x21                     │   irq1's address                    │
+ * │    ...                      │   ...                               │
+ * └─────────────────────────────┴─────────────────────────────────────┘
+ * @note set_intr_gate() は set interrupt gate の略
+ * @note init_8259A(): IRQ番号とInterrupt Vector番号を対応づける
+ */
+#define set_intr_gate(n, addr) _set_gate(idt, n, addr, IDT_GATE_INTERRUPT)
+#define set_system_gate(n, addr) _set_gate(idt, n, addr, IDT_GATE_USER)
+#define set_trap_gate(n, addr) _set_gate(idt, n, addr, IDT_GATE_TRAP)
+
+/* 外部IDTテーブル（traps.cで定義） */
+extern struct idt_entry idt[];
+
 void gdt_init(void);
 void idt_init(void);
 void trap_init(void);
