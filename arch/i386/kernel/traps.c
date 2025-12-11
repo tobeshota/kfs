@@ -35,10 +35,6 @@ extern void alignment_check(void);
 extern void machine_check(void);
 extern void simd_coprocessor_error(void);
 
-#define set_intr_gate(n, addr) _set_gate(idt, n, addr, IDT_GATE_INTERRUPT)
-#define set_system_gate(n, addr) _set_gate(idt, n, addr, IDT_GATE_USER)
-#define set_trap_gate(n, addr) _set_gate(idt, n, addr, IDT_GATE_TRAP)
-
 /* ========== 例外ハンドラ ========== */
 
 /** 例外名テーブル */
@@ -108,29 +104,33 @@ void do_exception(struct pt_regs *regs)
 
 /* ========== 初期化 ========== */
 
-/** 例外ハンドラをIDTに登録する */
+/** 例外ハンドラをIDTに登録する
+ * @note CPU例外(0x00-0x13)はすべてTrap Gateを使用
+ * @note Trap Gate: IFフラグを変更しない (割り込み許可のまま)
+ * @note ハードウェア割り込み(IRQ)はinit_IRQ()でInterrupt Gateとして登録
+ */
 void trap_init(void)
 {
-	set_intr_gate(0, divide_error);				   /* 0x00: Division by Zero */
-	set_intr_gate(1, debug);					   /* 0x01: Debug */
-	set_intr_gate(2, nmi);						   /* 0x02: NMI */
+	set_trap_gate(0, divide_error);				   /* 0x00: Division by Zero */
+	set_trap_gate(1, debug);					   /* 0x01: Debug */
+	set_trap_gate(2, nmi);						   /* 0x02: NMI */
 	set_system_gate(3, int3);					   /* 0x03: Breakpoint (ユーザーから呼べる) */
 	set_system_gate(4, overflow);				   /* 0x04: Overflow (INTO命令) */
-	set_intr_gate(5, bounds);					   /* 0x05: BOUND Range Exceeded */
-	set_intr_gate(6, invalid_op);				   /* 0x06: Invalid Opcode */
-	set_intr_gate(7, device_not_available);		   /* 0x07: Device Not Available */
-	set_intr_gate(8, double_fault);				   /* 0x08: Double Fault */
-	set_intr_gate(9, coprocessor_segment_overrun); /* 0x09: Coprocessor Segment Overrun */
-	set_intr_gate(10, invalid_TSS);				   /* 0x0A: Invalid TSS */
-	set_intr_gate(11, segment_not_present);		   /* 0x0B: Segment Not Present */
-	set_intr_gate(12, stack_segment);			   /* 0x0C: Stack Fault */
-	set_intr_gate(13, general_protection);		   /* 0x0D: General Protection */
-	set_intr_gate(14, page_fault);				   /* 0x0E: Page Fault */
+	set_trap_gate(5, bounds);					   /* 0x05: BOUND Range Exceeded */
+	set_trap_gate(6, invalid_op);				   /* 0x06: Invalid Opcode */
+	set_trap_gate(7, device_not_available);		   /* 0x07: Device Not Available */
+	set_trap_gate(8, double_fault);				   /* 0x08: Double Fault */
+	set_trap_gate(9, coprocessor_segment_overrun); /* 0x09: Coprocessor Segment Overrun */
+	set_trap_gate(10, invalid_TSS);				   /* 0x0A: Invalid TSS */
+	set_trap_gate(11, segment_not_present);		   /* 0x0B: Segment Not Present */
+	set_trap_gate(12, stack_segment);			   /* 0x0C: Stack Fault */
+	set_trap_gate(13, general_protection);		   /* 0x0D: General Protection */
+	set_trap_gate(14, page_fault);				   /* 0x0E: Page Fault */
 	/* 0x0F: Reserved (Intel予約) */
-	set_intr_gate(16, coprocessor_error);	   /* 0x10: x87 FPU Error */
-	set_intr_gate(17, alignment_check);		   /* 0x11: Alignment Check */
-	set_intr_gate(18, machine_check);		   /* 0x12: Machine Check */
-	set_intr_gate(19, simd_coprocessor_error); /* 0x13: SIMD Floating-Point */
+	set_trap_gate(16, coprocessor_error);	   /* 0x10: x87 FPU Error */
+	set_trap_gate(17, alignment_check);		   /* 0x11: Alignment Check */
+	set_trap_gate(18, machine_check);		   /* 0x12: Machine Check */
+	set_trap_gate(19, simd_coprocessor_error); /* 0x13: SIMD Floating-Point */
 
 	/* INT 0x80: システムコールエントリ(ユーザー空間から呼び出し可能) */
 	set_system_gate(0x80, system_call);
