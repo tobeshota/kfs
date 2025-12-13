@@ -149,8 +149,7 @@ static inline int pid_hashfn(pid_t pid)
  */
 void hash_pid(struct task_struct *task)
 {
-	(void)task; /* Phase 2で使用 */
-	/* Phase 2で完全実装 */
+	(void)task; /* Phase 2で完全実装 */
 }
 
 /** PIDからプロセスを検索する
