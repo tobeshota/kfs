@@ -40,5 +40,4 @@ struct mm_struct
 	unsigned long start_stack; /* スタック開始アドレス（exec_fn用） */
 };
 
-
 #endif /* _KFS_MM_TYPES_H */
