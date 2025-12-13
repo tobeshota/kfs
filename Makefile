@@ -9,7 +9,7 @@ include .env
 export
 
 # ===== Docker image settings =====
-IMAGE ?= smizuoch/kfs:1.0.2
+IMAGE ?= $(ISA)-compile-toolchain
 DOCKER ?= docker
 ISA	?= i386
 PWD := $(shell pwd)
@@ -44,13 +44,12 @@ ISO    := kfs.iso
 # ===== Default =====
 all: iso
 
-# ===== Ensure Docker image (pull or build fallback) =====
+# ===== Ensure Docker image (local build only) =====
 ensure-image:
 	@set -e; \
 	if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
-		( $(DOCKER) pull $(IMAGE) >/dev/null 2>&1 ) || \
-		( echo "Pull failed. Building local image from arch/$(ISA)/compile.dockerfile..."; \
-		  $(DOCKER) build --platform $(DOCKER_PLATFORM) -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) . ); \
+		echo "Building local image from arch/$(ISA)/compile.dockerfile..."; \
+		$(DOCKER) build --platform $(DOCKER_PLATFORM) -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) .; \
 	fi; \
 	echo "Using Docker image: $(IMAGE)"
 

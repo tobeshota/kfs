@@ -6,6 +6,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
 ARTIFACTS_DIR="$SCRIPT_DIR/_artifacts"
 mkdir -p "$ARTIFACTS_DIR"
 
+# Load environment variables from .env
+if [[ -f "$REPO_ROOT/.env" ]]; then
+	set -a # 自動エクスポートを有効化
+	source "$REPO_ROOT/.env"
+	set +a # 自動エクスポートを無効化
+fi
+
 echo "[integration] Build kernel (via Docker image if needed)"
 make -C "$REPO_ROOT" -s kernel
 
@@ -79,7 +86,7 @@ run_kernel_capture() {
 		# 3. Docker 経由: /work に REPO_ROOT をマウントしているため、
 		#    ホスト絶対パス -> /work への変換が必要。
 		local docker_bin="${DOCKER:-docker}"
-		local image="${IMAGE:-smizuoch/kfs:1.0.1}"
+		local image="${IMAGE:-${ISA}-compile-toolchain}"
 		if command -v "$docker_bin" >/dev/null 2>&1; then
 			local container_root="/work"
 			# 例: /home/runner/work/kfs/kfs/test/integration/_artifacts/foo.log.tmp

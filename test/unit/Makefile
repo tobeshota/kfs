@@ -2,7 +2,7 @@ include ../../.env
 export
 
 # ===== Docker image settings =====
-IMAGE          ?= smizuoch/kfs:1.0.2
+IMAGE          ?= $(ISA)-compile-toolchain
 DOCKER         ?= docker
 ISA	           ?= i386
 ROOT_DIR       := $(shell cd ../.. && pwd)
@@ -46,13 +46,12 @@ COVERAGE_BUILD ?= 0
 # ===== Default =====
 all: unit
 
-# ===== Ensure Docker image (pull or build fallback) =====
+# ===== Ensure Docker image (local build only) =====
 ensure-image:
 	@set -e; \
 	if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
-		( $(DOCKER) pull $(IMAGE) >/dev/null 2>&1 ) || \
-		( echo "Pull failed. Building local image from arch/$(ISA)/compile.dockerfile..."; \
-		  $(DOCKER) build --platform $(DOCKER_PLATFORM) -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) . ); \
+		echo "Building local image from arch/$(ISA)/compile.dockerfile..."; \
+		$(DOCKER) build --platform $(DOCKER_PLATFORM) -f ../../arch/$(ISA)/compile.dockerfile -t $(IMAGE) .; \
 	fi; \
 	echo "Using Docker image: $(IMAGE)"
 
@@ -71,12 +70,13 @@ $(BUILD_DIR)/%.o: ../../%.S
 # For C files, check if instrumented version exists in build/coverage when COVERAGE_BUILD=1
 $(BUILD_DIR)/%.o: ../../%.c
 	@mkdir -p $(dir $@) $(dir $(BUILD_DIR)/$*.d)
-	@if [ "$(COVERAGE_BUILD)" = "1" ] && [ -f "build/coverage/$*.c" ]; then \
+	@SRC_FILE="$<"; \
+	if [ "$(COVERAGE_BUILD)" = "1" ] && [ -f "build/coverage/$*.c" ]; then \
 		echo "Using instrumented: build/coverage/$*.c"; \
-		$(CC) $(CFLAGS) $(DEPFLAGS) -c "build/coverage/$*.c" -o $@; \
-	else \
-		$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@; \
-	fi
+		SRC_FILE="build/coverage/$*.c"; \
+	fi; \
+	echo '$(CC) $(CFLAGS) $(DEPFLAGS) -c "'"$$SRC_FILE"'" -o $@'; \
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c "$$SRC_FILE" -o $@
 
 $(BUILD_DIR)/%.o: ./%.S
 	@mkdir -p $(dir $@)
