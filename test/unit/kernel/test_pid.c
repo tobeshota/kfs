@@ -1,6 +1,19 @@
+#include "../test_reset.h"
 #include "unit_test_framework.h"
 #include <kfs/pid.h>
 #include <kfs/sched.h>
+
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
 
 /**
  * test_alloc_pid_basic - PID割り当ての基本テスト
@@ -157,16 +170,16 @@ static void test_pid_structure_initialization(void)
 	printk("PID structure initialization test passed\n");
 }
 
-/* テスト登録 */
+static struct kfs_test_case cases[] = {
+	KFS_REGISTER_TEST_WITH_SETUP(test_alloc_pid_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_put_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_pid_exhaustion, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_pid_reference_counting, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_pid_structure_initialization, setup_test, teardown_test),
+};
+
 int register_unit_tests_pid(struct kfs_test_case **out)
 {
-	static struct kfs_test_case cases[] = {
-		KFS_REGISTER_TEST(test_alloc_pid_basic),
-		KFS_REGISTER_TEST(test_put_pid),
-		KFS_REGISTER_TEST(test_pid_exhaustion),
-		KFS_REGISTER_TEST(test_pid_reference_counting),
-		KFS_REGISTER_TEST(test_pid_structure_initialization),
-	};
 	*out = cases;
-	return sizeof(cases) / sizeof(cases[0]);
+	return (int)(sizeof(cases) / sizeof(cases[0]));
 }
