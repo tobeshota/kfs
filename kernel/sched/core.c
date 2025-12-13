@@ -23,6 +23,7 @@ struct task_struct init_task = {
 	.parent = &init_task,							/* 自分自身が親 */
 	.children = LIST_HEAD_INIT(init_task.children), /* 子リスト */
 	.sibling = LIST_HEAD_INIT(init_task.sibling),	/* 兄弟リスト */
+	.tasks = LIST_HEAD_INIT(init_task.tasks),		/* グローバルタスクリスト */
 
 	/* 所有者・権限（root権限） */
 	.uid = {.val = 0},			   /* root UID */
@@ -59,7 +60,7 @@ struct task_struct *current = &init_task;
  * 全てのtask_structをつなぐグローバルリスト
  * Phase 2でタスク検索等に使用
  */
-static LIST_HEAD(task_list);
+LIST_HEAD(task_list);
 
 /** init_taskの最終初期化
  * @brief init_taskの静的初期化できない部分を実行時に初期化する．
@@ -68,9 +69,43 @@ static LIST_HEAD(task_list);
  */
 void init_idle_task(void)
 {
+	/* 既に初期化済みならスキップ（冪等性を保証） */
+	if (!list_empty(&task_list))
+	{
+		return;
+	}
+
 	/* init_taskをタスクリストに追加（最初のタスク） */
-	list_add(&init_task.sibling, &task_list);
+	list_add(&init_task.tasks, &task_list);
 
 	/* 現在のタスクとして設定 */
 	current = &init_task;
+}
+
+/** PIDからtask_structを検索
+ * @param pid 検索するプロセスID
+ * @return 見つかったtask_struct（見つからない場合NULL）
+ * @note グローバルタスクリストを線形探索（Phase 1-6の簡易実装）
+ *       Phase 7以降でPIDハッシュテーブルによる高速化を実装予定
+ */
+struct task_struct *find_task_by_pid(pid_t pid)
+{
+	struct task_struct *task;
+
+	/* リストが空の場合は即座にNULLを返す */
+	if (list_empty(&task_list))
+	{
+		return NULL;
+	}
+
+	/* タスクリストを走査（tasksフィールドを使用） */
+	list_for_each_entry(task, &task_list, tasks)
+	{
+		if (task->pid == pid)
+		{
+			return task;
+		}
+	}
+
+	return NULL;
 }
