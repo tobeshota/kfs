@@ -40,23 +40,5 @@ struct mm_struct
 	unsigned long start_stack; /* スタック開始アドレス（exec_fn用） */
 };
 
-/** メモリリージョンのディスクリプタ
- * @details 1つのプロセスが複数のメモリリージョンで構成される．
- *          各メモリリージョンが「テキスト」「データ」「ヒープ」「スタック」などの役割を持つ．
- * @note VMA[virtual memory area] の略．
- */
-struct vm_area_struct
-{
-	struct mm_struct *vm_mm; /* このメモリリージョンを持つメモリディスクリプタ */
-	unsigned long vm_start;	 /* このメモリリージョンの先頭リニアアドレス（含む） */
-	unsigned long vm_end; /* このメモリリージョンの終端の次のリニアアドレス（含まない） */
-	struct vm_area_struct *vm_next; /* 次のメモリリージョンディスクリプタへのポインタ */
-	unsigned long vm_flags; /* メモリリージョンのアクセス権限フラグ（読み/書き/実行） */
-};
-
-/* VMAフラグ */
-#define VM_READ 0x00000001	/* 読み込み可能 */
-#define VM_WRITE 0x00000002 /* 書き込み可能 */
-#define VM_EXEC 0x00000004	/* 実行可能 */
 
 #endif /* _KFS_MM_TYPES_H */
