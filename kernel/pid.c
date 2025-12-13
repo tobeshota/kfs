@@ -9,7 +9,9 @@
 /* PID_MAX_DEFAULT個のPID管理に必要なunsigned long配列の要素数を計算するもの */
 #define PIDMAP_ENTRIES ((PID_MAX_DEFAULT + 8 * sizeof(unsigned long) - 1) / (8 * sizeof(unsigned long)))
 
-/* PIDビットマップ */
+/** PIDビットマップ
+ * @brief 各PID番号の使用状況(使用済か未使用か)を表すビットマップ
+ */
 static struct
 {
 	unsigned long page[PIDMAP_ENTRIES]; /* ビットマップページ（各ビットが1つのPIDを表す） */
@@ -152,17 +154,10 @@ void hash_pid(struct task_struct *task)
 	(void)task; /* Phase 2で完全実装 */
 }
 
-/** PIDからプロセスを検索する
- * @brief PIDハッシュテーブルから検索する
- * @param pid 検索するプロセスID
- * @return 見つかったtask_struct（プロセス）、見つからない場合NULL
- * @note Phase 1では簡易実装、Phase 2で完全実装予定
- * @note Phase 14以降、スレッドも検索対象になる
+/** PID管理の初期化
+ * @note Phase 1では何もしない（静的初期化で十分）
  */
-struct task_struct *find_task_by_pid(pid_t pid)
+void pid_init(void)
 {
-	(void)pid; /* Phase 2で使用 */
-	/* 簡易実装：グローバルタスクリストから検索 */
-	/* Phase 2でハッシュテーブル検索に更新 */
-	return NULL; /* Phase 2で実装 */
+	/* Phase 2以降で初期化処理を追加予定 */
 }
