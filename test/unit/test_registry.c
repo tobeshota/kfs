@@ -18,6 +18,9 @@ int register_unit_tests_i8259(struct kfs_test_case **out);
 int register_unit_tests_irq(struct kfs_test_case **out);
 int register_unit_tests_signal(struct kfs_test_case **out);
 int register_unit_tests_syscall(struct kfs_test_case **out);
+int register_unit_tests_sched_core(struct kfs_test_case **out);
+int register_unit_tests_pid(struct kfs_test_case **out);
+int register_unit_tests_rbtree(struct kfs_test_case **out);
 
 #define KFS_MAX_TESTS 256
 
@@ -64,6 +67,12 @@ int register_unit_tests(struct kfs_test_case **out)
 		int count_signal = register_unit_tests_signal(&cases_signal);
 		struct kfs_test_case *cases_syscall = 0;
 		int count_syscall = register_unit_tests_syscall(&cases_syscall);
+		struct kfs_test_case *cases_sched_core = 0;
+		int count_sched_core = register_unit_tests_sched_core(&cases_sched_core);
+		struct kfs_test_case *cases_pid = 0;
+		int count_pid = register_unit_tests_pid(&cases_pid);
+		struct kfs_test_case *cases_rbtree = 0;
+		int count_rbtree = register_unit_tests_rbtree(&cases_rbtree);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
@@ -134,6 +143,18 @@ int register_unit_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_syscall && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_syscall[i];
+		}
+		for (int i = 0; i < count_sched_core && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_sched_core[i];
+		}
+		for (int i = 0; i < count_pid && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_pid[i];
+		}
+		for (int i = 0; i < count_rbtree && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_rbtree[i];
 		}
 		all_cases = merged;
 		all_count = idx;
