@@ -113,6 +113,7 @@ struct task_struct
 	struct task_struct *parent; /* 親プロセス */
 	struct list_head children;	/* 子プロセスリスト */
 	struct list_head sibling;	/* 兄弟プロセスリンク */
+	struct list_head tasks;		/* グローバルタスクリストリンク */
 
 	/* 所有者・権限 */
 	kuid_t uid;					/* 実ユーザーID */

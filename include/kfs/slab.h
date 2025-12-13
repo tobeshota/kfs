@@ -55,6 +55,14 @@ void kfree(void *ptr);
 size_t ksize(void *ptr);
 void *kbrk(intptr_t increment);
 
+/* キャッシュ作成・破棄関数 */
+struct kmem_cache *kmem_cache_create(const char *name, size_t size);
+void kmem_cache_destroy(struct kmem_cache *cachep);
+
+/* キャッシュからのオブジェクト割り当て・解放 */
+void *kmem_cache_alloc(struct kmem_cache *cachep);
+void kmem_cache_free(struct kmem_cache *cachep, void *objp);
+
 /* テスト用リセット関数 */
 void kmem_cache_reset_for_test(void);
 

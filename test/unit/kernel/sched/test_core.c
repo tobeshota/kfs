@@ -1,7 +1,20 @@
+#include "../../test_reset.h"
 #include "unit_test_framework.h"
 #include <kfs/list.h>
 #include <kfs/sched.h>
 #include <kfs/string.h>
+
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
 
 /**
  * test_init_task_initialization - init_taskの初期化検証
@@ -92,14 +105,14 @@ static void test_task_state_constants(void)
 		   TASK_RUNNING, TASK_INTERRUPTIBLE, TASK_UNINTERRUPTIBLE);
 }
 
-/* テスト登録 */
+static struct kfs_test_case cases[] = {
+	KFS_REGISTER_TEST_WITH_SETUP(test_init_task_initialization, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_list_operations, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_task_state_constants, setup_test, teardown_test),
+};
+
 int register_unit_tests_sched_core(struct kfs_test_case **out)
 {
-	static struct kfs_test_case cases[] = {
-		KFS_REGISTER_TEST(test_init_task_initialization),
-		KFS_REGISTER_TEST(test_list_operations),
-		KFS_REGISTER_TEST(test_task_state_constants),
-	};
 	*out = cases;
-	return sizeof(cases) / sizeof(cases[0]);
+	return (int)(sizeof(cases) / sizeof(cases[0]));
 }

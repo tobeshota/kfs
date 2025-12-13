@@ -407,6 +407,67 @@ void *kbrk(intptr_t increment)
 	return (void *)new_brk;
 }
 
+/** キャッシュを作成
+ * @param name キャッシュ名
+ * @param size オブジェクトサイズ
+ * @return 作成したキャッシュ（失敗時NULL）
+ * @note Phase 2の簡易実装：静的キャッシュ配列から適切なものを返す
+ *       Phase 7以降で動的キャッシュ作成を実装予定
+ */
+struct kmem_cache *kmem_cache_create(const char *name, size_t size)
+{
+	int i;
+	(void)name; /* Phase 7以降で使用 */
+
+	/* 適切なサイズのキャッシュを検索 */
+	for (i = 0; i < NR_CACHES; i++)
+	{
+		if (kmalloc_caches[i].size >= size)
+		{
+			return &kmalloc_caches[i];
+		}
+	}
+
+	/* サイズが大きすぎる場合は最大キャッシュを返す */
+	return &kmalloc_caches[NR_CACHES - 1];
+}
+
+/** キャッシュを破棄
+ * @param cachep 破棄するキャッシュ
+ * @note Phase 2では何もしない（静的キャッシュのため）
+ */
+void kmem_cache_destroy(struct kmem_cache *cachep)
+{
+	(void)cachep; /* Phase 7以降で実装 */
+}
+
+/** キャッシュからオブジェクトを割り当て
+ * @param cachep キャッシュ
+ * @return 割り当てたオブジェクト（失敗時NULL）
+ */
+void *kmem_cache_alloc(struct kmem_cache *cachep)
+{
+	if (!cachep)
+	{
+		return NULL;
+	}
+
+	/* 内部的にはkmallocと同じ処理 */
+	return kmalloc(cachep->size);
+}
+
+/** キャッシュにオブジェクトを解放
+ * @param cachep キャッシュ
+ * @param objp 解放するオブジェクト
+ */
+void kmem_cache_free(struct kmem_cache *cachep, void *objp)
+{
+	(void)cachep; /* Phase 2では使用しない */
+
+	/* 内部的にはkfreeと同じ処理 */
+	kfree(objp);
+}
+
 /** テスト用: Slabアロケータを初期状態にリセット
  * @details
  * 各キャッシュを初期化直後の状態に完全リセットする。

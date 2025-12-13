@@ -1,5 +1,18 @@
+#include "../test_reset.h"
 #include "unit_test_framework.h"
 #include <kfs/rbtree.h>
+
+/* 全テストで共通のセットアップ関数 */
+static void setup_test(void)
+{
+	reset_all_state_for_test();
+}
+
+/* 全テストで共通のクリーンアップ関数 */
+static void teardown_test(void)
+{
+	/* 必要なら後処理（現在は空） */
+}
 
 /**
  * test_rb_node_structure - rb_node構造体のサイズと配置テスト
@@ -147,14 +160,17 @@ static void test_rb_parent_operations(void)
 	printk("rb_parent operations test passed\n");
 }
 
-/* テスト登録 */
+static struct kfs_test_case cases[] = {
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_node_structure, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_root_initialization, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_link_node, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_color_operations, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_first, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_parent_operations, setup_test, teardown_test),
+};
+
 int register_unit_tests_rbtree(struct kfs_test_case **out)
 {
-	static struct kfs_test_case cases[] = {
-		KFS_REGISTER_TEST(test_rb_node_structure), KFS_REGISTER_TEST(test_rb_root_initialization),
-		KFS_REGISTER_TEST(test_rb_link_node),	   KFS_REGISTER_TEST(test_rb_color_operations),
-		KFS_REGISTER_TEST(test_rb_first),		   KFS_REGISTER_TEST(test_rb_parent_operations),
-	};
 	*out = cases;
-	return sizeof(cases) / sizeof(cases[0]);
+	return (int)(sizeof(cases) / sizeof(cases[0]));
 }
