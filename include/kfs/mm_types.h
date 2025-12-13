@@ -1,0 +1,62 @@
+#ifndef _KFS_MM_TYPES_H
+#define _KFS_MM_TYPES_H
+
+#include <kfs/list.h>
+#include <kfs/rbtree.h>
+#include <kfs/stdint.h>
+
+/* 前方宣言 */
+struct vm_area_struct;
+
+/** アトミック変数型
+ * @param counter カウンタ値
+ * @note 単一CPUでは通常のintと同じだが、将来のSMP対応のため定義
+ */
+typedef struct
+{
+	int counter;
+} atomic_t;
+
+/** Page Global Directory エントリ
+ * @note i386ではページディレクトリエントリ（4バイト）
+ */
+typedef struct
+{
+	unsigned long pgd;
+} pgd_t;
+
+/** プロセスのメモリディスクリプタ
+ * @brief プロセスのメモリマップ全体を管理する中核構造体
+ * @see Linux 6.18
+ */
+struct mm_struct
+{
+	struct vm_area_struct *mmap; /* VMA（仮想メモリ領域）のリスト */
+	pgd_t *pgd; /* ページディレクトリのポインタ（CR3レジスタにロードされる） */
+
+	atomic_t mm_count; /* 参照カウント（fork時のコピー管理用） */
+
+	unsigned long brk;		   /* ヒープ現在位置（sys_brk用） */
+	unsigned long start_stack; /* スタック開始アドレス（exec_fn用） */
+};
+
+/** メモリリージョンのディスクリプタ
+ * @details 1つのプロセスが複数のメモリリージョンで構成される．
+ *          各メモリリージョンが「テキスト」「データ」「ヒープ」「スタック」などの役割を持つ．
+ * @note VMA[virtual memory area] の略．
+ */
+struct vm_area_struct
+{
+	struct mm_struct *vm_mm; /* このメモリリージョンを持つメモリディスクリプタ */
+	unsigned long vm_start;	 /* このメモリリージョンの先頭リニアアドレス（含む） */
+	unsigned long vm_end; /* このメモリリージョンの終端の次のリニアアドレス（含まない） */
+	struct vm_area_struct *vm_next; /* 次のメモリリージョンディスクリプタへのポインタ */
+	unsigned long vm_flags; /* メモリリージョンのアクセス権限フラグ（読み/書き/実行） */
+};
+
+/* VMAフラグ */
+#define VM_READ 0x00000001	/* 読み込み可能 */
+#define VM_WRITE 0x00000002 /* 書き込み可能 */
+#define VM_EXEC 0x00000004	/* 実行可能 */
+
+#endif /* _KFS_MM_TYPES_H */
