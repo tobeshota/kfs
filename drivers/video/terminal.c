@@ -11,6 +11,8 @@
 #define VGA_MEMORY 0xB8000
 #define VGA_CRTC_COMMAND_PORT 0x3D4
 #define VGA_CRTC_DATA_PORT 0x3D5
+#define VGA_CURSOR_START 0x0A
+#define VGA_CURSOR_END 0x0B
 #define SCROLLBACK_LINES 100 /* スクロールバックバッファの行数 */
 
 extern void kfs_io_outb(uint16_t port, uint8_t val);
@@ -46,6 +48,52 @@ static struct kfs_console_state *active_console(void)
 static int console_is_active(const struct kfs_console_state *con)
 {
 	return con == &kfs_console_states[kfs_console_active];
+}
+
+/** カーソルの形状
+ * @note VGAテキストモードでは各文字は高さ16ピクセル（スキャンライン0〜15）で構成される．
+ *       カーソルの形状は表示するスキャンラインの範囲で決定する:
+ *       - 0-1:   文字の最上部2本 → 細い縦線
+ *       - 14-15: 文字の最下部2本 → アンダースコア
+ *       - 0-15:  文字全体を覆う  → ブロック
+ */
+enum cursor_shape
+{
+	CURSOR_UNDERLINE, /* アンダースコア (14-15) */
+	CURSOR_BLOCK,	  /* ブロック (0-15) */
+	CURSOR_VERTICAL,  /* 縦線 (0-1) */
+};
+
+/** カーソルの形状を設定する
+ * @param shape カーソルの形状
+ * @note VGAハードウェアではカーソルの点滅は常に有効であり，
+ *       点滅を無効にすることはできない。
+ */
+static void kfs_terminal_set_cursor_shape(enum cursor_shape shape)
+{
+	uint8_t start, end;
+
+	switch (shape)
+	{
+	case CURSOR_BLOCK:
+		start = 0;
+		end = 15;
+		break;
+	case CURSOR_VERTICAL:
+		start = 0;
+		end = 1;
+		break;
+	case CURSOR_UNDERLINE:
+	default:
+		start = 14;
+		end = 15;
+		break;
+	}
+
+	kfs_io_outb(VGA_CRTC_COMMAND_PORT, VGA_CURSOR_START);
+	kfs_io_outb(VGA_CRTC_DATA_PORT, start);
+	kfs_io_outb(VGA_CRTC_COMMAND_PORT, VGA_CURSOR_END);
+	kfs_io_outb(VGA_CRTC_DATA_PORT, end);
 }
 
 /* VGAハードウェアカーソルを更新 */
@@ -195,6 +243,9 @@ void terminal_initialize(void)
 	}
 	console_flush_to_hw(con);
 	sync_globals_from_console(con);
+
+	/* デフォルトのカーソルの形状を設定する */
+	kfs_terminal_set_cursor_shape(CURSOR_BLOCK);
 }
 
 void terminal_setcolor(uint8_t color)
