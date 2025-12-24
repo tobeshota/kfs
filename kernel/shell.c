@@ -283,6 +283,13 @@ static void execute_command(const char *cmd)
 		return;
 	}
 
+	/* neofetch コマンド */
+	if (strncmp(cmd, "neofetch", 8) == 0)
+	{
+		print_neofetch();
+		return;
+	}
+
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
 	printk("Unknown command: %s\n", cmd);
 }
