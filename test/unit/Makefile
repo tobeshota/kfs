@@ -38,7 +38,7 @@ OBJS          := $(patsubst ../../%,$(BUILD_DIR)/%,$(patsubst %.c,%.o,$(SRCS_C))
                  $(patsubst ./%.c,$(BUILD_DIR)/%.o,$(COVERAGE_C))
 DEPS          := $(patsubst %.o,%.d,$(OBJS))
 KERNEL        := testImage
-ISO           := kfs_unit_test.iso
+ISO           := test.iso
 
 # Coverage build flag - when set, use instrumented sources from build/coverage
 COVERAGE_BUILD ?= 0
