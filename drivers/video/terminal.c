@@ -50,7 +50,7 @@ static int console_is_active(const struct kfs_console_state *con)
 	return con == &kfs_console_states[kfs_console_active];
 }
 
-/** カーソルスタイルの定義
+/** カーソルの形状
  * @note VGAテキストモードでは各文字は高さ16ピクセル（スキャンライン0〜15）で構成される．
  *       カーソルの形状は表示するスキャンラインの範囲で決定する:
  *       - 0-1:   文字の最上部2本 → 細い縦線
