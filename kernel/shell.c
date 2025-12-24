@@ -1,6 +1,7 @@
 #include <asm-i386/pgtable.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
+#include <kfs/neofetch.h>
 #include <kfs/panic.h>
 #include <kfs/printk.h>
 #include <kfs/reboot.h>
@@ -422,6 +423,9 @@ void shell_init(void)
 
 	/* キーボードハンドラを登録（依存性の注入） */
 	kfs_keyboard_set_handler(shell_keyboard_handler);
+
+	/* neofetch風のシステム情報画面を表示する */
+	print_neofetch();
 
 	show_prompt();
 }
