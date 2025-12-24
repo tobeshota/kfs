@@ -1,6 +1,7 @@
 #include <asm-i386/pgtable.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
+#include <kfs/neofetch.h>
 #include <kfs/panic.h>
 #include <kfs/printk.h>
 #include <kfs/reboot.h>
@@ -282,6 +283,13 @@ static void execute_command(const char *cmd)
 		return;
 	}
 
+	/* neofetch コマンド */
+	if (strncmp(cmd, "neofetch", 8) == 0)
+	{
+		print_neofetch();
+		return;
+	}
+
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
 	printk("Unknown command: %s\n", cmd);
 }
@@ -422,6 +430,9 @@ void shell_init(void)
 
 	/* キーボードハンドラを登録（依存性の注入） */
 	kfs_keyboard_set_handler(shell_keyboard_handler);
+
+	/* neofetch風のシステム情報画面を表示する */
+	print_neofetch();
 
 	show_prompt();
 }
