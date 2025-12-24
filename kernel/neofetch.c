@@ -1,6 +1,5 @@
 #include <asm-i386/page.h>
 #include <kfs/console.h>
-#include <kfs/mm.h>
 #include <kfs/printk.h>
 #include <shell.h>
 #include <video/vga.h>
