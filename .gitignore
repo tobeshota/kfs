@@ -6,6 +6,7 @@ report/
 log/
 *.bin
 *.iso
+Image
 Documentation/*.pdf
 Documentation/*.rst
 Documentation/*.md

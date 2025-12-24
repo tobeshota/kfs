@@ -1,9 +1,9 @@
 # ===== User-facing targets =====
 # - make             : make iso と同じ
-# - make kernel      : kfs.bin まで作成
+# - make kernel      : Image まで作成
 # - make iso         : kfs.iso まで作成
 # - make run         : qemu-system-$(ISA) -cdrom kfs.iso を実行
-# - make run-kernel  : qemu-system-$(ISA) -kernel kfs.bin を実行
+# - make run-kernel  : qemu-system-$(ISA) -kernel Image を実行
 
 include .env
 export
@@ -38,7 +38,7 @@ BUILD_DIR   := build/obj
 KERNEL_OBJS := $(patsubst %.S,$(BUILD_DIR)/%.o,$(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SRCS)))
 KERNEL_DEPS := $(patsubst %.c,$(BUILD_DIR)/%.d,$(KERNEL_SRCS_C))
 
-KERNEL := kfs.bin
+KERNEL := Image
 ISO    := kfs.iso
 
 # ===== Default =====
@@ -75,7 +75,7 @@ kernel: $(KERNEL)
 
 iso: kernel grub.cfg
 	mkdir -p isodir/boot/grub
-	cp $(KERNEL) isodir/boot/kfs.bin
+	cp $(KERNEL) isodir/boot/Image
 	cp grub.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o $(ISO) isodir --modules="multiboot normal configfile" --compress=xz
 
