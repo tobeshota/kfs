@@ -37,7 +37,7 @@ Virtual Address Space          Physical RAM
 - Paging: [4KB pages allocation](mm/page_alloc.c#L239), [page direcotry](include/asm-i386/pgtable.h#L33), [page table](include/asm-i386/pgtable.h#L28)
 
 ### Interrupt and Exception Handling
-- IDT: [256 entries](include/asm-i386/desc.h#L63) for exceptions and interrupts
+- IDT: [256 entries](include/asm-i386/desc.h#L63) for interrupts and exceptions
 - IRQ Controller: [Intel 8259A PIC](arch/i386/kernel/i8259.c#L120)
 
 ### Device Drivers
