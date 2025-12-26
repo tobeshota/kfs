@@ -2,7 +2,7 @@
   <img src="Documentation/images/kfs_qemu.gif" width="420">
 </p>
 
-**kfs stands for _Kernel From Scratch💻_**
+**kfs stands for _Kernel From Scratch**💻_  
 **The goal is to accompany _processes_ from their birth to their volatilization.**
 
 ---
