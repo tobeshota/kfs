@@ -48,7 +48,7 @@ Virtual Address Space          Physical RAM
 ### Testing
 - Unit Tests: [Custom framework](test/unit/unit_test_framework.h) with assertion macros
 - Integration Tests: [QEMU-based](test/integration/integration_test.sh) serial port output validation
-- Coverage: [Automated instrumentation](test/unit/coverage/coverage.h#L42) with [`COVERAGE_LINE()`](test/unit/coverage/coverage.h#L42) macro injection
+- Coverage: Automated instrumentation with [`COVERAGE_LINE()`](test/unit/coverage/coverage.h#L42) macro injection
 
 # Usage
 
