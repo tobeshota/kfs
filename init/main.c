@@ -1,5 +1,6 @@
 #include <asm-i386/desc.h>
 #include <asm-i386/i8259.h>
+#include <asm-i386/page.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
 #include <kfs/mm.h>
@@ -10,8 +11,12 @@
 #include <kfs/slab.h>
 #include <kfs/vmalloc.h>
 
-/* Multiboot情報構造体へのポインタ（boot.Sで設定） */
-extern struct multiboot_info *multiboot_info_ptr;
+/** Multiboot情報構造体へのポインタ（boot.Sで設定）
+ * @note このポインタ自体は.boot.dataセクション（物理アドレス）にあり，
+ *       その値（multiboot_infoのアドレス）も物理アドレスである．
+ *       使用時に__va()で仮想アドレスに変換する必要がある．
+ */
+extern unsigned long multiboot_info_ptr;
 
 /* ページアロケータの初期化（mm/page_alloc.c） */
 extern void page_alloc_init(struct multiboot_info *mbi);
@@ -43,13 +48,12 @@ void start_kernel(void)
 	kfs_keyboard_init();
 
 	/* メモリ管理システムの初期化 */
-	if (multiboot_info_ptr != NULL)
+	if (multiboot_info_ptr != 0)
 	{
 		printk("Initializing memory management...\n");
-		page_alloc_init(multiboot_info_ptr);
-
-		/* ページング初期化 */
-		paging_init();
+		/* multiboot_info_ptrは物理アドレスのため仮想アドレスに変換する */
+		struct multiboot_info *mbi = __va(multiboot_info_ptr);
+		page_alloc_init(mbi);
 
 		/* Slabアロケータ初期化（kmalloc/kfree使用可能に） */
 		kmem_cache_init();
