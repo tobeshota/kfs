@@ -231,8 +231,8 @@ static void execute_command(const char *cmd)
 
 		/* いくつかの仮想アドレスのページ情報を表示 */
 		unsigned long test_addrs[] = {
-			0x00001000, /* カーネル恒等マッピング領域 */
-			0x00100000, /* カーネル恒等マッピング領域 */
+			0x00001000, /* Identity mapping領域（boot時のみ使用） */
+			0xC0200000, /* カーネルコード領域 */
 			0xC0000000, /* vmalloc開始アドレス付近 */
 		};
 
