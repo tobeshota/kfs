@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Documentation/images/kfs_qemu.gif" width="420">
+  <img src="Documentation/images/kfs_qemu.gif">
 </p>
 
 **kfs stands for _Kernel From Scratch_ 💻**  
