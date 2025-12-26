@@ -29,7 +29,7 @@ COVERAGE_FILES := $(shell find $(BUILD_DIR) -name '*.gcno' -o -name '*.gcda' 2>/
 # Sources and objects
 # Exclude build/ and coverage/ directories from source search
 SRCS_C        := $(shell find ../../ -name '*.c' ! -path '*/build/*' ! -path '*/coverage/*')
-COVERAGE_C    := ./coverage/simple_coverage.c
+COVERAGE_C    := ./coverage/coverage.c
 BOOTSTRAP     := $(shell find ./arch/ -name "boot*.S")
 SRCS_S        := $(shell find ../../ -name '*.S' ! -name "*boot*.S" ! -path '*/build/*')
 OBJS          := $(patsubst ../../%,$(BUILD_DIR)/%,$(patsubst %.c,%.o,$(SRCS_C))) \
@@ -155,13 +155,12 @@ run-iso: $(ISO) | $(LOGDIR) $(REPORT_DIR)
 	echo "qemu exit raw=$$raw_status decoded_status=$$decoded_status"; \
 	exit $$decoded_status'
 
-# Updated to use simple_coverage instead of lcov/gcov
 # Now builds with instrumented sources from build/coverage without modifying production code
 coverage: fclean coverage-instrument
 	@echo "Building and running tests with coverage (using instrumented sources from build/coverage)..."
 	@$(MAKE) unit COVERAGE_BUILD=1
 	@echo "Generating coverage summary report..."
-	@./coverage/coverage.sh
+	@./coverage/generate_coverage_summary.sh
 	@echo ""
 	@echo "Generating diff-style coverage report..."
 	@./coverage/generate_diff_report.sh

@@ -1,4 +1,4 @@
-#include "coverage/simple_coverage.h"
+#include "coverage/coverage.h"
 #include "unit_test_framework.h"
 #include <asm-i386/io.h>
 #include <kfs/console.h>

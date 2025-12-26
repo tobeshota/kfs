@@ -1,5 +1,5 @@
-#ifndef _SIMPLE_COVERAGE_H
-#define _SIMPLE_COVERAGE_H
+#ifndef _COVERAGE_H
+#define _COVERAGE_H
 
 #include <kfs/stdint.h>
 
@@ -41,4 +41,4 @@ void coverage_dump(void);
  */
 #define COVERAGE_LINE() coverage_record_line(__FILE__, __LINE__)
 
-#endif /* _SIMPLE_COVERAGE_H */
+#endif /* _COVERAGE_H */
