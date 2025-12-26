@@ -8,9 +8,9 @@ log/
 *.iso
 Image
 testImage
-Documentation/*.pdf
-Documentation/*.rst
-Documentation/*.md
+Documentation/**/*.pdf
+Documentation/**/*.rst
+Documentation/**/*.md
 *.o
 *.d
 *.gcda
