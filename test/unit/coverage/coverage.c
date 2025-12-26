@@ -1,6 +1,6 @@
 /* シンプルな行カバレッジトラッカーの実装 */
 
-#include "simple_coverage.h"
+#include "coverage.h"
 #include <kfs/printk.h>
 
 /* グローバルカバレッジデータベース */

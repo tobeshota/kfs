@@ -40,8 +40,8 @@ def instrument_c_file(input_path, output_path, source_root, output_dir):
     # ENABLE_COVERAGEのifdefブロックを削除（常にカバレッジを有効化）
     content = remove_coverage_ifdefs(content)
 
-    # simple_coverage.hのincludeを追加（まだない場合）
-    if 'simple_coverage.h' not in content:
+    # coverage.hのincludeを追加（まだない場合）
+    if 'coverage.h' not in content:
         # 最後の#include行を探す
         lines = content.split('\n')
         last_include_idx = -1
@@ -51,11 +51,11 @@ def instrument_c_file(input_path, output_path, source_root, output_dir):
 
         if last_include_idx >= 0:
             # 最後のincludeの後に挿入
-            lines.insert(last_include_idx + 1, '#include "coverage/simple_coverage.h"')
+            lines.insert(last_include_idx + 1, '#include "coverage/coverage.h"')
             content = '\n'.join(lines)
         else:
             # includeが見つからない場合は先頭に追加
-            content = '#include "coverage/simple_coverage.h"\n' + content
+            content = '#include "coverage/coverage.h"\n' + content
 
     # 相対パスを計算（output_dirからの相対パス + "build/coverage/"プレフィックス）
     rel_path = output_path.relative_to(output_dir)
