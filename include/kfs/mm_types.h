@@ -1,6 +1,7 @@
 #ifndef _KFS_MM_TYPES_H
 #define _KFS_MM_TYPES_H
 
+#include <asm-i386/pgtable.h>
 #include <kfs/list.h>
 #include <kfs/rbtree.h>
 #include <kfs/stdint.h>
@@ -17,17 +18,10 @@ typedef struct
 	int counter;
 } atomic_t;
 
-/** Page Global Directory エントリ
- * @note i386ではページディレクトリエントリ（4バイト）
- */
-typedef struct
-{
-	unsigned long pgd;
-} pgd_t;
-
 /** プロセスのメモリディスクリプタ
  * @brief プロセスのメモリマップ全体を管理する中核構造体
  * @see Linux 6.18
+ * @note pgd_tはasm-i386/pgtable.hで定義（i386ではuint32_tのエイリアス）
  */
 struct mm_struct
 {
