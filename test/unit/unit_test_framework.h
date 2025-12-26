@@ -44,13 +44,13 @@ struct kfs_test_case
 
 extern int kfs_test_failures;
 
-// init/exitなしのテスト登録（既存テストとの互換性維持）
+// init/exitなしのテスト登録
 #define KFS_REGISTER_TEST(fn)                                                                                          \
 	{                                                                                                                  \
 		#fn, fn, NULL, NULL                                                                                            \
 	}
 
-// init/exitありのテスト登録（新規）
+// init/exitありのテスト登録
 #define KFS_REGISTER_TEST_WITH_SETUP(fn, init_fn, exit_fn)                                                             \
 	{                                                                                                                  \
 		#fn, fn, init_fn, exit_fn                                                                                      \

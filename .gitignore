@@ -6,9 +6,11 @@ report/
 log/
 *.bin
 *.iso
-Documentation/*.pdf
-Documentation/*.rst
-Documentation/*.md
+Image
+testImage
+Documentation/**/*.pdf
+Documentation/**/*.rst
+Documentation/**/*.md
 *.o
 *.d
 *.gcda

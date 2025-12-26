@@ -1,6 +1,7 @@
 #include <asm-i386/pgtable.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
+#include <kfs/neofetch.h>
 #include <kfs/panic.h>
 #include <kfs/printk.h>
 #include <kfs/reboot.h>
@@ -230,8 +231,8 @@ static void execute_command(const char *cmd)
 
 		/* いくつかの仮想アドレスのページ情報を表示 */
 		unsigned long test_addrs[] = {
-			0x00001000, /* カーネル恒等マッピング領域 */
-			0x00100000, /* カーネル恒等マッピング領域 */
+			0x00001000, /* Identity mapping領域（boot時のみ使用） */
+			0xC0200000, /* カーネルコード領域 */
 			0xC0000000, /* vmalloc開始アドレス付近 */
 		};
 
@@ -279,6 +280,13 @@ static void execute_command(const char *cmd)
 	if (strncmp(cmd, "loadkeys ", 9) == 0)
 	{
 		cmd_loadkeys(cmd + 9);
+		return;
+	}
+
+	/* neofetch コマンド */
+	if (strncmp(cmd, "neofetch", 8) == 0)
+	{
+		print_neofetch();
 		return;
 	}
 
@@ -422,6 +430,9 @@ void shell_init(void)
 
 	/* キーボードハンドラを登録（依存性の注入） */
 	kfs_keyboard_set_handler(shell_keyboard_handler);
+
+	/* neofetch風のシステム情報画面を表示する */
+	print_neofetch();
 
 	show_prompt();
 }

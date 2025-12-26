@@ -6,6 +6,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
 ARTIFACTS_DIR="$SCRIPT_DIR/_artifacts"
 mkdir -p "$ARTIFACTS_DIR"
 
+# Load environment variables from .env
+if [[ -f "$REPO_ROOT/.env" ]]; then
+	set -a # 自動エクスポートを有効化
+	source "$REPO_ROOT/.env"
+	set +a # 自動エクスポートを無効化
+fi
+
 echo "[integration] Build kernel (via Docker image if needed)"
 make -C "$REPO_ROOT" -s kernel
 
@@ -28,7 +35,7 @@ run_kernel_capture() {
 	local qemu_bin="qemu-system-${ISA}"
 
 	# 1. 事前に kernel があるか確認
-	if [[ ! -f "$REPO_ROOT/kfs.bin" ]]; then
+	if [[ ! -f "$REPO_ROOT/Image" ]]; then
 		make -C "$REPO_ROOT" -s kernel || return 1
 	fi
 
@@ -64,7 +71,7 @@ run_kernel_capture() {
 	if command -v "$qemu_bin" >/dev/null 2>&1; then
 		if [[ -n "$monitor_script" && -f "$monitor_script" ]]; then
 			# QMPモニターを使用してキーボード入力をシミュレート
-			local qemu_args="-kernel $REPO_ROOT/kfs.bin -serial file:$tmp_log -display none -no-reboot -no-shutdown -qmp stdio"
+			local qemu_args="-kernel $REPO_ROOT/Image -serial file:$tmp_log -display none -no-reboot -no-shutdown -qmp stdio"
 			(
 				sleep 1 # カーネル起動待ち
 				cat "$monitor_script"
@@ -72,14 +79,14 @@ run_kernel_capture() {
 			) | "$TIMEOUT_BIN" "${TIMEOUT_SECS}s" $qemu_bin $qemu_args >/dev/null 2>&1 || true
 		else
 			# 入力ファイルがない場合は -serial file を使用
-			local qemu_args="-kernel $REPO_ROOT/kfs.bin -serial file:$tmp_log -display none -no-reboot -no-shutdown"
+			local qemu_args="-kernel $REPO_ROOT/Image -serial file:$tmp_log -display none -no-reboot -no-shutdown"
 			"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" $qemu_bin $qemu_args >/dev/null 2>&1 || true
 		fi
 	else
 		# 3. Docker 経由: /work に REPO_ROOT をマウントしているため、
 		#    ホスト絶対パス -> /work への変換が必要。
 		local docker_bin="${DOCKER:-docker}"
-		local image="${IMAGE:-smizuoch/kfs:1.0.1}"
+		local image="${IMAGE:-${ISA}-compile-toolchain}"
 		if command -v "$docker_bin" >/dev/null 2>&1; then
 			local container_root="/work"
 			# 例: /home/runner/work/kfs/kfs/test/integration/_artifacts/foo.log.tmp
@@ -93,13 +100,13 @@ run_kernel_capture() {
 				local container_monitor_script="$ARTIFACTS_DIR/monitor_script.tmp"
 				cp "$monitor_script" "$container_monitor_script"
 				local container_monitor_path="${container_monitor_script/#$REPO_ROOT/$container_root}"
-				local qemu_args="-kernel $container_root/kfs.bin -serial file:$container_tmp_log -display none -no-reboot -no-shutdown -qmp stdio"
+				local qemu_args="-kernel $container_root/Image -serial file:$container_tmp_log -display none -no-reboot -no-shutdown -qmp stdio"
 				"$docker_bin" run --rm -v "$REPO_ROOT":$container_root -w $container_root "$image" \
 					bash -c "(sleep 1; cat $container_monitor_path; sleep 3) | timeout ${TIMEOUT_SECS}s qemu-system-$ISA $qemu_args" >/dev/null 2>&1 || true
 				rm -f "$container_monitor_script"
 			else
 				# 入力ファイルがない場合は -serial file を使用
-				local qemu_args="-kernel $container_root/kfs.bin -serial file:$container_tmp_log -display none -no-reboot -no-shutdown"
+				local qemu_args="-kernel $container_root/Image -serial file:$container_tmp_log -display none -no-reboot -no-shutdown"
 				"$TIMEOUT_BIN" "${TIMEOUT_SECS}s" \
 					"$docker_bin" run --rm -v "$REPO_ROOT":$container_root -w $container_root "$image" \
 					qemu-system-"$ISA" $qemu_args >/dev/null 2>&1 || true

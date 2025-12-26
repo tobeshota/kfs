@@ -20,9 +20,9 @@
 static uint8_t page_bitmap[MAX_PAGES / 8];
 
 /* メモリ統計情報 */
-static unsigned long total_pages = 0;
-static unsigned long nr_free_pages = 0; /* 空きページ数（Linux 2.6.11に倣い nr_ プレフィックス） */
-static unsigned long kernel_end_pfn = 0;
+unsigned long total_pages = 0;
+unsigned long nr_free_pages = 0; /* 空きページ数（Linux 2.6.11に倣い nr_ プレフィックス） */
+unsigned long kernel_end_pfn = 0;
 static int page_alloc_initialized = 0; /* 初期化済みフラグ */
 
 /* 外部シンボル：カーネルの終端アドレス（linker.ldで定義） */
@@ -144,8 +144,10 @@ void page_alloc_init(struct multiboot_info *mbi)
 
 	printk("page_alloc_init() called\n");
 
-	/* カーネルの終端アドレスを取得（ページ境界に切り上げ） */
-	unsigned long kernel_end = (unsigned long)_kernel_end;
+	/* カーネルの終端アドレスを取得（ページ境界に切り上げ）
+	 * _kernel_endは仮想アドレスなので、物理アドレスに変換
+	 */
+	unsigned long kernel_end = __pa((unsigned long)_kernel_end);
 	kernel_end_pfn = (kernel_end + PAGE_SIZE - 1) / PAGE_SIZE;
 
 	printk("Initializing page allocator...\n");

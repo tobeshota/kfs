@@ -3,6 +3,8 @@
 
 #include <kfs/stddef.h>
 
+#define SHELL_NAME "kfs-shell" /* シェル名 */
+
 void shell_init(void);
 void shell_run(void) __attribute__((weak));
 int shell_is_initialized(void);
