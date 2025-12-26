@@ -24,13 +24,11 @@ void start_unit_test_kernel(void)
 	/* メモリ管理の初期化（slabテスト用） */
 	extern struct multiboot_info *multiboot_info_ptr;
 	extern void page_alloc_init(struct multiboot_info * mbi);
-	extern void paging_init(void);
 	extern void kmem_cache_init(void);
 
 	if (multiboot_info_ptr != NULL)
 	{
 		page_alloc_init(multiboot_info_ptr);
-		paging_init();
 		kmem_cache_init();
 	}
 
