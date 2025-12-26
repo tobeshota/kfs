@@ -1,78 +1,78 @@
 #!/bin/bash
-# Parse coverage output from QEMU serial and generate diff format
+# QEMUシリアル出力からカバレッジデータを解析してdiff形式のレポートを生成
 
 COVERAGE_FILE="coverage/log/summary.txt"
 SERIAL_LOG="coverage/log/qemu_serial.log"
 MANIFEST_FILE="coverage/log/coverage_manifest.txt"
 
-# Check if serial log exists
+# シリアルログの存在確認
 if [ ! -f "$SERIAL_LOG" ]; then
 	echo "Error: $SERIAL_LOG not found. Run 'make unit' first."
 	exit 1
 fi
 
-# Check if manifest exists
+# マニフェストの存在確認
 if [ ! -f "$MANIFEST_FILE" ]; then
 	echo "Error: $MANIFEST_FILE not found. Run 'make coverage-instrument' first."
 	exit 1
 fi
 
-# Extract coverage data between COVERAGE_START and COVERAGE_END
-# Remove CR (\r) characters for cross-platform compatibility
+# COVERAGE_STARTとCOVERAGE_ENDの間のカバレッジデータを抽出
+# クロスプラットフォーム互換性のためCR(\r)文字を削除
 awk '/COVERAGE_START/,/COVERAGE_END/' "$SERIAL_LOG" |
 	grep -v 'COVERAGE_START\|COVERAGE_END' |
 	tr -d '\r' >/tmp/coverage_raw.txt
 
-# Create a sorted list of executed lines
+# 実行された行のソート済みリストを作成
 sort -u /tmp/coverage_raw.txt | awk -F: '{print $1":"$2}' >/tmp/executed_lines.txt
 
-# Count overall statistics
+# 全体統計のカウント
 total_lines=$(wc -l <"$MANIFEST_FILE" | tr -d ' ')
 executed_count=$(wc -l </tmp/executed_lines.txt | tr -d ' ')
 not_executed=$((total_lines - executed_count))
 coverage_percent=$((executed_count * 100 / total_lines))
 
-# Generate per-file statistics
-# First, get unique files and count total lines per file
+# ファイル別統計の生成
+# まず、ユニークなファイルを取得し、ファイルごとの総行数をカウント
 awk -F: '{print $1}' "$MANIFEST_FILE" | sort | uniq >/tmp/unique_files.txt
 
-# For each file, count total and executed lines
+# 各ファイルについて、総行数と実行済み行数をカウント
 >/tmp/file_stats.txt
 while read -r file; do
 	[ -z "$file" ] && continue
 
-	# Count total lines for this file
+	# このファイルの総行数をカウント
 	total=$(grep -c "^${file}:" "$MANIFEST_FILE")
 
-	# Count executed lines for this file
+	# このファイルの実行済み行数をカウント
 	executed=$(grep "^${file}:" "$MANIFEST_FILE" | while IFS=: read -r f line; do
 		if grep -q "^${f}:${line}$" /tmp/executed_lines.txt; then
 			echo "1"
 		fi
 	done | wc -l | tr -d ' ')
 
-	# Calculate percentage
+	# パーセンテージを計算
 	if [ "$total" -gt 0 ]; then
 		percent=$((executed * 100 / total))
 	else
 		percent=0
 	fi
 
-	# Remove build/coverage/ prefix for display
+	# 表示用にbuild/coverage/プレフィックスを削除
 	display_file=$(echo "$file" | sed 's|build/coverage/||')
 
 	echo "$executed $total $percent $display_file"
 done </tmp/unique_files.txt | sort -k4 >/tmp/file_stats.txt
 
-# Generate report by comparing manifest with executed lines
+# マニフェストと実行済み行を比較してレポートを生成
 {
 	echo "=== KFS Coverage Report ==="
 	echo ""
 
-	# Group by file
+	# ファイルごとにグループ化
 	current_file=""
 	while IFS=: read -r file line; do
-		# Skip empty lines
+		# 空行をスキップ
 		[ -z "$file" ] && continue
 
 		if [ "$file" != "$current_file" ]; then
@@ -81,7 +81,7 @@ done </tmp/unique_files.txt | sort -k4 >/tmp/file_stats.txt
 			current_file="$file"
 		fi
 
-		# Check if this line was executed using grep
+		# この行が実行されたかをgrepで確認
 		if grep -q "^${file}:${line}$" /tmp/executed_lines.txt; then
 			echo "+ $line: EXECUTED"
 		else
@@ -100,7 +100,7 @@ done </tmp/unique_files.txt | sort -k4 >/tmp/file_stats.txt
 	echo "=== Summary ==="
 	echo "Run	/	Sum		coverage"
 
-	# Print per-file statistics from temp file
+	# 一時ファイルからファイル別統計を出力
 	while read -r executed total percent display_file; do
 		printf "%d\t/\t%d\t\t%d%%\t./%s\n" "$executed" "$total" "$percent" "$display_file"
 	done </tmp/file_stats.txt

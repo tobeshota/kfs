@@ -1,54 +1,43 @@
-/* Simple line coverage tracker for freestanding environment */
-
 #ifndef _SIMPLE_COVERAGE_H
 #define _SIMPLE_COVERAGE_H
 
 #include <kfs/stdint.h>
 
-/* Maximum number of unique source lines we can track */
+/* 追跡可能なソースコード行の最大数 */
 #define MAX_COVERAGE_LINES 4096
 
-/* Coverage entry: represents one line of source code */
+/** カバレッジエントリ
+ * @brief ソースコードの1行を表す
+ */
 struct coverage_entry
 {
 	const char *file;
 	uint32_t line;
-	uint8_t executed; /* 0 = not executed, 1 = executed */
+	uint8_t executed; /* 0 = 未実行, 1 = 実行済み */
 };
 
-/**
- * coverage_record_line - Record that a line was executed
- * @file: Source filename (e.g., "mm/page_alloc.c")
- * @line: Line number
- *
- * This function is called by COVERAGE_LINE() macro.
- * It's designed to be as lightweight as possible.
+/** 行が実行されたことを記録する
+ * @param file ソースファイル名 (例: "mm/page_alloc.c")
+ * @param line 行番号
+ * @note この関数はCOVERAGE_LINE()マクロから呼び出される
  */
 void coverage_record_line(const char *file, uint32_t line);
 
-/**
- * coverage_dump - Dump all coverage data to serial port
- *
- * Output format:
+/** すべてのカバレッジデータをシリアルポートにダンプする
+ * @brief
+ * 「ファイル名:行番号:実行状態」のフォーマットで出力する
+ * ここで1は実行済み，0は未実行である
  *   COVERAGE_START
  *   file1.c:10:1
  *   file1.c:11:1
  *   file1.c:15:0
  *   COVERAGE_END
- *
- * Where the format is: filename:line:executed
- * executed: 1 = executed, 0 = not executed
  */
 void coverage_dump(void);
 
-/**
- * COVERAGE_LINE - Macro to record line execution
- *
- * Usage:
- *   COVERAGE_LINE();
- *
- * This will be automatically inserted by our instrumentation script.
- * Always enabled for instrumented files.
+/** 行の実行を記録する
+ * @note このマクロは計装スクリプトによって自動的に挿入される
+ * @see test/unit/coverage/insert_coverage_func.py
  */
 #define COVERAGE_LINE() coverage_record_line(__FILE__, __LINE__)
 

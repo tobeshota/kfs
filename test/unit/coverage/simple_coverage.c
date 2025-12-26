@@ -1,24 +1,23 @@
-/* Simple line coverage tracker implementation */
+/* シンプルな行カバレッジトラッカーの実装 */
 
 #include "simple_coverage.h"
 #include <kfs/printk.h>
 
-/* Global coverage database */
+/* グローバルカバレッジデータベース */
 static struct coverage_entry coverage_db[MAX_COVERAGE_LINES];
 static uint32_t coverage_count = 0;
 
-/**
- * find_or_create_entry - Find existing entry or create new one
- * @file: Source filename
- * @line: Line number
- * @return: Pointer to coverage entry, or NULL if database is full
+/** 既存エントリを検索、または新規作成する
+ * @param file ソースファイル名
+ * @param line 行番号
+ * @return カバレッジエントリへのポインタ．
+ *         データベースが満杯の場合NULL
  */
 static struct coverage_entry *find_or_create_entry(const char *file, uint32_t line)
 {
 	uint32_t i;
 
-	/* First, try to find existing entry */
-	/* Use pointer comparison instead of strcmp to avoid early boot issues */
+	/* 既存エントリを検索する */
 	for (i = 0; i < coverage_count; i++)
 	{
 		if (coverage_db[i].line == line && coverage_db[i].file == file)
@@ -27,10 +26,10 @@ static struct coverage_entry *find_or_create_entry(const char *file, uint32_t li
 		}
 	}
 
-	/* Not found, create new entry */
+	/* 見つからない場合，新規エントリを作成する */
 	if (coverage_count >= MAX_COVERAGE_LINES)
 	{
-		return NULL; /* Database full */
+		return NULL; /* データベースが満杯 */
 	}
 
 	coverage_db[coverage_count].file = file;
@@ -60,7 +59,7 @@ void coverage_dump(void)
 
 	for (i = 0; i < coverage_count; i++)
 	{
-		/* Output format: filename:line:executed */
+		/* 出力フォーマット: ファイル名:行番号:実行状態 */
 		printk("%s:%u:%u\n", coverage_db[i].file, coverage_db[i].line, coverage_db[i].executed);
 	}
 
