@@ -7,11 +7,11 @@
 
 ---
 
-# Technical Specifications
+# Specification
 
 ### Target Architecture
 - ISA: i386
-- Target platform: QEMU
+- Platform: QEMU
 - Toolchain: GCC cross-compiler (i686-elf)
 - Linker: [Custom ELF script](arch/i386/boot/linker.ld) for [Higher Half Kernel](https://wiki.osdev.org/Higher_Half_Kernel)
 
