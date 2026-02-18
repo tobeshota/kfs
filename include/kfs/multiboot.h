@@ -50,12 +50,12 @@ struct multiboot_mmap_entry
 #define MULTIBOOT2_BOOTLOADER_MAGIC 0x36D76289
 
 /* Multiboot2タグタイプ */
-#define MULTIBOOT2_TAG_TYPE_END		0 /* タグリスト終端 */
-#define MULTIBOOT2_TAG_TYPE_MMAP	6 /* メモリマップ */
+#define MULTIBOOT2_TAG_TYPE_END 0  /* タグリスト終端 */
+#define MULTIBOOT2_TAG_TYPE_MMAP 6 /* メモリマップ */
 
 /* Multiboot2メモリマップエントリタイプ（Multiboot1と共通の値） */
-#define MULTIBOOT2_MEMORY_AVAILABLE		1 /* 使用可能なRAM */
-#define MULTIBOOT2_MEMORY_RESERVED		2 /* 予約済み（使用不可） */
+#define MULTIBOOT2_MEMORY_AVAILABLE 1 /* 使用可能なRAM */
+#define MULTIBOOT2_MEMORY_RESERVED 2  /* 予約済み（使用不可） */
 
 /** Multiboot2情報ヘッダ
  * タグリストの先頭 8 バイト。その直後からタグが続く。
@@ -91,7 +91,7 @@ struct multiboot2_tag_mmap
 	uint32_t size;			/* タグ全体のサイズ */
 	uint32_t entry_size;	/* 各エントリのサイズ（通常24バイト） */
 	uint32_t entry_version; /* エントリフォーマットバージョン（0） */
-	/* 以降 entry_size バイトごとに multiboot2_mmap_entry が続く */
+							/* 以降 entry_size バイトごとに multiboot2_mmap_entry が続く */
 } __attribute__((packed));
 
 #endif /* _KFS_MULTIBOOT_H */
