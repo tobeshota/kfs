@@ -99,10 +99,10 @@ $(REPORT_DIR):
 
 kernel: $(KERNEL)
 
-iso: kernel ./grub.cfg
+iso: kernel ./grub-bios.cfg
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/
-	cp ./grub.cfg isodir/boot/grub/
+	cp ./grub-bios.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o $(ISO) isodir --modules="multiboot normal configfile" --compress=xz
 
 unit: iso run
@@ -138,10 +138,10 @@ re: fclean all
 endif
 
 # ===== Run with QEMU (prefer host, fallback to container) =====
-run: run-iso
+run: run-iso-bios
 
 # Bashと明示した理由はPIPESTATUSがBash特有の機能であるため
-run-iso: $(ISO) | $(LOGDIR) $(REPORT_DIR)
+run-iso-bios: $(ISO) | $(LOGDIR) $(REPORT_DIR)
 	@ bash -c \
 	'set -e; \
 	LOGFILE=$$([ "$(COVERAGE_BUILD)" = "1" ] && echo "coverage/log/qemu_serial.log" || echo "coverage/log/qemu_serial.log"); \
@@ -172,4 +172,4 @@ coverage-instrument:
 	@echo "Instrumenting production code..."
 	@python3 coverage/insert_coverage_func.py ../../ build/coverage/ coverage/log/coverage_manifest.txt
 
-.PHONY: all kernel iso run run-iso clean fclean re ensure-image unit test coverage coverage-instrument
+.PHONY: all kernel iso run run-iso-bios clean fclean re ensure-image unit test coverage coverage-instrument
