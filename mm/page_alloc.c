@@ -152,7 +152,9 @@ static void parse_memory_map_mb2(struct multiboot2_info *mbi2)
 	}
 
 	if (!mmap_tag)
+	{
 		panic("Multiboot2 memory map tag not found");
+	}
 
 	printk("Memory map (Multiboot2):\n");
 
@@ -178,7 +180,9 @@ static void parse_memory_map_mb2(struct multiboot2_info *mbi2)
 			unsigned long end_pfn = (addr + len) / PAGE_SIZE;
 
 			if (start_pfn < kernel_end_pfn)
+			{
 				start_pfn = kernel_end_pfn;
+			}
 
 			for (unsigned long pfn = start_pfn; pfn < end_pfn && pfn < MAX_PAGES; pfn++)
 			{
@@ -187,7 +191,9 @@ static void parse_memory_map_mb2(struct multiboot2_info *mbi2)
 			}
 
 			if (end_pfn > total_pages && end_pfn <= MAX_PAGES)
+			{
 				total_pages = end_pfn;
+			}
 		}
 
 		entry += mmap_tag->entry_size;
@@ -223,9 +229,13 @@ void page_alloc_init(unsigned long mbi_ptr, uint32_t magic)
 	/* メモリマップを解析 */
 	printk("About to parse memory map\n");
 	if (magic == MULTIBOOT2_BOOTLOADER_MAGIC)
+	{
 		parse_memory_map_mb2((struct multiboot2_info *)__va(mbi_ptr));
+	}
 	else
+	{
 		parse_memory_map((struct multiboot_info *)__va(mbi_ptr));
+	}
 	printk("Memory map parsed\n");
 
 	page_alloc_initialized = 1;
