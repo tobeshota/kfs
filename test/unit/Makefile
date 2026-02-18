@@ -117,14 +117,6 @@ unit: unit-bios
 
 unit-bios: iso-bios run
 
-clean:
-	@rm -rf isodir-bios isodir-uefi build $(LOGDIR) $(REPORT_DIR)
-
-fclean: clean
-	@rm -f $(KERNEL) $(ISO_BIOS) $(ISO_UEFI)
-
-re: fclean all
-
 else
 
 # --- Wrapper: run the same targets inside Docker ---
@@ -140,6 +132,8 @@ iso-uefi: ensure-image
 unit: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make unit'
 
+endif
+
 clean:
 	@rm -rf isodir-bios isodir-uefi build $(LOGDIR) $(REPORT_DIR)
 
@@ -147,8 +141,6 @@ fclean: clean
 	@rm -f $(KERNEL) $(ISO_BIOS) $(ISO_UEFI)
 
 re: fclean all
-
-endif
 
 # ===== Run with QEMU (prefer host, fallback to container) =====
 run: run-iso-bios

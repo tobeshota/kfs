@@ -88,14 +88,6 @@ iso-uefi: kernel grub-uefi.cfg
 	cp grub-uefi.cfg isodir-uefi/boot/grub/grub.cfg
 	grub-mkrescue -o $(ISO_UEFI) isodir-uefi --modules="multiboot2 normal configfile part_msdos part_gpt" --compress=xz
 
-clean:
-	rm -rf isodir isodir-uefi $(ISO_BIOS) $(ISO_UEFI) $(BUILD_DIR)
-
-fclean: clean
-	rm -f $(KERNEL)
-
-re: fclean all
-
 else
 
 # --- Wrapper: run the same targets inside Docker ---
@@ -110,16 +102,17 @@ iso-bios: ensure-image
 iso-uefi: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso-uefi'
 
+endif
+
 clean:
-	@make clean -C test/
-	@rm -rf isodir $(BUILD_DIR)
+	@ rm -rf isodir isodir-uefi $(BUILD_DIR)
+	@ make clean -C test/
 
 fclean: clean
-	@rm -f $(KERNEL) $(ISO_BIOS) $(ISO_UEFI)
+	@ rm -f $(KERNEL) $(ISO_BIOS) $(ISO_UEFI)
+	@ make fclean -C test/
 
 re: fclean all
-
-endif
 
 # ===== Run with QEMU (prefer host, fallback to container) =====
 run: run-iso-bios
