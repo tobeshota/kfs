@@ -16,33 +16,34 @@ PWD := $(shell pwd)
 DOCKER_RUN = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(PWD)":/work -w /work $(IMAGE)
 
 # ===== Toolchain (used inside container) =====
-CROSS   ?= i686-elf
-CC      := $(CROSS)-gcc
+CROSS        ?= i686-elf
+CC           := $(CROSS)-gcc
 INCLUDE_DIRS := include include/kfs include/asm-i386
-CFLAGS  := $(addprefix -I,$(INCLUDE_DIRS)) -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc
-DEPFLAGS := -MMD -MP -MF $(BUILD_DIR)/$*.d
-LDFLAGS := -T arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc
+CFLAGS       := $(addprefix -I,$(INCLUDE_DIRS)) -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc
+DEPFLAGS     := -MMD -MP -MF $(BUILD_DIR)/$*.d
+LDFLAGS      := -T arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -no-pie
 
 # Sources and objects
 # Explicit kernel C sources (collect then filter out legacy *_test_shim.c that must not ship)
 RAW_KERNEL_SRCS_C := $(shell find ./ -path ./test -prune -o -name '*.c' -print)
-KERNEL_SRCS_C := $(filter-out %_test_shim.c,$(RAW_KERNEL_SRCS_C))
-KERNEL_SRCS_H := $(shell find ./ -path ./test -prune -o -name '*.h' -print)
-KERNEL_SRCS_S := $(shell find ./ -path ./test -prune -o -name '*.S' -print)
-TEST_SRCS_C   := $(shell find ./test -name '*.c' -print)
-TEST_SRCS_H   := $(shell find ./test -name '*.h' -print)
-TEST_SRCS_SH  := $(shell find ./test -name '*.sh' -print)
+KERNEL_SRCS_C     := $(filter-out %_test_shim.c,$(RAW_KERNEL_SRCS_C))
+KERNEL_SRCS_H     := $(shell find ./ -path ./test -prune -o -name '*.h' -print)
+KERNEL_SRCS_S     := $(shell find ./ -path ./test -prune -o -name '*.S' -print)
+TEST_SRCS_C       := $(shell find ./test -name '*.c' -print)
+TEST_SRCS_H       := $(shell find ./test -name '*.h' -print)
+TEST_SRCS_SH      := $(shell find ./test -name '*.sh' -print)
 
 KERNEL_SRCS := $(KERNEL_SRCS_C) $(KERNEL_SRCS_S)
 BUILD_DIR   := build/obj
 KERNEL_OBJS := $(patsubst %.S,$(BUILD_DIR)/%.o,$(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SRCS)))
 KERNEL_DEPS := $(patsubst %.c,$(BUILD_DIR)/%.d,$(KERNEL_SRCS_C))
 
-KERNEL := Image
-ISO    := kfs.iso
+KERNEL   := Image
+ISO_BIOS := kfs.iso
+ISO_UEFI := kfs-uefi.iso
 
 # ===== Default =====
-all: iso
+all: iso-bios
 
 # ===== Ensure Docker image (local build only) =====
 ensure-image:
@@ -73,14 +74,20 @@ $(BUILD_DIR)/%.o: %.c
 
 kernel: $(KERNEL)
 
-iso: kernel grub.cfg
+iso-bios: kernel grub-bios.cfg
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/Image
-	cp grub.cfg isodir/boot/grub/grub.cfg
-	grub-mkrescue -o $(ISO) isodir --modules="multiboot normal configfile" --compress=xz
+	cp grub-bios.cfg isodir/boot/grub/grub.cfg
+	grub-mkrescue -o $(ISO_BIOS) isodir --modules="multiboot normal configfile" --compress=xz
+
+iso-uefi: kernel grub-uefi.cfg
+	mkdir -p isodir-uefi/boot/grub
+	cp $(KERNEL) isodir-uefi/boot/Image
+	cp grub-uefi.cfg isodir-uefi/boot/grub/grub.cfg
+	grub-mkrescue -o $(ISO_UEFI) isodir-uefi --modules="multiboot2 normal configfile part_msdos part_gpt" --compress=xz
 
 clean:
-	rm -rf isodir $(ISO) $(BUILD_DIR)
+	rm -rf isodir isodir-uefi $(ISO_BIOS) $(ISO_UEFI) $(BUILD_DIR)
 
 fclean: clean
 	rm -f $(KERNEL)
@@ -93,28 +100,41 @@ else
 kernel: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make kernel'
 
-iso: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso'
+iso-bios: ensure-image
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso-bios'
+
+iso-uefi: ensure-image
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso-uefi'
 
 clean:
 	@make clean -C test/
 	@rm -rf isodir $(BUILD_DIR)
 
 fclean: clean
-	@rm -f $(KERNEL) $(ISO)
+	@rm -f $(KERNEL) $(ISO_BIOS) $(ISO_UEFI)
 
 re: fclean all
 
 endif
 
 # ===== Run with QEMU (prefer host, fallback to container) =====
-run: run-iso
+run: run-iso-bios
 
-run-iso: $(ISO)
-	qemu-system-$(ISA) -cdrom $(ISO) -serial stdio
+run-iso-bios: $(ISO_BIOS)
+	qemu-system-$(ISA) -cdrom $(ISO_BIOS) -serial stdio
 
 run-kernel: $(KERNEL)
 	qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio
+
+# QEMU上でUEFIで起動する
+# 備考: OVMFはQEMUパッケージ内に含まれる
+OVMF_FD ?= $(shell find /opt/homebrew /usr/local -name "edk2-x86_64-code.fd" 2>/dev/null | head -1)
+run-iso-uefi: $(ISO_UEFI)
+	qemu-system-x86_64 \
+		-drive if=pflash,format=raw,readonly=on,file=$(OVMF_FD) \
+		-cdrom $(ISO_UEFI) \
+		-serial stdio \
+		-display curses \
 
 # ===== Tests passthrough =====
 test:
@@ -138,4 +158,4 @@ fmt:
 		&& clang-format -i -style="{BasedOnStyle: Microsoft, IndentWidth: 4, TabWidth: 4, UseTab: Always, InsertBraces: true}" $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H) \
 		&& shfmt -w $(TEST_SRCS_SH)'
 
-.PHONY: all kernel iso run run-iso run-kernel clean fclean re ensure-image test coverage fmt
+.PHONY: all kernel iso-bios iso-uefi run run-iso-bios run-kernel run-iso-uefi clean fclean re ensure-image test coverage fmt

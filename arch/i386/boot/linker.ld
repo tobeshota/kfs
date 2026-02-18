@@ -167,6 +167,11 @@ SECTIONS
         *(.bss*)
     } :data
 
+    /* GCCが生成するデバッグ/メタ情報セクションを破棄
+     * .note.gnu.build-id 等が低位アドレスに配置されると
+     * GRUB multiboot2 の overlap 検出を引き起こすため */
+    /DISCARD/ : { *(.note*) *(.eh_frame*) *(.comment) }
+
     /* カーネル終端アドレス */
     __kernel_virtual_end = .;
     _kernel_end = __kernel_virtual_end;
