@@ -17,9 +17,10 @@
  *       使用時に__va()で仮想アドレスに変換する必要がある．
  */
 extern unsigned long multiboot_info_ptr;
+extern uint32_t multiboot_magic; /* boot.S で保存したブートローダーマジック */
 
 /* ページアロケータの初期化（mm/page_alloc.c） */
-extern void page_alloc_init(struct multiboot_info *mbi);
+extern void page_alloc_init(unsigned long mbi_ptr, uint32_t magic);
 
 void start_kernel(void)
 {
@@ -51,9 +52,7 @@ void start_kernel(void)
 	if (multiboot_info_ptr != 0)
 	{
 		printk("Initializing memory management...\n");
-		/* multiboot_info_ptrは物理アドレスのため仮想アドレスに変換する */
-		struct multiboot_info *mbi = __va(multiboot_info_ptr);
-		page_alloc_init(mbi);
+		page_alloc_init(multiboot_info_ptr, multiboot_magic);
 
 		/* Slabアロケータ初期化（kmalloc/kfree使用可能に） */
 		kmem_cache_init();
