@@ -102,6 +102,8 @@ else
 kernel: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make kernel'
 
+iso: iso-bios
+
 iso-bios: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso-bios'
 
