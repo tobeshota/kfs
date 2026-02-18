@@ -74,6 +74,8 @@ $(BUILD_DIR)/%.o: %.c
 
 kernel: $(KERNEL)
 
+iso: iso-bios
+
 iso-bios: kernel grub-bios.cfg
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/Image
