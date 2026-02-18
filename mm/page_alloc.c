@@ -131,10 +131,83 @@ static void parse_memory_map(struct multiboot_info *mbi)
 }
 
 /**
- * 物理ページアロケータの初期化
- * @param mbi Multiboot情報構造体へのポインタ
+ * Multiboot2メモリマップタグ（type=6）を解析し、使用可能なページを初期化
  */
-void page_alloc_init(struct multiboot_info *mbi)
+static void parse_memory_map_mb2(struct multiboot2_info *mbi2)
+{
+	struct multiboot2_tag *tag;
+	struct multiboot2_tag_mmap *mmap_tag = NULL;
+
+	/* タグリストの先頭: info ヘッダ（8バイト）の直後から始まる */
+	tag = (struct multiboot2_tag *)((uint8_t *)mbi2 + 8);
+	while (tag->type != MULTIBOOT2_TAG_TYPE_END)
+	{
+		if (tag->type == MULTIBOOT2_TAG_TYPE_MMAP)
+		{
+			mmap_tag = (struct multiboot2_tag_mmap *)tag;
+			break;
+		}
+		/* 次のタグへ: size加算後、8バイト境界に切り上げ */
+		tag = (struct multiboot2_tag *)(((unsigned long)tag + tag->size + 7) & ~7UL);
+	}
+
+	if (!mmap_tag)
+	{
+		panic("Multiboot2 memory map tag not found");
+	}
+
+	printk("Memory map (Multiboot2):\n");
+
+	/* 全ページを使用中としてマーク（デフォルト） */
+	memset(page_bitmap, 0xFF, sizeof(page_bitmap));
+
+	uint8_t *entry = (uint8_t *)mmap_tag + sizeof(*mmap_tag);
+	uint8_t *end = (uint8_t *)mmap_tag + mmap_tag->size;
+
+	while (entry < end)
+	{
+		struct multiboot2_mmap_entry *e = (struct multiboot2_mmap_entry *)entry;
+		uint64_t addr = e->addr;
+		uint64_t len = e->len;
+		uint32_t type = e->type;
+
+		printk("  [0x");
+		printk((type == MULTIBOOT2_MEMORY_AVAILABLE) ? " available]\n" : " reserved]\n");
+
+		if (type == MULTIBOOT2_MEMORY_AVAILABLE)
+		{
+			unsigned long start_pfn = addr / PAGE_SIZE;
+			unsigned long end_pfn = (addr + len) / PAGE_SIZE;
+
+			if (start_pfn < kernel_end_pfn)
+			{
+				start_pfn = kernel_end_pfn;
+			}
+
+			for (unsigned long pfn = start_pfn; pfn < end_pfn && pfn < MAX_PAGES; pfn++)
+			{
+				clear_page_bit(pfn);
+				nr_free_pages++;
+			}
+
+			if (end_pfn > total_pages && end_pfn <= MAX_PAGES)
+			{
+				total_pages = end_pfn;
+			}
+		}
+
+		entry += mmap_tag->entry_size;
+	}
+
+	printk("Memory init complete (Multiboot2)\n");
+}
+
+/**
+ * 物理ページアロケータの初期化
+ * @param mbi_ptr Multiboot情報構造体の物理アドレス（boot.Sで保存）
+ * @param magic   ブートローダーマジック（boot.Sで保存）：MBI1/MBI2の判別に使用
+ */
+void page_alloc_init(unsigned long mbi_ptr, uint32_t magic)
 {
 	/* 既に初期化済みなら何もしない */
 	if (page_alloc_initialized)
@@ -155,7 +228,14 @@ void page_alloc_init(struct multiboot_info *mbi)
 
 	/* メモリマップを解析 */
 	printk("About to parse memory map\n");
-	parse_memory_map(mbi);
+	if (magic == MULTIBOOT2_BOOTLOADER_MAGIC)
+	{
+		parse_memory_map_mb2((struct multiboot2_info *)__va(mbi_ptr));
+	}
+	else
+	{
+		parse_memory_map((struct multiboot_info *)__va(mbi_ptr));
+	}
 	printk("Memory map parsed\n");
 
 	page_alloc_initialized = 1;

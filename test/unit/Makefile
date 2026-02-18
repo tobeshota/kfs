@@ -13,8 +13,8 @@ CROSS          ?= i686-elf
 CC             := $(CROSS)-gcc
 INCLUDE_DIRS   = ../../include ../../include/kfs ../../include/asm-i386 .
 CFLAGS         = $(addprefix -I,$(INCLUDE_DIRS)) -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc
-LDFLAGS        = -T ../../arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc
-DEPFLAGS       := -MMD -MP -MF $(BUILD_DIR)/$*.d
+LDFLAGS        = -T ../../arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -no-pie
+DEPFLAGS       = -MMD -MP -MF $(BUILD_DIR)/$*.d
 
 # Build directories
 BUILD_DIR      := build/obj
@@ -38,7 +38,9 @@ OBJS          := $(patsubst ../../%,$(BUILD_DIR)/%,$(patsubst %.c,%.o,$(SRCS_C))
                  $(patsubst ./%.c,$(BUILD_DIR)/%.o,$(COVERAGE_C))
 DEPS          := $(patsubst %.o,%.d,$(OBJS))
 KERNEL        := testImage
-ISO           := test.iso
+ISO_BIOS      := test-bios.iso
+ISO_UEFI      := test-uefi.iso
+ISO           := $(ISO_BIOS)
 
 # Coverage build flag - when set, use instrumented sources from build/coverage
 COVERAGE_BUILD ?= 0
@@ -99,21 +101,21 @@ $(REPORT_DIR):
 
 kernel: $(KERNEL)
 
-iso: kernel ./grub.cfg
-	mkdir -p isodir/boot/grub
-	cp $(KERNEL) isodir/boot/
-	cp ./grub.cfg isodir/boot/grub/
-	grub-mkrescue -o $(ISO) isodir --modules="multiboot normal configfile" --compress=xz
+iso-bios: kernel ./grub-bios.cfg
+	mkdir -p isodir-bios/boot/grub
+	cp $(KERNEL) isodir-bios/boot/
+	cp ./grub-bios.cfg isodir-bios/boot/grub/grub.cfg
+	grub-mkrescue -o $(ISO_BIOS) isodir-bios --modules="multiboot multiboot2 normal configfile part_msdos part_gpt" --compress=xz
 
-unit: iso run
+iso-uefi: kernel ./grub-uefi.cfg
+	mkdir -p isodir-uefi/boot/grub
+	cp $(KERNEL) isodir-uefi/boot/
+	cp ./grub-uefi.cfg isodir-uefi/boot/grub/grub.cfg
+	grub-mkrescue -o $(ISO_UEFI) isodir-uefi --modules="multiboot2 normal configfile part_msdos part_gpt" --compress=xz
 
-clean:
-	@rm -rf isodir build $(LOGDIR) $(REPORT_DIR)
+unit: unit-bios
 
-fclean: clean
-	@rm -f $(KERNEL) $(ISO)
-
-re: fclean all
+unit-bios: iso-bios run
 
 else
 
@@ -121,34 +123,37 @@ else
 kernel: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make kernel'
 
-iso: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make iso'
+iso-bios: ensure-image
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make iso-bios'
+
+iso-uefi: ensure-image
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make iso-uefi'
 
 unit: ensure-image
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make unit'
 
+endif
+
 clean:
-	@rm -rf isodir build $(LOGDIR) $(REPORT_DIR)
+	@rm -rf isodir-bios isodir-uefi build $(LOGDIR) $(REPORT_DIR)
 
 fclean: clean
-	@rm -f $(KERNEL) $(ISO)
+	@rm -f $(KERNEL) $(ISO_BIOS) $(ISO_UEFI)
 
 re: fclean all
 
-endif
-
 # ===== Run with QEMU (prefer host, fallback to container) =====
-run: run-iso
+run: run-iso-bios
 
 # Bashと明示した理由はPIPESTATUSがBash特有の機能であるため
-run-iso: $(ISO) | $(LOGDIR) $(REPORT_DIR)
+run-iso-bios: $(ISO_BIOS) | $(LOGDIR) $(REPORT_DIR)
 	@ bash -c \
 	'set -e; \
 	LOGFILE=$$([ "$(COVERAGE_BUILD)" = "1" ] && echo "coverage/log/qemu_serial.log" || echo "coverage/log/qemu_serial.log"); \
 	{ qemu-system-$(ISA) \
 		-display none \
 		-device isa-debug-exit,iobase=0xf4,iosize=0x04 \
-		-cdrom $(ISO) \
+		-cdrom $(ISO_BIOS) \
 		-serial stdio 2>&1 | tee $$LOGFILE; } ; \
 	raw_status=$${PIPESTATUS[0]}; \
 	decoded_status=$$(( (raw_status - 1) / 2 )); \
@@ -172,4 +177,4 @@ coverage-instrument:
 	@echo "Instrumenting production code..."
 	@python3 coverage/insert_coverage_func.py ../../ build/coverage/ coverage/log/coverage_manifest.txt
 
-.PHONY: all kernel iso run run-iso clean fclean re ensure-image unit test coverage coverage-instrument
+.PHONY: all kernel iso-bios iso-uefi run run-iso-bios clean fclean re ensure-image unit test coverage coverage-instrument
