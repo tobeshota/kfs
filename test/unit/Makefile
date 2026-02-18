@@ -14,7 +14,7 @@ CC             := $(CROSS)-gcc
 INCLUDE_DIRS   = ../../include ../../include/kfs ../../include/asm-i386 .
 CFLAGS         = $(addprefix -I,$(INCLUDE_DIRS)) -ffreestanding -Wall -Wextra -Werror -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc
 LDFLAGS        = -T ../../arch/$(ISA)/boot/linker.ld -ffreestanding -m32 -fno-builtin -fno-stack-protector -nostdlib -nodefaultlibs -nostdinc -no-pie
-DEPFLAGS       := -MMD -MP -MF $(BUILD_DIR)/$*.d
+DEPFLAGS       = -MMD -MP -MF $(BUILD_DIR)/$*.d
 
 # Build directories
 BUILD_DIR      := build/obj
