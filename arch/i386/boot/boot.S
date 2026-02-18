@@ -1,14 +1,45 @@
 /*このカーネルをどう扱ってロードしてほしいかを伝える設定 #defineみたいなもの */
-.set ALIGN,    1<<0             /* ページサイズ（通常4 KiB）に揃えて読み込んでほしい、と通知するフラグ */
+
+/* ===== Multiboot2 ヘッダ定数（UEFI対応） =====
+ * @see Multiboot2仕様: https://www.gnu.org/software/grub/manual/multiboot2/
+ * @ref Linux 2.6.11 arch/i386/boot/setup.S のブートヘッダ定義パターン
+ */
+.set MB2_MAGIC,      0xE85250D6         /* Multiboot2 マジックナンバー（固定値） */
+.set MB2_ARCH,       0                  /* 0 = i386 Protected Mode */
+.set MB2_HEADER_LEN, (mb2_header_end - mb2_header_start)
+.set MB2_CHECKSUM,   -(MB2_MAGIC + MB2_ARCH + MB2_HEADER_LEN)
+
+/* ===== Multiboot1 ヘッダ定数（Legacy BIOS 用） ===== */
+.set ALIGN,    1<<0             /* ページサイズ（通常4 KiB）に揃えて読み込んでほしい、と通知するフラグ */
 .set MEMINFO,  1<<1             /* カーネルがブートローダに対して， mem_lower/mem_upper 情報を multiboot_info に詰めて渡すよう要求するフラグ */
 .set FLAGS,    ALIGN | MEMINFO  /* 上記フラグをまとめたもの */
 .set MAGIC,    0x1BADB002       /* 「マルチブートヘッダが正しく存在すること」をブートローダへ知らせるための固定値 */
 .set CHECKSUM, -(MAGIC + FLAGS) /* 破損検出のための軽量チェック。 */
 
-/** .multibootセクションにマルチブートヘッダを配置する
- * @note マルチブートヘッダは最初の8KiB内に存在し、4バイト単位で整列されなければならない
+/** .multibootセクションにMultiboot2/1ヘッダを配置する
+ * @note ヘッダは最初の8KiB内に存在しなければならない
+ * @note Multiboot2ヘッダが先に来ることでUEFI環境のGRUBが優先認識する
  */
 .section .multiboot, "a" /* "a": ロード可能．GRUBがMultibootヘッダを見つけるためのもの */
+
+/* ===== Multiboot2 ヘッダ =====
+ * GRUBが「multiboot2 /boot/Image」コマンドでカーネルをロードする際に参照する
+ * Multiboot2仕様: magic(4) + arch(4) + header_length(4) + checksum(4) + tags
+ * 8バイトアライメント必須（Multiboot2仕様 §3.1.1）
+ */
+.align 8
+mb2_header_start:
+.long MB2_MAGIC
+.long MB2_ARCH
+.long MB2_HEADER_LEN
+.long MB2_CHECKSUM
+/* End tag: type=0, flags=0, size=8 --- タグリストの終端を示す必須タグ */
+.short 0   /* type */
+.short 0   /* flags */
+.long  8   /* size */
+mb2_header_end:
+
+/* ===== Multiboot1 ヘッダ（Legacy BIOS 用） ===== */
 .align 4 /* 同セクション内での変数(.multibootセクションの場合MAGIC, FLAGS, CHECKSUM)の値を4バイト整列する */
 .long MAGIC /* マルチブートヘッダのマジックナンバーを配置 */
 .long FLAGS /* フラグを配置 */
@@ -59,6 +90,15 @@ boot_page_table_kernel:    /* カーネル用Higher halfマッピング（0xC000
 multiboot_info_ptr:
 .long 0
 
+/** GRUBがEAXに設定するブートローダマジックナンバーを保存する
+ * @brief Multiboot1: EAX = 0x2BADB002
+ *        Multiboot2: EAX = 0x36D76289
+ * init/main.c でMBI1/MBI2を判別するために使用する
+ */
+.globl multiboot_magic
+multiboot_magic:
+.long 0
+
 /* ブートストラップコードセクション - ページング有効化前に物理アドレスで実行される */
 .section .boot, "ax" /* "ax": ロード可能，実行可能 */
 .global _start /* リンカに_startシンボルをエクスポートするよう指示 */
@@ -71,6 +111,13 @@ _start:
      *       arch/i386/drivers/tty/keyboard.c: kfs_keyboard_init() で行われる
      */
     cli
+
+    /** GRUBがEAXに設定するマジックナンバーを保存する
+     * @brief Multiboot1: EAX = 0x2BADB002
+     *        Multiboot2: EAX = 0x36D76289
+     * ページング有効化後にC言語側（init/main.c）でMBI1/MBI2を判別するために使用する
+     */
+    mov %eax, multiboot_magic
 
     /** Multiboot情報構造体へのポインタをmultiboot_info_ptrに保存する
      * @brief ブートローダがEAXにマジックナンバー，
