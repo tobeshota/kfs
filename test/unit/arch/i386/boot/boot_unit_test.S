@@ -53,6 +53,12 @@ boot_page_table_kernel:    /* カーネル用Higher halfマッピング（0xC000
 multiboot_info_ptr:
 .long 0
 
+.section .boot.data, "aw"
+.align 4
+.globl multiboot_magic
+multiboot_magic:
+.long 0
+
 /* ブートストラップコードセクション - ページング有効化前に物理アドレスで実行される */
 .section .boot, "ax"
 .global _start /* リンカに_startシンボルをエクスポートするよう指示 */
@@ -66,9 +72,7 @@ _start:
      */
     cli
 
-    /* Multiboot情報構造体へのポインタを保存（EBXレジスタ）
-     * multiboot_info_ptrは.boot.dataセクション（物理アドレス）にあるので直接アクセス可能
-     */
+    mov %eax, multiboot_magic    /* GRUBがEAXに設定するマジック値を保存 */
     mov %ebx, multiboot_info_ptr
 
     /* ページング有効化前に初期ページテーブルをセットアップ */
