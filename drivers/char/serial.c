@@ -58,8 +58,8 @@ void serial_init(void)
 	/* COM1の初期化（出力用） */
 	kfs_io_outb(COM1_PORT + 1, 0x00); /*割り込みを無効化*/
 	kfs_io_outb(COM1_PORT + 3, 0x80); /*ボーレート設定モード開始*/
-	kfs_io_outb(COM1_PORT + 0, 0x03); /*ボーレートを38400bpsにする (16ビットの下位ビット)*/
-	kfs_io_outb(COM1_PORT + 1, 0x00); /*ボーレートを38400bpsにする (16ビットの上位ビット)*/
+	kfs_io_outb(COM1_PORT + 0, 0x01); /*ボーレートを115200bpsにする (divisor=1, 16ビットの下位ビット)*/
+	kfs_io_outb(COM1_PORT + 1, 0x00); /*ボーレートを115200bpsにする (16ビットの上位ビット)*/
 	kfs_io_outb(COM1_PORT + 3, 0x03); /*ボーレート設定モード終了する。また、シリアル接続のビットを8N1に設定する*/
 	kfs_io_outb(COM1_PORT + 2, 0xC7); /*FIFOを有効化, 受信用14バイトのバッファを設ける*/
 	kfs_io_outb(COM1_PORT + 4, 0x0B); /*RTS/DSRを有効化*/
@@ -67,8 +67,8 @@ void serial_init(void)
 	/* COM2の初期化（入力用） */
 	kfs_io_outb(COM2_PORT + 1, 0x00); /*割り込みを無効化*/
 	kfs_io_outb(COM2_PORT + 3, 0x80); /*ボーレート設定モード開始*/
-	kfs_io_outb(COM2_PORT + 0, 0x03); /*ボーレートを38400bpsにする (16ビットの下位ビット)*/
-	kfs_io_outb(COM2_PORT + 1, 0x00); /*ボーレートを38400bpsにする (16ビットの上位ビット)*/
+	kfs_io_outb(COM2_PORT + 0, 0x01); /*ボーレートを115200bpsにする (divisor=1, 16ビットの下位ビット)*/
+	kfs_io_outb(COM2_PORT + 1, 0x00); /*ボーレートを115200bpsにする (16ビットの上位ビット)*/
 	kfs_io_outb(COM2_PORT + 3, 0x03); /*ボーレート設定モード終了する。また、シリアル接続のビットを8N1に設定する*/
 	kfs_io_outb(COM2_PORT + 2, 0xC7); /*FIFOを有効化, 受信用14バイトのバッファを設ける*/
 	kfs_io_outb(COM2_PORT + 4, 0x0B); /*RTS/DSRを有効化*/
