@@ -56,8 +56,8 @@ KFS_TEST(test_cap_raise_high_bit)
 	cap_raise(cap, 32);
 
 	KFS_ASSERT_TRUE(cap_raised(cap, 32));
-	KFS_ASSERT_TRUE(cap.cap[1] == 1u);  /* cap[1] のビット0のみセット */
-	KFS_ASSERT_TRUE(cap.cap[0] == 0u);  /* cap[0] は無変化 */
+	KFS_ASSERT_TRUE(cap.cap[1] == 1u); /* cap[1] のビット0のみセット */
+	KFS_ASSERT_TRUE(cap.cap[0] == 0u); /* cap[0] は無変化 */
 }
 
 /* 指定した Capability ビットがクリアされることを確かめる */

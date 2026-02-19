@@ -22,8 +22,10 @@ int sys_getuid(void)
 int sys_setuid(uid_t uid)
 {
 	if (!capable(CAP_SETUID))
+	{
 		return -EPERM;
-	current->uid.val  = uid;
+	}
+	current->uid.val = uid;
 	current->euid.val = uid;
 	return 0;
 }
@@ -35,13 +37,14 @@ int sys_setuid(uid_t uid)
  * @param inheritable 継承 Capability の格納先（NULL で省略可）
  * @return 0: 成功, -ESRCH: PID が見つからない, -EINVAL: 引数不正
  */
-int sys_capget(pid_t pid, kernel_cap_t *effective,
-               kernel_cap_t *permitted, kernel_cap_t *inheritable)
+int sys_capget(pid_t pid, kernel_cap_t *effective, kernel_cap_t *permitted, kernel_cap_t *inheritable)
 {
 	struct task_struct *tsk = (pid == 0) ? current : find_task_by_pid(pid);
 
 	if (!tsk)
+	{
 		return -ESRCH;
+	}
 	return cap_capget(tsk, effective, permitted, inheritable);
 }
 
@@ -52,12 +55,13 @@ int sys_capget(pid_t pid, kernel_cap_t *effective,
  * @param inheritable 設定する継承 Capability（現在は無視）
  * @return 0: 成功, -ESRCH: PID が見つからない, -EINVAL/-EPERM: cap_capset に準じる
  */
-int sys_capset(pid_t pid, const kernel_cap_t *effective,
-               const kernel_cap_t *permitted, const kernel_cap_t *inheritable)
+int sys_capset(pid_t pid, const kernel_cap_t *effective, const kernel_cap_t *permitted, const kernel_cap_t *inheritable)
 {
 	struct task_struct *tsk = (pid == 0) ? current : find_task_by_pid(pid);
 
 	if (!tsk)
+	{
 		return -ESRCH;
+	}
 	return cap_capset(tsk, effective, permitted, inheritable);
 }
