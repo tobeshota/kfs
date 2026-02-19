@@ -82,9 +82,18 @@ struct sched_entity
 #define __TASK_STOPPED 0x0004		/* 停止（SIGSTOP等） */
 #define __TASK_TRACED 0x0008		/* トレース中（ptrace） */
 #define TASK_PARKED 0x0040			/* パーク状態 */
-#define TASK_DEAD 0x0080			/* 終了状態 */
+#define TASK_DEAD 0x0080			/* 終了状態（CPUスケジューリング対象から除外） */
 #define TASK_WAKEKILL 0x0100		/* SIGKILLで起床可能 */
 #define TASK_WAKING 0x0200			/* 起床処理中 */
+
+/** プロセスの終了状態
+ * @brief task_struct->exit_stateの値（__stateとは独立したフィールド）
+ * @note Linuxでは__state（スケジューラ用）とexit_state（終了遷移用）を分離している
+ * @see Linux 6.18 include/linux/sched.h
+ */
+#define EXIT_DEAD 0x0010   /* release_task()完了後（完全解放準備済み） */
+#define EXIT_ZOMBIE 0x0020 /* 終了済み・親がwait()で回収するまで */
+#define EXIT_TRACE (EXIT_ZOMBIE | EXIT_DEAD)
 
 /* タスクフラグ(task_struct->flagsの値) */
 #define PF_EXITING 0x00000004 /* 終了中 */
@@ -129,6 +138,11 @@ struct task_struct
 
 	/* プロセス名 */
 	char comm[TASK_COMM_LEN]; /* プロセス名（最大16バイト） */
+
+	/* プロセス終了情報 */
+	int exit_state;	 /* 終了遷移状態（EXIT_ZOMBIE/EXIT_DEAD） */
+	int exit_code;	 /* プロセス終了コード（do_wait()で親に返される） */
+	int exit_signal; /* 終了時に親に送るシグナル番号（通常SIGCHLD） */
 };
 
 #endif /* _KFS_SCHED_H */
