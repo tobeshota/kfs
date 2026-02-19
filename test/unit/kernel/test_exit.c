@@ -1,5 +1,7 @@
 #include "../test_reset.h"
 #include "unit_test_framework.h"
+#include <kfs/gfp.h>
+#include <kfs/mm.h>
 #include <kfs/pid.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
@@ -189,6 +191,55 @@ KFS_TEST(test_do_exit_reparent_children)
 	printk("do_exit reparent children test passed\n");
 }
 
+/** do_exit()がpgdありのmm_structを正しく解放することをテスト */
+KFS_TEST(test_do_exit_frees_pgd)
+{
+	struct task_struct *parent;
+	struct task_struct *child;
+	struct mm_struct *parent_mm;
+	pgd_t *parent_pgd;
+
+	/* 親のmm_structを割り当て */
+	parent_mm = kmalloc(sizeof(*parent_mm));
+	KFS_ASSERT_TRUE(parent_mm != NULL);
+
+	/* 親のpgdを割り当て */
+	parent_pgd = (pgd_t *)alloc_pages(GFP_KERNEL | GFP_ZERO, 0);
+	KFS_ASSERT_TRUE(parent_pgd != NULL);
+	parent_mm->pgd = parent_pgd;
+	parent_mm->mm_count.counter = 1;
+	parent_mm->brk = 0;
+	parent_mm->start_stack = 0;
+
+	/* 親のinit_taskコピーにmm_structをセット */
+	parent = &init_task;
+	parent->mm = parent_mm;
+
+	/* 子プロセスを作成（pgdが独立コピーされる） */
+	child = copy_process(parent);
+	KFS_ASSERT_TRUE(child != NULL);
+	KFS_ASSERT_TRUE(child->mm != NULL);
+	KFS_ASSERT_TRUE(child->mm->pgd != NULL);
+	KFS_ASSERT_TRUE(child->mm->pgd != parent_pgd); /* 独立したpgd */
+
+	/* 子プロセスを終了（pgdが解放される） */
+	current = child;
+	do_exit(0);
+
+	/* mm_structが解放されていること */
+	KFS_ASSERT_TRUE(child->mm == NULL);
+
+	/* 親のmm_structはそのままであること */
+	KFS_ASSERT_TRUE(parent->mm == parent_mm);
+
+	/* クリーンアップ */
+	parent->mm = NULL;
+	kfree(parent_mm);
+	current = &init_task;
+
+	printk("do_exit frees pgd test passed\n");
+}
+
 /** release_task()の基本テスト */
 KFS_TEST(test_release_task_basic)
 {
@@ -247,6 +298,7 @@ KFS_TEST(test_sys_exit)
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_mm_cleanup, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_frees_pgd, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_reparent_children, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_release_task_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_exit, setup_test, teardown_test),
