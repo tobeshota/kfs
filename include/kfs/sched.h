@@ -1,12 +1,16 @@
 #ifndef _KFS_SCHED_H
 #define _KFS_SCHED_H
 
+#include <kfs/capability.h>
 #include <kfs/list.h>
 #include <kfs/mm_types.h>
 #include <kfs/pid.h>
 #include <kfs/rbtree.h>
 #include <kfs/signal.h>
 #include <kfs/stdint.h>
+
+/** 現在のプロセスが指定 Capability を持つか確認する */
+#define capable(cap) (cap_raised(current->cap_effective, (cap)) != 0)
 
 /* ユーザーID型 */
 typedef unsigned int uid_t;
@@ -23,24 +27,6 @@ typedef struct
  * @note 単一CPUを前提とする場合，通常のintと同じ
  */
 typedef int refcount_t;
-
-/* POSIX Capability型 */
-typedef struct
-{
-	uint32_t cap[2]; /* Capabilityビットマスク（64ビット = u32 x 2） */
-} kernel_cap_t;
-
-/* POSIX Capability */
-#define CAP_CHOWN 0		   /* ファイル所有者変更 */
-#define CAP_DAC_OVERRIDE 1 /* DAC（任意アクセス制御）を無視 */
-#define CAP_KILL 5		   /* 任意プロセスへシグナル送信 */
-#define CAP_SETUID 7	   /* UID設定 */
-#define CAP_SYS_ADMIN 21   /* システム管理操作 */
-
-/* 全Capability有効 */
-#define CAP_FULL_SET ((kernel_cap_t){{0xffffffff, 0xffffffff}})
-/* 全Capability無効 */
-#define CAP_EMPTY_SET ((kernel_cap_t){{0, 0}})
 
 /** シグナル共有情報
  * Linux 6.18ではスレッドグループで共有されるシグナル情報
@@ -144,5 +130,8 @@ struct task_struct
 	int exit_code;	 /* プロセス終了コード（do_wait()で親に返される） */
 	int exit_signal; /* 終了時に親に送るシグナル番号（通常SIGCHLD） */
 };
+
+/* 現在実行中のプロセス（kernel/sched/core.c で定義） */
+extern struct task_struct *current;
 
 #endif /* _KFS_SCHED_H */
