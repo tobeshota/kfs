@@ -19,16 +19,21 @@
  * @param inheritable 継承 Capability の格納先（NULLで省略可）
  * @return 0: 成功, -EINVAL: 引数が不正
  */
-int cap_capget(struct task_struct *tsk, kernel_cap_t *effective,
-               kernel_cap_t *permitted, kernel_cap_t *inheritable)
+int cap_capget(struct task_struct *tsk, kernel_cap_t *effective, kernel_cap_t *permitted, kernel_cap_t *inheritable)
 {
 	if (!tsk || !effective)
+	{
 		return -EINVAL;
+	}
 	*effective = tsk->cap_effective;
 	if (permitted)
-		*permitted = CAP_EMPTY_SET;   /* 未実装 */
+	{
+		*permitted = CAP_EMPTY_SET; /* 未実装 */
+	}
 	if (inheritable)
+	{
 		*inheritable = CAP_EMPTY_SET; /* 未実装 */
+	}
 	return 0;
 }
 
@@ -41,13 +46,17 @@ int cap_capget(struct task_struct *tsk, kernel_cap_t *effective,
  * @param inheritable 設定する継承 Capability（現在は無視）
  * @return 0: 成功, -EINVAL: 引数が不正, -EPERM: 権限不足（CAP_SETPCAP が必要）
  */
-int cap_capset(struct task_struct *tsk, const kernel_cap_t *effective,
-               const kernel_cap_t *permitted, const kernel_cap_t *inheritable)
+int cap_capset(struct task_struct *tsk, const kernel_cap_t *effective, const kernel_cap_t *permitted,
+			   const kernel_cap_t *inheritable)
 {
 	if (!tsk || !effective)
+	{
 		return -EINVAL;
+	}
 	if (!capable(CAP_SETPCAP))
+	{
 		return -EPERM;
+	}
 	tsk->cap_effective = *effective;
 	(void)permitted;   /* 未実装 */
 	(void)inheritable; /* 未実装 */

@@ -17,7 +17,7 @@ static void setup_test(void)
 {
 	reset_all_state_for_test();
 	current = &init_task;
-	current->uid.val  = 0;
+	current->uid.val = 0;
 	current->euid.val = 0;
 	current->cap_effective = CAP_FULL_SET;
 }
@@ -84,7 +84,7 @@ KFS_TEST(test_sys_capget_invalid_pid_returns_esrch)
 KFS_TEST(test_sys_capset_pid0_updates_current)
 {
 	kernel_cap_t new_cap = CAP_EMPTY_SET;
-	kernel_cap_t got     = CAP_FULL_SET;
+	kernel_cap_t got = CAP_FULL_SET;
 
 	cap_raise(current->cap_effective, CAP_SETPCAP);
 	cap_raise(new_cap, CAP_KILL);
