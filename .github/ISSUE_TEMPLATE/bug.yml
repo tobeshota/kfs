@@ -22,7 +22,7 @@ body:
       label: Cosense
       description: Please post the Cosense URL.
     validations:
-      required: true
+      required: false
   - type: textarea
     id: pr
     attributes:
