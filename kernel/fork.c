@@ -13,8 +13,9 @@
 
 /** task_struct用スラブキャッシュ
  * @note 頻繁に割り当て/解放されるため、スラブアロケータで高速化
+ * @note exit.cからも参照されるためグローバル変数
  */
-static struct kmem_cache *task_struct_cachep = NULL;
+struct kmem_cache *task_struct_cachep = NULL;
 
 /** task_structを複製
  * @param orig コピー元のtask_struct
@@ -42,6 +43,14 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 
 	/* task_structの内容をコピー */
 	memcpy(tsk, orig, sizeof(*tsk));
+
+	// リスト系フィールドを初期化し，親のチェーンへのポインタを引き継がないようにする
+	INIT_LIST_HEAD(&tsk->children);
+	INIT_LIST_HEAD(&tsk->sibling);
+	INIT_LIST_HEAD(&tsk->tasks);
+	tsk->se.run_node.__rb_parent_color = 0;
+	tsk->se.run_node.rb_right = NULL;
+	tsk->se.run_node.rb_left = NULL;
 
 	/** 新しいスタックを設定する
 	 * @note スタックの値は親プロセスから引き継がない（子プロセスは新しいスタックを使うため）
@@ -75,7 +84,7 @@ static int copy_mm(struct task_struct *tsk, struct mm_struct *oldmm)
 		return -ENOMEM;
 	}
 
-	/* mm_structの内容をコピー（Phase 6でページテーブルコピー実装予定） */
+	/* mm_structの内容をコピー（Phase 4でページテーブルコピー実装予定） */
 	memcpy(mm, oldmm, sizeof(*mm));
 
 	/* 参照カウントを初期化 */
@@ -187,7 +196,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 	return p;
 }
 
-/** プロセスをfork
+/** プロセスを誕生させる
  * @return 新しいプロセスのPID（成功）、負のエラーコード（失敗）
  * @note Linux 6.18のkernel_clone()相当。Phase 10でsys_fork()から呼ばれる
  */

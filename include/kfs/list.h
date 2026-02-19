@@ -162,4 +162,12 @@ static inline int list_empty(const struct list_head *head)
 	for (pos = list_entry((head)->next, typeof(*pos), member); &pos->member != (head);                                 \
 		 pos = list_entry(pos->member.next, typeof(*pos), member))
 
+/** リストの各要素に対して安全にループ処理を行う（要素削除可能）
+ * @param pos 現在のノードポインタ
+ * @param n 次のノード一時保存用ポインタ
+ * @param head リストヘッド
+ * @note ループ内でlist_del(pos)を呼んでも安全
+ */
+#define list_for_each_safe(pos, n, head) for (pos = (head)->next, n = pos->next; pos != (head); pos = n, n = pos->next)
+
 #endif /* _KFS_LIST_H */
