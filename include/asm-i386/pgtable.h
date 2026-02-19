@@ -237,5 +237,7 @@ static inline void pde_clear(pde_t *pde)
 
 pte_t *get_pte(unsigned long vaddr);
 int map_page(unsigned long vaddr, unsigned long paddr, unsigned long flags);
+int copy_page_tables(pgd_t *dst_pgd, pgd_t *src_pgd);
+void free_page_tables(pgd_t *pgd);
 
 #endif /* _ASM_I386_PGTABLE_H */

@@ -1,3 +1,4 @@
+#include <asm-i386/pgtable.h>
 #include <kfs/mm.h>
 #include <kfs/pid.h>
 #include <kfs/sched.h>
@@ -30,7 +31,8 @@ void do_exit(int code)
 		tsk->mm->mm_count.counter--;
 		if (tsk->mm->mm_count.counter == 0)
 		{
-			/* 最後の参照なら解放（Phase 4でfree_page_tables()追加予定） */
+			/* 最後の参照ならページテーブルとmm_structを解放 */
+			free_page_tables(tsk->mm->pgd);
 			kfree(tsk->mm);
 		}
 		tsk->mm = NULL;

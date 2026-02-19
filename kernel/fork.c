@@ -1,4 +1,6 @@
+#include <asm-i386/pgtable.h>
 #include <kfs/errno.h>
+#include <kfs/gfp.h>
 #include <kfs/mm.h>
 #include <kfs/pid.h>
 #include <kfs/sched.h>
@@ -64,11 +66,13 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
  * @param tsk コピー先のtask_struct
  * @param oldmm コピー元のmm_struct
  * @return 0（成功）、負のエラーコード（失敗）
- * @note Phase 6でCOW[Copy On Write]実装予定
+ * @note COW（Copy On Write）はPhase 6で実装予定
  */
 static int copy_mm(struct task_struct *tsk, struct mm_struct *oldmm)
 {
 	struct mm_struct *mm;
+	pgd_t *new_pgd;
+	int ret;
 
 	/* カーネルスレッド（mm == NULL）の場合はコピー不要 */
 	if (!oldmm)
@@ -84,8 +88,27 @@ static int copy_mm(struct task_struct *tsk, struct mm_struct *oldmm)
 		return -ENOMEM;
 	}
 
-	/* mm_structの内容をコピー（Phase 4でページテーブルコピー実装予定） */
+	/* mm_structのメタデータをコピー */
 	memcpy(mm, oldmm, sizeof(*mm));
+
+	/* ページテーブルを複製（子プロセスのメモリ空間を親から分離） */
+	if (oldmm->pgd)
+	{
+		new_pgd = (pgd_t *)alloc_pages(GFP_KERNEL | GFP_ZERO, 0);
+		if (!new_pgd)
+		{
+			kfree(mm);
+			return -ENOMEM;
+		}
+		ret = copy_page_tables(new_pgd, oldmm->pgd);
+		if (ret < 0)
+		{
+			free_pages((struct page *)new_pgd, 0);
+			kfree(mm);
+			return ret;
+		}
+		mm->pgd = new_pgd;
+	}
 
 	/* 参照カウントを初期化 */
 	mm->mm_count.counter = 1;
