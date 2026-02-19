@@ -5,7 +5,16 @@
 
 #include "../test_reset.h"
 #include "../unit_test_framework.h"
+#include <kfs/errno.h>
+#include <kfs/pid.h>
+#include <kfs/sched.h>
 #include <kfs/signal.h>
+
+/* current、init_task、task_list は kernel/sched/core.c で定義 */
+extern struct task_struct *current;
+extern struct task_struct init_task;
+extern struct list_head task_list;
+extern void init_idle_task(void);
 
 /* テスト用のハンドラ呼び出し記録 */
 static int handler_called;
@@ -14,7 +23,32 @@ static int handler_received_sig;
 /* 全テストで共通のセットアップ関数 */
 static void setup_test(void)
 {
+	int i;
+
 	reset_all_state_for_test();
+
+	/* task_listとinit_taskのリストをリセット（sys_kill用） */
+	INIT_LIST_HEAD(&task_list);
+	INIT_LIST_HEAD(&init_task.tasks);
+	init_task.pid = 0;
+	init_task.parent = &init_task;
+
+	/* init_taskをタスクリストに追加 */
+	init_idle_task();
+
+	/* currentをinit_taskにリセット */
+	current = &init_task;
+
+	/* 保留シグナルをクリア */
+	current->pending.signal = 0;
+
+	/* シグナルアクションテーブルをSIG_DFLにリセット */
+	for (i = 0; i < _NSIG; i++)
+	{
+		current->sig_actions[i].sa_handler = SIG_DFL;
+		current->sig_actions[i].sa_flags = 0;
+	}
+
 	handler_called = 0;
 	handler_received_sig = 0;
 }
@@ -22,6 +56,9 @@ static void setup_test(void)
 /* 全テストで共通のクリーンアップ関数 */
 static void teardown_test(void)
 {
+	/* 保留シグナルをクリア */
+	current->pending.signal = 0;
+
 	/* シグナルハンドラをデフォルトにリセット */
 	signal(SIGINT, SIG_DFL);
 	signal(SIGTERM, SIG_DFL);
@@ -217,6 +254,98 @@ KFS_TEST(test_signal_pending_reports_correctly)
 	KFS_ASSERT_EQ(0, signal_pending());
 }
 
+/* send_signal()が対象プロセスの保留シグナルをセットすることをテスト */
+KFS_TEST(test_send_signal_sets_pending)
+{
+	struct task_struct target;
+	int i;
+	int ret;
+
+	/* ターゲットプロセスを初期化 */
+	target.pending.signal = 0;
+	for (i = 0; i < _NSIG; i++)
+	{
+		target.sig_actions[i].sa_handler = SIG_DFL;
+		target.sig_actions[i].sa_flags = 0;
+	}
+
+	/* currentには保留シグナルなし */
+	KFS_ASSERT_EQ(0, signal_pending());
+
+	/* targetにシグナルを送信 */
+	ret = send_signal(SIGUSR1, &target);
+	KFS_ASSERT_EQ(0, ret);
+
+	/* targetにシグナルが保留中になる */
+	KFS_ASSERT_TRUE(target.pending.signal & (1UL << SIGUSR1));
+
+	/* currentには影響しない */
+	KFS_ASSERT_EQ(0, signal_pending());
+}
+
+/* send_signal()がNULLプロセスを拒否することをテスト */
+KFS_TEST(test_send_signal_null_process)
+{
+	int ret;
+
+	ret = send_signal(SIGINT, (struct task_struct *)0);
+	KFS_ASSERT_EQ(-1, ret);
+}
+
+/* send_signal()が無効なシグナル番号を拒否することをテスト */
+KFS_TEST(test_send_signal_invalid_signum)
+{
+	int ret;
+
+	ret = send_signal(0, current);
+	KFS_ASSERT_EQ(-1, ret);
+
+	ret = send_signal(-1, current);
+	KFS_ASSERT_EQ(-1, ret);
+
+	ret = send_signal(_NSIG, current);
+	KFS_ASSERT_EQ(-1, ret);
+}
+
+/* sys_kill()が有効なPIDにシグナルを送信することをテスト */
+KFS_TEST(test_sys_kill_valid_pid)
+{
+	int ret;
+
+	/* init_task (PID 0) へSIGINTを送信 */
+	ret = sys_kill(0, SIGINT);
+	KFS_ASSERT_EQ(0, ret);
+
+	/* init_taskの保留シグナルにSIGINTがセットされる */
+	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGINT));
+}
+
+/* sys_kill()が存在しないPIDを拒否することをテスト */
+KFS_TEST(test_sys_kill_invalid_pid)
+{
+	int ret;
+
+	/* 存在しないPIDへのシグナル送信はエラー */
+	ret = sys_kill(9999, SIGINT);
+	KFS_ASSERT_EQ(-ESRCH, ret);
+}
+
+/* sys_signal()がsignal()と同等に動作することをテスト */
+KFS_TEST(test_sys_signal_same_as_signal)
+{
+	sighandler_t old;
+
+	/* sys_signal()でハンドラを登録 */
+	old = sys_signal(SIGINT, test_handler);
+	KFS_ASSERT_EQ((long)SIG_DFL, (long)old);
+
+	/* 登録したハンドラが有効 */
+	raise(SIGINT);
+	do_signal();
+	KFS_ASSERT_EQ(1, handler_called);
+	KFS_ASSERT_EQ(SIGINT, handler_received_sig);
+}
+
 /* テスト登録 */
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_signal_register_handler, setup_test, teardown_test),
@@ -229,6 +358,12 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_handles_sig_dfl, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_multiple_signals, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_signal_pending_reports_correctly, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_sets_pending, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_null_process, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_invalid_signum, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_kill_valid_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_kill_invalid_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_signal_same_as_signal, setup_test, teardown_test),
 };
 
 int register_unit_tests_signal(struct kfs_test_case **out)

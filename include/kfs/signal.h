@@ -60,4 +60,13 @@ int raise(int sig);
 void do_signal(void);
 int signal_pending(void);
 
+/* 特定プロセスへシグナルを送信する関数群 */
+struct task_struct; /* 前方宣言（task_struct の循環インクルードを避けるため） */
+
+#include <kfs/pid.h> /* pid_t */
+
+int send_signal(int sig, struct task_struct *p);
+int sys_kill(pid_t pid, int sig);
+sighandler_t sys_signal(int sig, sighandler_t handler);
+
 #endif /* _SIGNAL_H_ */
