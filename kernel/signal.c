@@ -1,16 +1,11 @@
+#include <kfs/errno.h>
+#include <kfs/pid.h>
+#include <kfs/sched.h>
 #include <kfs/signal.h>
 #include <kfs/stddef.h>
 
-/** シグナルアクションテーブル
- * @brief 各シグナルのハンドラを保持する
- */
-static struct sigaction sig_actions[_NSIG];
-
-/** 保留中シグナルのビットマスク
- * @brief 発生したがまだ処理されていないシグナル
- * @note マルチプロセス環境ではpending_signalsをプロセスごとに保有する
- */
-static unsigned long pending_signals;
+/** 現在実行中プロセス（kernel/sched/core.cで定義） */
+extern struct task_struct *current;
 
 /** シグナル番号が有効範囲内かを検証する
  * @param sig 検証するシグナル番号
@@ -44,31 +39,22 @@ sighandler_t signal(int sig, sighandler_t handler)
 	}
 
 	/* 以前のハンドラを帰り値として保存する */
-	old_handler = sig_actions[sig].sa_handler;
+	old_handler = current->sig_actions[sig].sa_handler;
 
 	/* 新しいハンドラを設定する */
-	sig_actions[sig].sa_handler = handler;
+	current->sig_actions[sig].sa_handler = handler;
 
 	return old_handler;
 }
 
-/** シグナルを発生させる
- * @brief シグナルを保留キューに追加する
+/** 現在のプロセスにシグナルを発生させる
+ * @brief send_signal(sig, current) のラッパー（POSIX互換名）
  * @param sig 発生させるシグナル番号
  * @return 成功時は0、エラー時は-1
  */
 int raise(int sig)
 {
-	/* シグナル番号の有効性を検証 */
-	if (!valid_signal(sig))
-	{
-		return -1;
-	}
-
-	/* 保留シグナルビットマスクに該当シグナルをセット */
-	pending_signals |= (1UL << sig);
-
-	return 0;
+	return send_signal(sig, current);
 }
 
 /** 保留中シグナルを処理する
@@ -80,7 +66,7 @@ void do_signal(void)
 	sighandler_t handler;
 
 	/* 保留シグナルがなければ何もしない */
-	if (pending_signals == 0)
+	if (current->pending.signal == 0)
 	{
 		return;
 	}
@@ -89,15 +75,15 @@ void do_signal(void)
 	for (sig = 1; sig < _NSIG; sig++)
 	{
 		/* このシグナルが保留中でなければスキップ */
-		if (!(pending_signals & (1UL << sig)))
+		if (!(current->pending.signal & (1UL << sig)))
 		{
 			continue;
 		}
 
 		/* 保留ビットをクリア（処理済みにする） */
-		pending_signals &= ~(1UL << sig);
+		current->pending.signal &= ~(1UL << sig);
 
-		handler = sig_actions[sig].sa_handler;
+		handler = current->sig_actions[sig].sa_handler;
 
 		/* SIG_IGNなら無視 */
 		if (handler == SIG_IGN)
@@ -122,5 +108,68 @@ void do_signal(void)
  */
 int signal_pending(void)
 {
-	return pending_signals != 0;
+	return current->pending.signal != 0;
+}
+
+/** 特定プロセスへシグナルを送信する
+ * @brief 対象プロセスの保留シグナルビットマスクにシグナルをセットする
+ * @param sig 送信するシグナル番号
+ * @param p   送信先プロセス
+ * @return 成功時は0、エラー時は-1
+ */
+int send_signal(int sig, struct task_struct *p)
+{
+	/* シグナル番号の有効性を検証 */
+	if (!valid_signal(sig))
+	{
+		return -1;
+	}
+
+	if (p == (struct task_struct *)0)
+	{
+		return -1;
+	}
+
+	/* 対象プロセスの保留シグナルビットマスクにセット */
+	p->pending.signal |= (1UL << sig);
+
+	return 0;
+}
+
+/** killシステムコール用ヘルパー
+ * @brief 指定PIDのプロセスにシグナルを送信する
+ * @param pid  送信先プロセスID
+ * @param sig  送信するシグナル番号
+ * @return 成功時は0、エラー時は負のエラーコード
+ */
+int sys_kill(pid_t pid, int sig)
+{
+	struct task_struct *p;
+
+	/* 送信先プロセスをPIDで検索 */
+	p = find_task_by_pid(pid);
+	if (p == (struct task_struct *)0)
+	{
+		return -ESRCH; /* プロセスが存在しない */
+	}
+
+	/* シグナルを送信 */
+	if (send_signal(sig, p) != 0)
+	{
+		return -EINVAL; /* 無効なシグナル番号 */
+	}
+
+	return 0;
+}
+
+/** signalシステムコール用ヘルパー
+ * @brief 現在のプロセスのシグナルハンドラを設定する
+ * @param sig     シグナル番号
+ * @param handler 設定するハンドラ関数
+ * @return 以前のハンドラ、エラー時はSIG_ERR
+ */
+sighandler_t sys_signal(int sig, sighandler_t handler)
+{
+	/* signal()と同一の処理（currentに対して動作する） */
+	return signal(sig, handler);
 }

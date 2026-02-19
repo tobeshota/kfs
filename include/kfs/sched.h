@@ -3,11 +3,10 @@
 
 #include <kfs/list.h>
 #include <kfs/mm_types.h>
+#include <kfs/pid.h>
 #include <kfs/rbtree.h>
+#include <kfs/signal.h>
 #include <kfs/stdint.h>
-
-/* プロセスID型 */
-typedef int pid_t;
 
 /* ユーザーID型 */
 typedef unsigned int uid_t;
@@ -130,8 +129,9 @@ struct task_struct
 	kernel_cap_t cap_effective; /* 有効なCapability */
 
 	/* シグナル */
-	struct signal_struct *signal; /* シグナル共有情報 */
-	struct sigpending pending;	  /* 保留シグナル */
+	struct signal_struct *signal;		 /* シグナル共有情報 */
+	struct sigpending pending;			 /* 保留シグナル */
+	struct sigaction sig_actions[_NSIG]; /* プロセスごとのシグナルアクションテーブル */
 
 	/* スケジューリング（CFS用） */
 	struct sched_entity se; /* スケジューリングエンティティ（se.run_node, se.vruntimeを使用） */
