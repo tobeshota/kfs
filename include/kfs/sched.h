@@ -131,4 +131,7 @@ struct task_struct
 	int exit_signal; /* 終了時に親に送るシグナル番号（通常SIGCHLD） */
 };
 
+/* 現在実行中のプロセス（kernel/sched/core.c で定義） */
+extern struct task_struct *current;
+
 #endif /* _KFS_SCHED_H */
