@@ -24,4 +24,8 @@ typedef struct
 /* 全Capability無効 */
 #define CAP_EMPTY_SET ((kernel_cap_t){{0, 0}})
 
+#define cap_raise(c, flag)  ((c).cap[(flag) >> 5] |=  (1u << ((flag) & 31))) /* flagを有効化する */
+#define cap_lower(c, flag)  ((c).cap[(flag) >> 5] &= ~(1u << ((flag) & 31))) /* flagを無効化する */
+#define cap_raised(c, flag) ((c).cap[(flag) >> 5] &   (1u << ((flag) & 31))) /* flagが有効なら0以外の値を返す */
+
 #endif /* _KFS_CAPABILITY_H */
