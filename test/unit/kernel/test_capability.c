@@ -6,6 +6,7 @@
 #include "../test_reset.h"
 #include "../unit_test_framework.h"
 #include <kfs/capability.h>
+#include <kfs/errno.h>
 #include <kfs/sched.h>
 
 /* current は kernel/sched/core.c で定義 */
@@ -141,6 +142,54 @@ KFS_TEST(test_capable_after_cap_lower)
 	KFS_ASSERT_TRUE(!(capable(CAP_SETUID)));
 }
 
+/* cap_capget がタスクの cap_effective を正しく取得できることを確かめる */
+KFS_TEST(test_cap_capget_gets_effective)
+{
+	kernel_cap_t eff = CAP_EMPTY_SET;
+
+	current->cap_effective = CAP_FULL_SET;
+	// current の cap_effective を eff にコピーする．成功して 0 が返るはず．
+	KFS_ASSERT_EQ(0, cap_capget(current, &eff, NULL, NULL));
+
+	// eff が CAP_FULL_SET と等しいことを確かめる．
+	KFS_ASSERT_TRUE(eff.cap[0] == CAP_FULL_SET.cap[0]);
+	KFS_ASSERT_TRUE(eff.cap[1] == CAP_FULL_SET.cap[1]);
+}
+
+/* cap_capset がタスクの cap_effective を正しく更新できることを確かめる */
+KFS_TEST(test_cap_capset_updates_effective)
+{
+	kernel_cap_t new_cap = CAP_EMPTY_SET;
+	kernel_cap_t got = CAP_FULL_SET;
+
+	current->cap_effective = CAP_EMPTY_SET;
+	cap_raise(current->cap_effective, CAP_SETPCAP); /* cap_capset の権限チェックを通過するため */
+
+	// new_cap に CAP_KILL をセットする
+	cap_raise(new_cap, CAP_KILL);
+
+	// current の cap_effective を new_cap に更新する．成功して 0 が返るはず．
+	KFS_ASSERT_EQ(0, cap_capset(current, &new_cap, NULL, NULL));
+	// current の cap_effective を got にコピーする．成功して 0 が返るはず．
+	KFS_ASSERT_EQ(0, cap_capget(current, &got, NULL, NULL));
+
+	// got が new_cap と等しいことを確かめる．
+	KFS_ASSERT_TRUE(got.cap[0] == new_cap.cap[0]);
+	KFS_ASSERT_TRUE(got.cap[1] == new_cap.cap[1]);
+}
+
+/* CAP_SETPCAP を持たない場合 cap_capset が -EPERM を返すことを確かめる */
+KFS_TEST(test_cap_capset_requires_cap_setpcap)
+{
+	kernel_cap_t new_cap = CAP_FULL_SET;
+
+	cap_lower(current->cap_effective, CAP_SETPCAP);
+
+	// current の cap_effective を new_cap に更新しようとする．
+	// CAP_SETPCAP を持たないため -EPERM が返るはず．
+	KFS_ASSERT_EQ(-EPERM, cap_capset(current, &new_cap, NULL, NULL));
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_cap_raise_sets_bit, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cap_raise_does_not_affect_other_bits, setup_test, teardown_test),
@@ -153,6 +202,9 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_capable_returns_false_when_cap_empty, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_capable_returns_true_for_specific_cap_only, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_capable_after_cap_lower, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cap_capget_gets_effective, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cap_capset_updates_effective, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cap_capset_requires_cap_setpcap, setup_test, teardown_test),
 };
 
 int register_unit_tests_capability(struct kfs_test_case **out)
