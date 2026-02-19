@@ -1,6 +1,6 @@
 .DS_Store/
 .vscode/
-isodir/
+isodir-bios/
 isodir-uefi/
 build/
 report/
