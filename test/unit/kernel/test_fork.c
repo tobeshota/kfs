@@ -1,5 +1,7 @@
 #include "../test_reset.h"
 #include "unit_test_framework.h"
+#include <kfs/gfp.h>
+#include <kfs/mm.h>
 #include <kfs/pid.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
@@ -172,7 +174,52 @@ KFS_TEST(test_copy_process_parent_child)
 	printk("copy_process parent-child test passed\n");
 }
 
-/** find_task_by_pid()の基本テスト */
+/** copy_process()でpgdありの親から独立したメモリ空間を持つ子が生成されることをテスト */
+KFS_TEST(test_copy_process_independent_pgd)
+{
+	struct task_struct parent;
+	struct task_struct *child;
+	struct mm_struct parent_mm = {0};
+	pgd_t *parent_pgd;
+
+	/* 親task_structを初期化 */
+	memset(&parent, 0, sizeof(parent));
+	parent.__state = TASK_RUNNING;
+	parent.pid = 1;
+	parent.flags = 0;
+	INIT_LIST_HEAD(&parent.children);
+	INIT_LIST_HEAD(&parent.sibling);
+	INIT_LIST_HEAD(&parent.tasks);
+	parent.signal = NULL;
+	INIT_LIST_HEAD(&parent.pending.list);
+	parent.pending.signal = 0;
+
+	/* 親にpgdありのmm_structを設定 */
+	parent_pgd = (pgd_t *)alloc_pages(GFP_KERNEL | GFP_ZERO, 0);
+	KFS_ASSERT_TRUE(parent_pgd != NULL);
+	parent_mm.pgd = parent_pgd;
+	parent_mm.mm_count.counter = 1;
+	parent.mm = &parent_mm;
+
+	/* copy_process()でコピー */
+	child = copy_process(&parent);
+	KFS_ASSERT_TRUE(child != NULL);
+
+	/* 子のmm_structが独立したインスタンスであること */
+	KFS_ASSERT_TRUE(child->mm != NULL);
+	KFS_ASSERT_TRUE(child->mm != parent.mm);
+
+	/* 子のpgdが親と異なるポインタ（独立したコピー）であること */
+	KFS_ASSERT_TRUE(child->mm->pgd != NULL);
+	KFS_ASSERT_TRUE(child->mm->pgd != parent_pgd);
+
+	/* 親のpgdはそのまま残っていること */
+	KFS_ASSERT_TRUE(parent_mm.pgd == parent_pgd);
+
+	printk("copy_process independent pgd test passed\n");
+}
+
+/** do_fork()の基本テスト */
 KFS_TEST(test_find_task_by_pid_basic)
 {
 	struct task_struct *task;
@@ -227,6 +274,7 @@ KFS_TEST(test_do_fork_basic)
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_mm, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_independent_pgd, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_parent_child, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_find_task_by_pid_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_find_task_by_pid_not_found, setup_test, teardown_test),

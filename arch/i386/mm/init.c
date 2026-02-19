@@ -163,3 +163,90 @@ int map_page_vmalloc(unsigned long vaddr, unsigned long paddr, unsigned long fla
 
 	return 0;
 }
+
+/** ページテーブルをコピー（fork用）
+ * @param dst_pgd コピー先のページディレクトリ
+ * @param src_pgd コピー元のページディレクトリ
+ * @return 0=成功、負数=エラー
+ * @note Phase 4: プロセスメモリ分離
+ * @note Phase 6でCOW（Copy On Write）を実装予定
+ */
+int copy_page_tables(pgd_t *dst_pgd, pgd_t *src_pgd)
+{
+	int pde_idx;
+	pde_t src_pde, *dst_pde;
+	pte_t *src_pt, *dst_pt;
+	struct page *new_pt_page;
+
+	if (!dst_pgd || !src_pgd)
+	{
+		return -ENOMEM;
+	}
+
+	/* 全ページディレクトリエントリを走査 */
+	for (pde_idx = 0; pde_idx < PTRS_PER_PGD; pde_idx++)
+	{
+		src_pde = src_pgd[pde_idx];
+
+		/* ソースのPDEが存在しない場合はスキップ */
+		if (!pde_present(src_pde))
+		{
+			continue;
+		}
+
+		/* 新しいページテーブルを割り当て */
+		new_pt_page = alloc_pages(GFP_KERNEL | GFP_ZERO, 0);
+		if (!new_pt_page)
+		{
+			/* TODO: 既に割り当てたページテーブルをクリーンアップ */
+			return -ENOMEM;
+		}
+
+		dst_pt = (pte_t *)new_pt_page;
+		src_pt = (pte_t *)pde_page(src_pde);
+
+		/* ページテーブル全体をコピー（Phase 6でCOW最適化予定） */
+		memcpy(dst_pt, src_pt, PAGE_SIZE);
+
+		/* 新しいページテーブルをページディレクトリに設定 */
+		dst_pde = &dst_pgd[pde_idx];
+		set_pde(dst_pde, (unsigned long)dst_pt, pde_val(src_pde) & ~PAGE_MASK);
+	}
+
+	return 0;
+}
+
+/** ページテーブルを解放（プロセス終了時）
+ * @param pgd 解放するページディレクトリ
+ * @note Phase 4: プロセスメモリ分離
+ */
+void free_page_tables(pgd_t *pgd)
+{
+	int pde_idx;
+	pde_t pde;
+	pte_t *pt;
+
+	if (!pgd)
+	{
+		return;
+	}
+
+	/* 全ページディレクトリエントリを走査 */
+	for (pde_idx = 0; pde_idx < PTRS_PER_PGD; pde_idx++)
+	{
+		pde = pgd[pde_idx];
+
+		/* PDEが存在しない場合はスキップ */
+		if (!pde_present(pde))
+		{
+			continue;
+		}
+
+		/* ページテーブルを解放 */
+		pt = (pte_t *)pde_page(pde);
+		free_pages((struct page *)pt, 0);
+	}
+
+	/* ページディレクトリ自体を解放 */
+	free_pages((struct page *)pgd, 0);
+}
