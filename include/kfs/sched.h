@@ -9,6 +9,9 @@
 #include <kfs/signal.h>
 #include <kfs/stdint.h>
 
+/** 現在のプロセスが指定 Capability を持つか確認する */
+#define capable(cap) (cap_raised(current->cap_effective, (cap)) != 0)
+
 /* ユーザーID型 */
 typedef unsigned int uid_t;
 
