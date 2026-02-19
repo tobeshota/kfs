@@ -125,7 +125,7 @@ run-kernel: $(KERNEL)
 
 # QEMU上でUEFIで起動する
 # 備考: OVMFはQEMUパッケージ内に含まれる
-OVMF_FD ?= $(shell find /opt/homebrew /usr/local -name "edk2-x86_64-code.fd" 2>/dev/null | head -1)
+OVMF_FD ?= $(shell find /usr/share/ovmf /usr/share/OVMF /usr/share/qemu /opt/homebrew /usr/local \( -name "OVMF.fd" -o -name "edk2-x86_64-code.fd" \) 2>/dev/null | head -1)
 run-iso-uefi: $(ISO_UEFI)
 	qemu-system-x86_64 \
 		-drive if=pflash,format=raw,readonly=on,file=$(OVMF_FD) \
