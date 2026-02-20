@@ -15,6 +15,7 @@ int register_unit_tests_vmalloc(struct kfs_test_case **out);
 int register_unit_tests_pgtable(struct kfs_test_case **out);
 int register_unit_tests_traps(struct kfs_test_case **out);
 int register_unit_tests_i8259(struct kfs_test_case **out);
+int register_unit_tests_timer(struct kfs_test_case **out);
 int register_unit_tests_irq(struct kfs_test_case **out);
 int register_unit_tests_signal(struct kfs_test_case **out);
 int register_unit_tests_syscall(struct kfs_test_case **out);
@@ -67,6 +68,8 @@ int register_unit_tests(struct kfs_test_case **out)
 		int count_traps = register_unit_tests_traps(&cases_traps);
 		struct kfs_test_case *cases_i8259 = 0;
 		int count_i8259 = register_unit_tests_i8259(&cases_i8259);
+		struct kfs_test_case *cases_timer = 0;
+		int count_timer = register_unit_tests_timer(&cases_timer);
 		struct kfs_test_case *cases_irq = 0;
 		int count_irq = register_unit_tests_irq(&cases_irq);
 		struct kfs_test_case *cases_signal = 0;
@@ -149,6 +152,10 @@ int register_unit_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_i8259 && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_i8259[i];
+		}
+		for (int i = 0; i < count_timer && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_timer[i];
 		}
 		for (int i = 0; i < count_irq && idx < KFS_MAX_TESTS; i++)
 		{
