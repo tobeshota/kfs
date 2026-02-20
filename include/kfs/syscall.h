@@ -1,12 +1,14 @@
 #ifndef _KFS_SYSCALL_H
 #define _KFS_SYSCALL_H
 
-/* システムコール番号の定義 */
+/* システムコール番号 */
 #define __NR_exit 1
 #define __NR_write 4
+#define __NR_sched_setscheduler 156 /* Linux i386 互換番号 */
+#define __NR_sched_getscheduler 157 /* Linux i386 互換番号 */
 
-/* サポートするシステムコールの数(現在8個としているが将来的に増やす可能性あり) */
-#define NR_syscalls 8
+/* サポートするシステムコールの数 */
+#define NR_syscalls 158
 
 /* システムコールのエントリポイント(entry.Sで定義) */
 extern void system_call(void);

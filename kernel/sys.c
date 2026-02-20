@@ -65,3 +65,59 @@ int sys_capset(pid_t pid, const kernel_cap_t *effective, const kernel_cap_t *per
 	}
 	return cap_capset(tsk, effective, permitted, inheritable);
 }
+
+/** スケジューリングポリシーとリアルタイム優先度を設定する
+ * @param pid      対象 PID（0の場合呼び出し元プロセス）
+ * @param policy   設定するポリシー（SCHED_*）
+ * @param priority RT 優先度（SCHED_FIFO/RR/DEADLINE 用、非 RT ポリシーでは 0 のみ有効）
+ * @return 0: 成功, -ESRCH: PID 未存在, -EINVAL: 不正ポリシーまたは非 RT に priority != 0, -EPERM: 権限不足
+ */
+int sys_sched_setscheduler(pid_t pid, int policy, int priority)
+{
+	struct task_struct *tsk = (pid == 0) ? current : find_task_by_pid(pid);
+
+	if (!tsk)
+	{
+		return -ESRCH;
+	}
+
+	/* 設定するpolicyが有効（SCHED_*）であるか確認 */
+	if (policy != SCHED_NORMAL && policy != SCHED_FIFO && policy != SCHED_RR && policy != SCHED_BATCH &&
+		policy != SCHED_IDLE && policy != SCHED_DEADLINE && policy != SCHED_PURE_RR)
+	{
+		return -EINVAL;
+	}
+
+	/* 非 RT ポリシーに priority != 0 は不正（Linux 6.18 準拠） */
+	if (priority != 0 && (policy != SCHED_FIFO && policy != SCHED_RR && policy != SCHED_DEADLINE))
+	{
+		return -EINVAL;
+	}
+
+	/* リアルタイム系ポリシー（FIFO/RR/DEADLINE）は CAP_SYS_NICE が必要 */
+	if ((policy == SCHED_FIFO || policy == SCHED_RR || policy == SCHED_DEADLINE) &&
+		!capable(CAP_SYS_NICE))
+	{
+		return -EPERM;
+	}
+
+	tsk->policy = (unsigned int)policy;
+	tsk->rt_priority = priority;
+	return 0;
+}
+
+/** スケジューリングポリシーを取得する
+ * @param pid 対象 PID（0の場合呼び出し元プロセス）
+ * @return ポリシー値（SCHED_*）: 成功, -ESRCH: PID 未存在
+ */
+int sys_sched_getscheduler(pid_t pid)
+{
+	struct task_struct *tsk = (pid == 0) ? current : find_task_by_pid(pid);
+
+	if (!tsk)
+	{
+		return -ESRCH;
+	}
+
+	return (int)tsk->policy;
+}
