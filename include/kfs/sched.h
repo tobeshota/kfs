@@ -47,7 +47,7 @@ struct sigpending
 };
 
 /** CFS用スケジューリングエンティティ
- * Phase 7で実装予定、今は構造のみ定義
+ * Phase 8で実装予定、今は構造のみ定義
  */
 struct sched_entity
 {
@@ -87,6 +87,17 @@ struct sched_entity
 /* プロセス名の最大長（Linux 6.18互換） */
 #define TASK_COMM_LEN 16
 
+/** スケジューリングポリシー定数（Linux 6.18 互換値）
+ * @see Linux 6.18 include/linux/sched.h
+ */
+#define SCHED_NORMAL 0	  /* CFS（デフォルト、Phase 8 で実装） */
+#define SCHED_FIFO 1	  /* 優先度ベース FIFO（Phase 13 で実装） */
+#define SCHED_RR 2		  /* Linux 互換 RT ラウンドロビン（Phase 13 で実装） */
+#define SCHED_BATCH 3	  /* バッチ処理（将来実装） */
+#define SCHED_IDLE 5	  /* アイドル（将来実装） */
+#define SCHED_DEADLINE 6  /* デッドライン（Phase 12 で実装） */
+#define SCHED_PURE_RR 100 /* kfs 専用純粋ラウンドロビン（Phase 7 実装、学習用） */
+
 /** プロセス/スレッド記述子
  * @brief プロセス/スレッドの全情報を保持する中核構造体
  */
@@ -122,6 +133,13 @@ struct task_struct
 	/* スケジューリング（CFS用） */
 	struct sched_entity se; /* スケジューリングエンティティ（se.run_node, se.vruntimeを使用） */
 
+	/* スケジューリングポリシー（Phase 7追加） */
+	unsigned int policy;	 /* スケジューリングポリシー（SCHED_*） */
+	int prio;				 /* 動的優先度（0-139、低いほど高優先） */
+	int static_prio;		 /* 静的優先度（nice値から算出、SCHED_NORMAL用） */
+	int rt_priority;		 /* リアルタイム優先度（1-99、SCHED_RR/FIFO用） */
+	unsigned int time_slice; /* 残りタイムスライス（ティック数） */
+
 	/* プロセス名 */
 	char comm[TASK_COMM_LEN]; /* プロセス名（最大16バイト） */
 
@@ -133,5 +151,11 @@ struct task_struct
 
 /* 現在実行中のプロセス（kernel/sched/core.c で定義） */
 extern struct task_struct *current;
+
+/* スケジューラ API（kernel/sched/core.c で実装） */
+void schedule(void);
+void scheduler_tick(void);
+void wake_up_process(struct task_struct *tsk);
+void sched_init(void);
 
 #endif /* _KFS_SCHED_H */

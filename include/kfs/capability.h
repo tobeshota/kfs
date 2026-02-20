@@ -19,6 +19,7 @@ typedef struct
 #define CAP_SETUID 7	   /* UID設定 */
 #define CAP_SETPCAP 8	   /* Capability の移譲・削除 */
 #define CAP_SYS_ADMIN 21   /* システム管理操作 */
+#define CAP_SYS_NICE 23	   /* nice/setpriority/スケジューリングポリシー変更 */
 
 /* 全Capability有効 */
 #define CAP_FULL_SET ((kernel_cap_t){{0xffffffff, 0xffffffff}})
