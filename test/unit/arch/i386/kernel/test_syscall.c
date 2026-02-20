@@ -94,14 +94,15 @@ KFS_TEST(test_do_syscall_unimplemented_write)
 }
 
 /**
- * 有効範囲の最大値テスト
+ * 有効範囲内の未実装エントリの検証
  * 検証対象: do_syscall()
- * 検証項目: NR_syscalls - 1 (最後の有効な番号)が正しく処理されること
- * 目的: 有効範囲の境界で正常動作することを確認
+ * 検証項目: 実装されていないエントリ（155 = __NR_sched_setscheduler - 1）が -ENOSYS を返すこと
+ * 目的: 未実装エントリが sys_ni_syscall にフォールバックすることを確認
  */
 KFS_TEST(test_do_syscall_max_valid_nr)
 {
-	long result = do_syscall(NR_syscalls - 1, 0, 0, 0, 0, 0);
+	/* 155 は __NR_sched_setscheduler(156) の直前の未実装エントリ */
+	long result = do_syscall(__NR_sched_setscheduler - 1, 0, 0, 0, 0, 0);
 	KFS_ASSERT_EQ(-ENOSYS, result);
 }
 
@@ -120,12 +121,12 @@ KFS_TEST(test_do_syscall_large_negative)
 /**
  * NR_syscalls定数の検証
  * 検証対象: NR_syscalls
- * 検証項目: NR_syscallsが8であること
+ * 検証項目: NR_syscallsが158であること（__NR_sched_getscheduler + 1）
  * 目的: syscall.hの定義とsyscall.cの整合性を確認
  */
 KFS_TEST(test_nr_syscalls_value)
 {
-	KFS_ASSERT_EQ(8, NR_syscalls);
+	KFS_ASSERT_EQ(158, NR_syscalls);
 }
 
 /**

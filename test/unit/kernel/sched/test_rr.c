@@ -1,8 +1,11 @@
 #include "../../test_reset.h"
 #include "unit_test_framework.h"
+#include <kfs/capability.h>
+#include <kfs/errno.h>
 #include <kfs/list.h>
 #include <kfs/rr.h>
 #include <kfs/sched.h>
+#include <kfs/sys.h>
 
 extern struct task_struct init_task;
 
@@ -215,6 +218,59 @@ static void test_wake_up_process_enqueues(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* テスト: sys_sched_setscheduler() / sys_sched_getscheduler()          */
+/* ------------------------------------------------------------------ */
+
+/* SCHED_PURE_RR は RT ではないため CAP_SYS_NICE なしでも設定できることを確かめる */
+static void test_sched_setscheduler_ok(void)
+{
+	current->cap_effective = CAP_EMPTY_SET; /* 権限なし */
+	current->policy = SCHED_NORMAL;
+
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_PURE_RR, 0) == 0);
+	KFS_ASSERT_TRUE(current->policy == SCHED_PURE_RR);
+
+	printk("sys_sched_setscheduler: ok OK\n");
+}
+
+/* 不正なポリシー番号を渡すと -EINVAL が返ることを確かめる */
+static void test_sched_setscheduler_einval(void)
+{
+	// ポリシー番号は SCHED_* 定数以外は無効（Linux 6.18 準拠）
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, 999, 0) == -EINVAL);
+
+	printk("sys_sched_setscheduler: -EINVAL OK\n");
+}
+
+/* CAP_SYS_NICE を持たないプロセスが RT ポリシー（SCHED_FIFO）を設定すると -EPERM になることを確かめる */
+static void test_sched_setscheduler_eperm(void)
+{
+	current->cap_effective = CAP_EMPTY_SET; /* 権限を剥奪 */
+
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_FIFO, 0) == -EPERM);
+
+	printk("sys_sched_setscheduler: -EPERM OK\n");
+}
+
+/* sys_sched_getscheduler() が pid 0 のとき current のポリシーを返すことを確かめる */
+static void test_sched_getscheduler(void)
+{
+	current->policy = SCHED_PURE_RR;
+
+	KFS_ASSERT_TRUE(sys_sched_getscheduler(0) == SCHED_PURE_RR);
+
+	printk("sys_sched_getscheduler: returns policy OK\n");
+}
+
+/* 非 RT ポリシーに priority != 0 を渡すと -EINVAL になることを確かめる（Linux 6.18 準拠） */
+static void test_sched_setscheduler_non_rt_clears_priority(void)
+{
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_PURE_RR, 42) == -EINVAL);
+
+	printk("sys_sched_setscheduler: non-RT with priority!=0 returns -EINVAL OK\n");
+}
+
+/* ------------------------------------------------------------------ */
 /* テスト登録                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -228,6 +284,11 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_rr_task_tick_rotates_on_expiry, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_noop_when_same, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_wake_up_process_enqueues, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_ok, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_einval, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_eperm, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_getscheduler, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_non_rt_clears_priority, setup_test, teardown_test),
 };
 
 int register_unit_tests_rr(struct kfs_test_case **out)
