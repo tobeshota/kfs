@@ -95,8 +95,7 @@ int sys_sched_setscheduler(pid_t pid, int policy, int priority)
 	}
 
 	/* リアルタイム系ポリシー（FIFO/RR/DEADLINE）は CAP_SYS_NICE が必要 */
-	if ((policy == SCHED_FIFO || policy == SCHED_RR || policy == SCHED_DEADLINE) &&
-		!capable(CAP_SYS_NICE))
+	if ((policy == SCHED_FIFO || policy == SCHED_RR || policy == SCHED_DEADLINE) && !capable(CAP_SYS_NICE))
 	{
 		return -EPERM;
 	}
