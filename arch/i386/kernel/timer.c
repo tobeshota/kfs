@@ -33,7 +33,7 @@ void timer_init(void)
 	 * i8254 PIT のチャネル0にはOUTピン(出力ピン)があり，
 	 * これがIRQ0(物理線)を通じて8259A PICのIRQ0入力に接続されている．
 	 * ■物理的な接続:
-	 * i8254 PITのOUTピン(出力ピン) --- IRQ0 line(物理線) ---> 8259A PIC ---INTA---> CPU
+	 * i8254 PITのOUTピン(出力ピン) --- IRQ0 line(物理線) ---> 8259A PIC --- INTA ---> CPU
 	 *
 	 * ■モード2の動作：
 	 * Clock:  _|‾|_|‾|_|‾|_|‾|_|‾|_
