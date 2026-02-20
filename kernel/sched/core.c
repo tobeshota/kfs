@@ -1,6 +1,7 @@
 #include <kfs/list.h>
 #include <kfs/mm_types.h>
 #include <kfs/pid.h>
+#include <kfs/rr.h>
 #include <kfs/sched.h>
 
 /** idle/swapperプロセス (PID=0)
@@ -24,6 +25,7 @@ struct task_struct init_task = {
 	.children = LIST_HEAD_INIT(init_task.children), /* 子リスト */
 	.sibling = LIST_HEAD_INIT(init_task.sibling),	/* 兄弟リスト */
 	.tasks = LIST_HEAD_INIT(init_task.tasks),		/* グローバルタスクリスト */
+	.run_list = LIST_HEAD_INIT(init_task.run_list), /* RRランキュー */
 
 	/* 所有者・権限（root権限） */
 	.uid = {.val = 0},			   /* root UID */
@@ -114,4 +116,51 @@ struct task_struct *find_task_by_pid(pid_t pid)
 	}
 
 	return NULL;
+}
+
+/** スケジューラを初期化する
+ * @brief RR サブスケジューラを初期化し，init_task をランキューに登録する．
+ *        init/main.c の kernel_main() から呼び出す（Phase 4 コミットで追加）．
+ */
+void sched_init(void)
+{
+	rr_init();
+	rr_enqueue(&init_task);
+}
+
+/** スリープ中のタスクを起床させる
+ * @brief タスク状態を TASK_RUNNING に変更し，RR ランキューに追加する．
+ * @param tsk 起床させるタスク
+ */
+void wake_up_process(struct task_struct *tsk)
+{
+	tsk->__state = TASK_RUNNING;
+	rr_enqueue(tsk);
+}
+
+/** タイマーティックハンドラから呼ばれる周期処理
+ * @brief 現在のタスクのタイムスライスをデクリメントし，必要に応じてプリエンプトする．
+ *        arch/i386/kernel/timer.c の timer_interrupt() から呼び出す（Phase 4 コミットで実装）．
+ */
+void scheduler_tick(void)
+{
+	rr_task_tick(current);
+}
+
+/** スケジューラ本体（コンテキストスイッチ）
+ * @brief RR ランキューから次のタスクを選択し current ポインタを更新する．
+ *        Commit 5 で __switch_to(prev, next) による実レジスタ切り替えに置き換える．
+ */
+void schedule(void)
+{
+	struct task_struct *next;
+
+	next = rr_pick_next();
+	if (!next || next == current)
+	{
+		return;
+	}
+
+	/* TODO(Commit 5): __switch_to(current, next) に置き換え */
+	current = next;
 }

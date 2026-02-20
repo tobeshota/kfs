@@ -119,6 +119,7 @@ struct task_struct
 	struct list_head children;	/* 子プロセスリスト */
 	struct list_head sibling;	/* 兄弟プロセスリンク */
 	struct list_head tasks;		/* グローバルタスクリストリンク */
+	struct list_head run_list;	/* RRランキュー用リンク */
 
 	/* 所有者・権限 */
 	kuid_t uid;					/* 実ユーザーID */
@@ -138,7 +139,7 @@ struct task_struct
 	int prio;				 /* 動的優先度（0-139、低いほど高優先） */
 	int static_prio;		 /* 静的優先度（nice値から算出、SCHED_NORMAL用） */
 	int rt_priority;		 /* リアルタイム優先度（1-99、SCHED_RR/FIFO用） */
-	unsigned int time_slice; /* 残りタイムスライス（ティック数） */
+	unsigned int time_slice; /* 残りタイムスライス（単位：ティック数．非負） */
 
 	/* プロセス名 */
 	char comm[TASK_COMM_LEN]; /* プロセス名（最大16バイト） */
