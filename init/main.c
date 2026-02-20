@@ -6,9 +6,11 @@
 #include <kfs/mm.h>
 #include <kfs/multiboot.h>
 #include <kfs/printk.h>
+#include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
 #include <kfs/slab.h>
+#include <kfs/timer.h>
 #include <kfs/vmalloc.h>
 
 /** Multiboot情報構造体へのポインタ（boot.Sで設定）
@@ -44,6 +46,12 @@ void start_kernel(void)
 	/* PIC(8259A)初期化（IRQをベクタ0x20-0x2Fにリマップ） */
 	printk("Initializing 8259A PIC...\n");
 	init_8259A();
+
+	/* スケジューラ初期化（ランキュー確立・init_task 登録） */
+	sched_init();
+
+	/* PIT タイマー初期化（IRQ0 → scheduler_tick() を毎 1ms 呼び出し） */
+	timer_init();
 
 	/* PS/2キーボードドライバを初期化する */
 	kfs_keyboard_init();
