@@ -38,7 +38,7 @@ struct task_struct init_task = {
 			.signal = 0,
 		},
 
-	/* スケジューリング */
+	/* スケジューリング（CFS用エンティティ） */
 	.se =
 		{
 			.load = 0,
@@ -46,6 +46,12 @@ struct task_struct init_task = {
 			.on_rq = 0,
 			.vruntime = 0,
 		},
+
+	/* スケジューリングポリシー（Phase 7） */
+	.policy = SCHED_PURE_RR, /* 初期ポリシーは純粋ラウンドロビン（Phase 8でSCHED_NORMALに変更） */
+	.prio = 20,				 /* デフォルト優先度 */
+	.rt_priority = 0,
+	.time_slice = 10, /* RR_TIMESLICE（kernel/sched/rr.c で定義） */
 
 	/* プロセス名 */
 	.comm = "swapper", /* idle/swapperプロセス */
