@@ -1,6 +1,7 @@
 #ifndef _KFS_SCHED_H
 #define _KFS_SCHED_H
 
+#include <asm-i386/page.h>
 #include <kfs/capability.h>
 #include <kfs/list.h>
 #include <kfs/mm_types.h>
@@ -8,7 +9,6 @@
 #include <kfs/rbtree.h>
 #include <kfs/signal.h>
 #include <kfs/stdint.h>
-#include <asm-i386/page.h>
 
 /** 現在のプロセスが指定 Capability を持つか確認する */
 #define capable(cap) (cap_raised(current->cap_effective, (cap)) != 0)
@@ -93,6 +93,22 @@ struct sched_entity
 
 /** コンテキストスイッチ用レジスタ保存領域
  * @brief __switch_to() で callee-saved レジスタを退避・復元する
+ *
+ * @details sp と task_struct->stack の関係
+ * カーネルスタックとは4096バイトの領域であり，
+ * その低アドレス側を task_struct->stack が指し，
+ * その高アドレス側を task_struct->stack + THREAD_SIZE が指す．
+ *
+ * sp は「そのプロセスが CPU を手放したときの ESP を退避しておく引き出し」であり，
+ * __switch_to()はカーネルモードで呼ばれるため，ESPはカーネルスタックを指す．
+ * よって sp は「そのプロセスが最後に使用した自身のカーネルスタック領域内の位置」を指す
+ *
+ *    stack(低アドレス)          stack + THREAD_SIZE(高アドレス)
+ *    ↓                                                    ↓
+ *    | ←───*───── カーネルスタック領域(4096バイト) ─────────→ |
+ *          ↑sp
+ *          (退避されたESPの値)
+ *          (そのプロセスが最後に使用した自身のカーネルスタック領域内の位置)
  */
 struct thread_struct
 {
@@ -118,8 +134,8 @@ struct task_struct
 {
 	/* 状態管理 */
 	volatile unsigned int __state; /* プロセス状態（TASK_RUNNING等） */
-	void *stack;				   /* カーネルスタックの低アドレス側（stack + THREAD_SIZE が末尾） */
-	unsigned int flags;			   /* プロセスフラグ（PF_*） */
+	void *stack; /* カーネルスタック領域の低アドレス側（stack + THREAD_SIZE が末尾、@see thread_struct） */
+	unsigned int flags; /* プロセスフラグ（PF_*） */
 
 	/* メモリ管理 */
 	struct mm_struct *mm; /* メモリ記述子 */

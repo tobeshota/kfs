@@ -154,6 +154,7 @@ void scheduler_tick(void)
 void schedule(void)
 {
 	struct task_struct *next;
+	struct task_struct *prev;
 
 	next = rr_pick_next();
 	if (!next || next == current)
@@ -161,6 +162,7 @@ void schedule(void)
 		return;
 	}
 
-	/* TODO(Commit 5): __switch_to(current, next) に置き換え */
+	prev = current;
 	current = next;
+	__switch_to(prev, next);
 }
