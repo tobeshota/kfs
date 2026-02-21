@@ -149,9 +149,9 @@ struct idt_entry
 struct tss_struct
 {
 	uint16_t back_link, __blh; /* 前のTSSへのリンク（未使用） */
-	uint32_t esp0;			   /* 特権レベル0のスタックポインタ（割り込み時にCPUが ESP へロード） */
-	uint16_t ss0, __ss0h;	   /* 特権レベル0のスタックセグメント（割り込み時にCPUが SS へロード） */
-	uint32_t esp1;			   /* 特権レベル1のスタックポインタ（未使用） */
+	uint32_t esp0; /* 特権レベル0のスタックポインタ（割り込み時にCPUが ESP へロード） */
+	uint16_t ss0, __ss0h; /* 特権レベル0のスタックセグメント（割り込み時にCPUが SS へロード） */
+	uint32_t esp1;		  /* 特権レベル1のスタックポインタ（未使用） */
 	uint16_t ss1, __ss1h;
 	uint32_t esp2; /* 特権レベル2のスタックポインタ（未使用） */
 	uint16_t ss2, __ss2h;
