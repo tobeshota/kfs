@@ -247,3 +247,111 @@ system_call:
 	movl %eax, 24(%esp)	/* システムコールの返り値をpt_regs->eaxに設定する */
 	RESTORE_ALL
 
+/* task_struct のオフセット定数 */
+#define TASK_STACK 4
+#define TASK_MM 12
+#define TASK_THREAD_SP 668
+#define THREAD_SIZE 4096
+#define TSS_ESP0 4
+
+/** コンテキストスイッチ
+ * @brief prev の callee-saved レジスタをカーネルスタック上に保存（位置をprev->thread.spに記録）し、
+ *        next->thread.sp が指すカーネルスタックに ESP を切り替えてレジスタを復元する。
+ *        あわせて TSS の esp0 更新と switch_mm() によるアドレス空間切り替えも行う。
+ *
+ * C 関数シグネチャ: void __switch_to(struct task_struct *prev, struct task_struct *next)
+ *   引数1 (prev): 4(%esp) - 切り替え元タスク（call 後）
+ *   引数2 (next): 8(%esp) - 切り替え先タスク（call 後）
+ *
+ * @details 以下の処理を行う：
+ *   1. callee-saved レジスタ (EBX, ESI, EDI, EBP) を現在のスタックに保存
+ *   2. 現在の ESP を prev->thread.sp に保存（prev のカーネルスタック位置を記録）
+ *   3. next->thread.sp から ESP を復元（next のカーネルスタックに切り替え）
+ *   4. callee-saved レジスタを next のスタックから復元
+ *   5. TSS の esp0 を next->stack + THREAD_SIZE に更新
+ *   6. switch_mm(prev->mm, next->mm) を呼び出してページディレクトリ切り替え
+ *
+ * @note struct task_struct のメモリレイアウト（sched.h より、i386 32-bit）：
+ *       offset 4: stack   - カーネルスタックへのポインタ
+ *       offset 12: mm     - メモリディスクリプタ（struct mm_struct *）
+ *       offset 668: thread - コンテキストスイッチ用レジスタ保存領域
+ *           offset 668: thread.sp - 退避済みスタックポインタ
+ *           offset 672: thread.ip - 退避済み命令ポインタ
+ *
+ * @note struct tss_struct のメモリレイアウト（desc.h より）：
+ *       offset 0: back_link (4バイト)
+ *       offset 4: esp0 (4バイト) - 割り込み時のカーネルスタック
+ *
+ * @note THREAD_SIZE = 4096 (sched.h で定義)
+ */
+.globl __switch_to
+__switch_to:
+	movl 4(%esp), %eax     /* %eax = prev */
+	movl 8(%esp), %edx     /* %edx = next */
+
+	/** prevのハードウェアコンテキストを物理RAMに退避する
+	 * @brief 「callee-savedレジスタ」を「prevのカーネルスタック領域」に書き込む．
+	 * @note prevのカーネルスタック領域は prev->stack から prev->stack + THREAD_SIZE まで
+	 */
+	pushl %ebp
+	pushl %ebx
+	pushl %esi
+	pushl %edi
+	movl %esp, TASK_THREAD_SP(%eax)  /* prev->thread.sp = 現在のESP（次回の復帰位置を記録） */
+
+	/** コンテキストスイッチ: ESPをnext->thread.spが指す位置に切り替える
+	 * @brief ESPはカーネスタックを指す．これを prev->thread.sp から next->thread.sp が指す位置に切り替える
+	 *        これにより，次の pop/ret 命令が prev のカーネルスタックから next のカーネルスタックを参照するようになる．
+	 * @note next->thread.sp は prev のカーネルスタックに保存したレジスタの位置を指す
+	 * @details ESPを付け替えることで，
+	 *          その後の pop/ret が参照するメモリが prev のものから next のものになり，
+	 *          CPUの制御フローが丸ごと next 側に移る．
+	 */
+	movl TASK_THREAD_SP(%edx), %esp  /* ESP = next->thread.sp */
+
+	/** prevのハードウェアコンテキストを物理RAMから復元する
+	 * @brief 「nextのカーネルスタック領域内の値」を「callee-savedレジスタ」に書き込む
+	 * @note nextのカーネルスタック領域は next->stack から next->stack + THREAD_SIZE まで
+	 */
+	popl %edi
+	popl %esi
+	popl %ebx
+	popl %ebp
+
+	/** ハードウェア状態更新: TSS.esp0 と CR3 を next に合わせる
+	 * @brief 次の割り込み時のカーネルスタックとページテーブルを next のものにする）
+	 */
+	/* TSS.esp0にnextのカーネルスタックの高アドレス側を書き込む
+	 * 理由: CPUは割り込み発生時にTSS.esp0をESPにロードしてカーネルスタックとして使用するため．
+	 */
+	movl TASK_STACK(%edx), %ecx       /* %ecx = next->stack */
+	addl $THREAD_SIZE, %ecx           /* %ecx = next->stack + THREAD_SIZE（カーネルスタックの高アドレス側） */
+	movl %ecx, init_tss+TSS_ESP0      /* TSS.esp0 = nextのカーネルスタックの高アドレス側 */
+	/* CR3をnextのページディレクトリに更新する
+	 * 理由: CR3を更新することで、CPUが次にページテーブルを参照する際にnextのアドレス空間を使用するようになるため．
+	 */
+	pushl TASK_MM(%edx)               /* next->mm を引数2としてpush */
+	pushl TASK_MM(%eax)               /* prev->mm を引数1としてpush */
+	call switch_mm                    /* CR3 を next->mm のページディレクトリに更新 */
+	addl $8, %esp                     /* cdeclとして，呼び出し元が引数2つ（8バイト）を破棄 */
+
+	ret
+
+
+/** fork() で生成された子タスクの最初のエントリポイント
+ * @brief 子タスクが最初に __switch_to() で復帰する際に実行される
+ *
+ * @details
+ * Phase 7 の最小実装。カーネルスレッド間のコンテキストスイッチに対応。
+ * Phase 9（プロセス実装）で以下を追加予定：
+ *   - pt_regs からレジスタを復元（ユーザーモードへの復帰）
+ *   - kernel_thread の場合の関数呼び出し
+ *
+ * @note 現在の実装では、カーネルスレッドが __switch_to() で復帰する際に
+ *       schedule() を抜けて呼び出し元に戻る
+ */
+.globl ret_from_fork
+ret_from_fork:
+	/* Phase 7: カーネルスレッド用の最小実装 */
+	ret
+

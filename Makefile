@@ -77,10 +77,10 @@ kernel: $(KERNEL)
 iso: iso-bios
 
 iso-bios: kernel grub-bios.cfg
-	mkdir -p isodir/boot/grub
-	cp $(KERNEL) isodir/boot/Image
-	cp grub-bios.cfg isodir/boot/grub/grub.cfg
-	grub-mkrescue -o $(ISO_BIOS) isodir --modules="multiboot normal configfile" --compress=xz
+	mkdir -p isodir-bios/boot/grub
+	cp $(KERNEL) isodir-bios/boot/Image
+	cp grub-bios.cfg isodir-bios/boot/grub/grub.cfg
+	grub-mkrescue -o $(ISO_BIOS) isodir-bios --modules="multiboot normal configfile" --compress=xz
 
 iso-uefi: kernel grub-uefi.cfg
 	mkdir -p isodir-uefi/boot/grub
@@ -105,7 +105,7 @@ iso-uefi: ensure-image
 endif
 
 clean:
-	@ rm -rf isodir isodir-uefi $(BUILD_DIR)
+	@ rm -rf isodir-bios isodir-uefi $(BUILD_DIR)
 	@ make clean -C test/
 
 fclean: clean

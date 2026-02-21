@@ -15,6 +15,7 @@ int register_unit_tests_vmalloc(struct kfs_test_case **out);
 int register_unit_tests_pgtable(struct kfs_test_case **out);
 int register_unit_tests_traps(struct kfs_test_case **out);
 int register_unit_tests_i8259(struct kfs_test_case **out);
+int register_unit_tests_timer(struct kfs_test_case **out);
 int register_unit_tests_irq(struct kfs_test_case **out);
 int register_unit_tests_signal(struct kfs_test_case **out);
 int register_unit_tests_syscall(struct kfs_test_case **out);
@@ -26,6 +27,8 @@ int register_unit_tests_exit(struct kfs_test_case **out);
 int register_unit_tests_wait(struct kfs_test_case **out);
 int register_unit_tests_capability(struct kfs_test_case **out);
 int register_unit_tests_sys(struct kfs_test_case **out);
+int register_unit_tests_rr(struct kfs_test_case **out);
+int register_unit_tests_process(struct kfs_test_case **out);
 
 #define KFS_MAX_TESTS 512
 
@@ -66,6 +69,8 @@ int register_unit_tests(struct kfs_test_case **out)
 		int count_traps = register_unit_tests_traps(&cases_traps);
 		struct kfs_test_case *cases_i8259 = 0;
 		int count_i8259 = register_unit_tests_i8259(&cases_i8259);
+		struct kfs_test_case *cases_timer = 0;
+		int count_timer = register_unit_tests_timer(&cases_timer);
 		struct kfs_test_case *cases_irq = 0;
 		int count_irq = register_unit_tests_irq(&cases_irq);
 		struct kfs_test_case *cases_signal = 0;
@@ -88,6 +93,10 @@ int register_unit_tests(struct kfs_test_case **out)
 		int count_capability = register_unit_tests_capability(&cases_capability);
 		struct kfs_test_case *cases_sys = 0;
 		int count_sys = register_unit_tests_sys(&cases_sys);
+		struct kfs_test_case *cases_rr = 0;
+		int count_rr = register_unit_tests_rr(&cases_rr);
+		struct kfs_test_case *cases_process = 0;
+		int count_process = register_unit_tests_process(&cases_process);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
@@ -147,6 +156,10 @@ int register_unit_tests(struct kfs_test_case **out)
 		{
 			merged[idx++] = cases_i8259[i];
 		}
+		for (int i = 0; i < count_timer && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_timer[i];
+		}
 		for (int i = 0; i < count_irq && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_irq[i];
@@ -190,6 +203,14 @@ int register_unit_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_sys && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_sys[i];
+		}
+		for (int i = 0; i < count_rr && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_rr[i];
+		}
+		for (int i = 0; i < count_process && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_process[i];
 		}
 		all_cases = merged;
 		all_count = idx;

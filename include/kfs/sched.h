@@ -1,6 +1,7 @@
 #ifndef _KFS_SCHED_H
 #define _KFS_SCHED_H
 
+#include <asm-i386/page.h>
 #include <kfs/capability.h>
 #include <kfs/list.h>
 #include <kfs/mm_types.h>
@@ -47,7 +48,7 @@ struct sigpending
 };
 
 /** CFS用スケジューリングエンティティ
- * Phase 7で実装予定、今は構造のみ定義
+ * Phase 8で実装予定、今は構造のみ定義
  */
 struct sched_entity
 {
@@ -87,6 +88,45 @@ struct sched_entity
 /* プロセス名の最大長（Linux 6.18互換） */
 #define TASK_COMM_LEN 16
 
+/* カーネルスタックサイズ = 1ページ */
+#define THREAD_SIZE PAGE_SIZE
+
+/** コンテキストスイッチ用レジスタ保存領域
+ * @brief __switch_to() で callee-saved レジスタを退避・復元する
+ *
+ * @details sp と task_struct->stack の関係
+ * カーネルスタックとは4096バイトの領域であり，
+ * その低アドレス側を task_struct->stack が指し，
+ * その高アドレス側を task_struct->stack + THREAD_SIZE が指す．
+ *
+ * sp は「そのプロセスが CPU を手放したときの ESP を退避しておく引き出し」であり，
+ * __switch_to()はカーネルモードで呼ばれるため，ESPはカーネルスタックを指す．
+ * よって sp は「そのプロセスが最後に使用した自身のカーネルスタック領域内の位置」を指す
+ *
+ *    stack(低アドレス)          stack + THREAD_SIZE(高アドレス)
+ *    ↓                                                    ↓
+ *    | ←───*───── カーネルスタック領域(4096バイト) ─────────→ |
+ *          ↑sp
+ *          (退避されたESPの値)
+ *          (そのプロセスが最後に使用した自身のカーネルスタック領域内の位置)
+ */
+struct thread_struct
+{
+	unsigned long sp; /* 退避済みのカーネルスタックポインタ */
+	unsigned long ip; /* 退避済みのカーネル空間の命令ポインタ（未使用時は 0） */
+};
+
+/** スケジューリングポリシー定数（Linux 6.18 互換値）
+ * @see Linux 6.18 include/linux/sched.h
+ */
+#define SCHED_NORMAL 0	  /* CFS（デフォルト、Phase 8 で実装） */
+#define SCHED_FIFO 1	  /* 優先度ベース FIFO（Phase 13 で実装） */
+#define SCHED_RR 2		  /* Linux 互換 RT ラウンドロビン（Phase 13 で実装） */
+#define SCHED_BATCH 3	  /* バッチ処理（将来実装） */
+#define SCHED_IDLE 5	  /* アイドル（将来実装） */
+#define SCHED_DEADLINE 6  /* デッドライン（Phase 12 で実装） */
+#define SCHED_PURE_RR 100 /* kfs 専用純粋ラウンドロビン（Phase 7 実装、学習用） */
+
 /** プロセス/スレッド記述子
  * @brief プロセス/スレッドの全情報を保持する中核構造体
  */
@@ -94,8 +134,8 @@ struct task_struct
 {
 	/* 状態管理 */
 	volatile unsigned int __state; /* プロセス状態（TASK_RUNNING等） */
-	void *stack;				   /* カーネルスタックへのポインタ */
-	unsigned int flags;			   /* プロセスフラグ（PF_*） */
+	void *stack; /* カーネルスタック領域の低アドレス側（stack + THREAD_SIZE が末尾、@see thread_struct） */
+	unsigned int flags; /* プロセスフラグ（PF_*） */
 
 	/* メモリ管理 */
 	struct mm_struct *mm; /* メモリ記述子 */
@@ -108,6 +148,7 @@ struct task_struct
 	struct list_head children;	/* 子プロセスリスト */
 	struct list_head sibling;	/* 兄弟プロセスリンク */
 	struct list_head tasks;		/* グローバルタスクリストリンク */
+	struct list_head run_list;	/* RRランキュー用リンク */
 
 	/* 所有者・権限 */
 	kuid_t uid;					/* 実ユーザーID */
@@ -122,8 +163,18 @@ struct task_struct
 	/* スケジューリング（CFS用） */
 	struct sched_entity se; /* スケジューリングエンティティ（se.run_node, se.vruntimeを使用） */
 
+	/* スケジューリングポリシー（Phase 7追加） */
+	unsigned int policy;	 /* スケジューリングポリシー（SCHED_*） */
+	int prio;				 /* 動的優先度（0-139、低いほど高優先） */
+	int static_prio;		 /* 静的優先度（nice値から算出、SCHED_NORMAL用） */
+	int rt_priority;		 /* リアルタイム優先度（1-99、SCHED_RR/FIFO用） */
+	unsigned int time_slice; /* 残りタイムスライス（単位：ティック数．非負） */
+
 	/* プロセス名 */
 	char comm[TASK_COMM_LEN]; /* プロセス名（最大16バイト） */
+
+	/* コンテキストスイッチ */
+	struct thread_struct thread; /* コンテキストスイッチ用レジスタ保存領域 */
 
 	/* プロセス終了情報 */
 	int exit_state;	 /* 終了遷移状態（EXIT_ZOMBIE/EXIT_DEAD） */
@@ -133,5 +184,18 @@ struct task_struct
 
 /* 現在実行中のプロセス（kernel/sched/core.c で定義） */
 extern struct task_struct *current;
+
+/* スケジューラ API（kernel/sched/core.c で実装） */
+void schedule(void);
+void scheduler_tick(void);
+void wake_up_process(struct task_struct *tsk);
+void sched_init(void);
+
+/* コンテキストスイッチ（arch/i386/kernel/entry.S で実装） */
+void __switch_to(struct task_struct *prev, struct task_struct *next);
+
+/* プロセス管理 API（arch/i386/kernel/process.c で実装） */
+void copy_thread(struct task_struct *p, struct task_struct *orig);
+void switch_mm(struct mm_struct *prev, struct mm_struct *next);
 
 #endif /* _KFS_SCHED_H */
