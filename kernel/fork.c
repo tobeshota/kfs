@@ -10,9 +10,6 @@
 /* 初期化マクロ（Phase 1では何もしない） */
 #define __init
 
-/** カーネルスタックサイズ（4KB = 1ページ） */
-#define THREAD_SIZE 4096
-
 /** task_struct用スラブキャッシュ
  * @note 頻繁に割り当て/解放されるため、スラブアロケータで高速化
  * @note exit.cからも参照されるためグローバル変数
@@ -50,6 +47,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	INIT_LIST_HEAD(&tsk->children);
 	INIT_LIST_HEAD(&tsk->sibling);
 	INIT_LIST_HEAD(&tsk->tasks);
+	INIT_LIST_HEAD(&tsk->run_list); /* RR ランキュー用リンク初期化 */
 	tsk->se.run_node.__rb_parent_color = 0;
 	tsk->se.run_node.rb_right = NULL;
 	tsk->se.run_node.rb_left = NULL;
@@ -199,6 +197,9 @@ struct task_struct *copy_process(struct task_struct *orig)
 		kmem_cache_free(task_struct_cachep, p);
 		return NULL;
 	}
+
+	/* コンテキストスイッチ用スタックフレームを設定 */
+	copy_thread(p, orig);
 
 	/* 親子関係を設定 */
 	p->parent = orig;			  /* 親はコピー元 */

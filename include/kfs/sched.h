@@ -118,7 +118,7 @@ struct task_struct
 {
 	/* 状態管理 */
 	volatile unsigned int __state; /* プロセス状態（TASK_RUNNING等） */
-	void *stack;				   /* カーネルスタックへのポインタ */
+	void *stack;				   /* カーネルスタックの低アドレス側（stack + THREAD_SIZE が末尾） */
 	unsigned int flags;			   /* プロセスフラグ（PF_*） */
 
 	/* メモリ管理 */
