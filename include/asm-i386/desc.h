@@ -14,8 +14,9 @@
 #define GDT_ENTRY_USER_CS 4
 #define GDT_ENTRY_USER_DS 5
 #define GDT_ENTRY_USER_SS 6
+#define GDT_ENTRY_TSS 7
 
-#define GDT_ENTRIES 7
+#define GDT_ENTRIES 8
 
 /* Selectors (RPL bits appended where needed) */
 #define __KERNEL_CS ((GDT_ENTRY_KERNEL_CS) << 3)
@@ -24,6 +25,7 @@
 #define __USER_CS (((GDT_ENTRY_USER_CS) << 3) | 0x3)
 #define __USER_DS (((GDT_ENTRY_USER_DS) << 3) | 0x3)
 #define __USER_SS (((GDT_ENTRY_USER_SS) << 3) | 0x3)
+#define __KERNEL_TSS ((GDT_ENTRY_TSS) << 3)
 
 /* Descriptor pointer structure (lgdt/lidt operand) */
 struct desc_ptr
@@ -100,6 +102,68 @@ struct idt_entry
 #define set_intr_gate(n, addr) _set_gate(idt, n, addr, IDT_GATE_INTERRUPT)
 #define set_system_gate(n, addr) _set_gate(idt, n, addr, IDT_GATE_USER)
 #define set_trap_gate(n, addr) _set_gate(idt, n, addr, IDT_GATE_TRAP)
+
+/** i386 TSS[Task State Segment]
+ * @brief プロセス切り替えと特権レベル遷移のためにCPUが参照する構造体
+ *
+ * @details なぜ TSS が必要か
+ * 各プロセスは「ユーザースタック」と「カーネルスタック」の2つのスタックを持つ：
+ *   プロセスA のメモリ
+ *   ├── ユーザースタック（ESP が指す）
+ *   │   └── ユーザーモードで動いているときに使う
+ *   │       pushl, popl, 関数呼び出しなど...
+ *   │
+ *   └── カーネルスタック（task_struct->stack が指す）
+ *       └── カーネルモードで動いているときに使う
+ *           割り込みハンドラ、システムコール処理など...
+ *
+ * カーネルスタックを分ける理由：
+ * - ユーザーモード実行中、ESP レジスタはユーザースタックを指しており、
+ *   ユーザーが自由に書き換えられる。
+ * - もし割り込み時にその ESP をそのまま使うと、悪意あるユーザーが
+ *   ESP を不正アドレスに設定することでカーネル情報を破壊できてしまう。
+ *
+ * @details CPU が TSS を参照するタイミング
+ * ユーザーモード（CPL=3）実行中に割り込みが発生すると、
+ * CPU はハードウェア的に以下を自動実行する：
+ * 1. GDT 上の TSS ディスクリプタを参照（ltr 命令で登録済み）
+ * 2. SS  ← tss.ss0  （特権レベル0のスタックセグメント）
+ * 3. ESP ← tss.esp0 （特権レベル0のスタックポインタ）
+ * 4. 割り込みハンドラを安全なカーネルスタック上で実行
+ *
+ * @details __switch_to() との連携
+ * プロセス切り替え時、次のプロセスに割り込みが来た際に正しいカーネルスタックを
+ * 使わせるため、__switch_to() が tss.esp0 を動的に更新する：
+ *   init_tss.esp0 = next->stack + THREAD_SIZE（カーネルスタック末尾）
+ *
+ * @note esp0 と ss0 のみ使用。他のフィールドは Intel 仕様で必須の構造体レイアウト
+ * @see Linux 2.6.11: include/asm-i386/processor.h
+ */
+struct tss_struct
+{
+	uint16_t back_link, __blh; /* 前のTSSへのリンク（未使用） */
+	uint32_t esp0;			   /* 特権レベル0のスタックポインタ（割り込み時にCPUが ESP へロード） */
+	uint16_t ss0, __ss0h;	   /* 特権レベル0のスタックセグメント（割り込み時にCPUが SS へロード） */
+	uint32_t esp1;			   /* 特権レベル1のスタックポインタ（未使用） */
+	uint16_t ss1, __ss1h;
+	uint32_t esp2; /* 特権レベル2のスタックポインタ（未使用） */
+	uint16_t ss2, __ss2h;
+	uint32_t cr3;	 /* ページディレクトリベースレジスタ（未使用） */
+	uint32_t eip;	 /* 命令ポインタ（未使用） */
+	uint32_t eflags; /* フラグレジスタ（未使用） */
+	uint32_t eax, ecx, edx, ebx, esp, ebp, esi, edi; /* 汎用レジスタ（未使用） */
+	uint16_t es, __esh;
+	uint16_t cs, __csh;
+	uint16_t ss, __ssh;
+	uint16_t ds, __dsh;
+	uint16_t fs, __fsh;
+	uint16_t gs, __gsh;
+	uint16_t ldt, __ldth;	   /* LDTセグメント（未使用） */
+	uint16_t trace, io_bitmap; /* デバッグとI/Oビットマップ（未使用） */
+} __attribute__((packed));
+
+/* グローバルTSS（kernel/sched/core.c または arch/i386/kernel/gdt.c で定義） */
+extern struct tss_struct init_tss;
 
 /* 外部IDTテーブル（traps.cで定義） */
 extern struct idt_entry idt[];
