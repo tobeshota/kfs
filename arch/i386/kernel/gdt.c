@@ -3,7 +3,12 @@
  */
 #include <asm-i386/desc.h>
 #include <kfs/printk.h>
+#include <kfs/stddef.h>
 #include <kfs/stdint.h>
+#include <kfs/string.h>
+
+/* グローバルTSS（カーネル全体で1つだけ） */
+struct tss_struct init_tss;
 
 /* GDTを配置する物理アドレス */
 #define KFS_GDT_PHYS 0x00000800U
@@ -31,6 +36,9 @@ static uint64_t make_seg_desc(uint32_t base, uint32_t limit, uint8_t access, uin
 /* フラグニブル: |G|D/B|L|AVL| => G=1(4K粒度), D=1(32ビット), L=0, AVL=0 -> 1100b (0xC) */
 #define SEG_FLAG_GRAN_4K_32 0xC
 
+/* TSS 用のアクセスバイト（システムセグメント、タイプ=0x9: 利用可能TSS） */
+#define ACC_TSS_AVAILABLE 0x89 /* P=1, DPL=0, Type=0x9 (Available 32-bit TSS) */
+
 /* コードセグメント用のアクセスバイトを生成．実行権限を付与するために必要 */
 static inline uint8_t access_code(uint8_t dpl)
 {
@@ -49,7 +57,12 @@ void gdt_init(void)
 	const uint32_t base = 0x00000000;
 	const uint32_t limit = 0x000FFFFF; /* 20ビット最大値 */
 
-	/* 一時バッファでGDTエントリを構築（7エントリ: NULL + カーネル3 + ユーザ3） */
+	/* init_tss を初期化（すべてゼロクリア） */
+	memset(&init_tss, 0, sizeof(init_tss));
+	init_tss.ss0 = __KERNEL_DS; /* カーネルスタックセグメント */
+	/* init_tss.esp0 は __switch_to() で動的に更新される */
+
+	/* 一時バッファでGDTエントリを構築（8エントリ: NULL + カーネル3 + ユーザ3 + TSS） */
 	uint64_t gdt_build[GDT_ENTRIES];
 	gdt_build[GDT_ENTRY_NULL] = 0x0000000000000000ULL; /* NULLディスクリプタ（x86仕様で必須） */
 	gdt_build[GDT_ENTRY_KERNEL_CS] =
@@ -64,6 +77,8 @@ void gdt_init(void)
 		make_seg_desc(base, limit, access_data(3), SEG_FLAG_GRAN_4K_32); /* ユーザデータ（DPL=3） */
 	gdt_build[GDT_ENTRY_USER_SS] =
 		make_seg_desc(base, limit, access_data(3), SEG_FLAG_GRAN_4K_32); /* ユーザスタック専用セグメント（DPL=3） */
+	/* TSS ディスクリプタ（バイト粒度、リミット = sizeof(tss_struct) - 1） */
+	gdt_build[GDT_ENTRY_TSS] = make_seg_desc((uint32_t)&init_tss, sizeof(init_tss) - 1, ACC_TSS_AVAILABLE, 0x0);
 
 	/* 仕様で要求された物理アドレス0x800にGDTをコピー */
 	volatile uint64_t *gdt_phys = (volatile uint64_t *)KFS_GDT_PHYS;
@@ -93,4 +108,7 @@ void gdt_init(void)
 				 : [gdtp] "m"(gdtp), [ds_sel] "r"((uint16_t)__KERNEL_DS), [ss_sel] "r"((uint16_t)__KERNEL_SS),
 				   [cs_sel] "i"(__KERNEL_CS)
 				 : "ax");
+
+	/* TSSをロード（タスクレジスタにTSSセレクタをセット） */
+	asm volatile("ltr %0" ::"r"((uint16_t)__KERNEL_TSS));
 }
