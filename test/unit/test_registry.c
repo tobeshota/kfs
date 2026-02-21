@@ -28,6 +28,7 @@ int register_unit_tests_wait(struct kfs_test_case **out);
 int register_unit_tests_capability(struct kfs_test_case **out);
 int register_unit_tests_sys(struct kfs_test_case **out);
 int register_unit_tests_rr(struct kfs_test_case **out);
+int register_unit_tests_process(struct kfs_test_case **out);
 
 #define KFS_MAX_TESTS 512
 
@@ -94,6 +95,8 @@ int register_unit_tests(struct kfs_test_case **out)
 		int count_sys = register_unit_tests_sys(&cases_sys);
 		struct kfs_test_case *cases_rr = 0;
 		int count_rr = register_unit_tests_rr(&cases_rr);
+		struct kfs_test_case *cases_process = 0;
+		int count_process = register_unit_tests_process(&cases_process);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
@@ -204,6 +207,10 @@ int register_unit_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_rr && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_rr[i];
+		}
+		for (int i = 0; i < count_process && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_process[i];
 		}
 		all_cases = merged;
 		all_count = idx;
