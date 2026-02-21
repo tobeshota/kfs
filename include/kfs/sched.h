@@ -8,6 +8,7 @@
 #include <kfs/rbtree.h>
 #include <kfs/signal.h>
 #include <kfs/stdint.h>
+#include <asm-i386/page.h>
 
 /** 現在のプロセスが指定 Capability を持つか確認する */
 #define capable(cap) (cap_raised(current->cap_effective, (cap)) != 0)
@@ -87,6 +88,18 @@ struct sched_entity
 /* プロセス名の最大長（Linux 6.18互換） */
 #define TASK_COMM_LEN 16
 
+/* カーネルスタックサイズ = 1ページ */
+#define THREAD_SIZE PAGE_SIZE
+
+/** コンテキストスイッチ用レジスタ保存領域
+ * @brief __switch_to() で callee-saved レジスタを退避・復元する
+ */
+struct thread_struct
+{
+	unsigned long sp; /* 退避済みのカーネルスタックポインタ */
+	unsigned long ip; /* 退避済みのカーネル空間の命令ポインタ（未使用時は 0） */
+};
+
 /** スケジューリングポリシー定数（Linux 6.18 互換値）
  * @see Linux 6.18 include/linux/sched.h
  */
@@ -144,6 +157,9 @@ struct task_struct
 	/* プロセス名 */
 	char comm[TASK_COMM_LEN]; /* プロセス名（最大16バイト） */
 
+	/* コンテキストスイッチ */
+	struct thread_struct thread; /* コンテキストスイッチ用レジスタ保存領域 */
+
 	/* プロセス終了情報 */
 	int exit_state;	 /* 終了遷移状態（EXIT_ZOMBIE/EXIT_DEAD） */
 	int exit_code;	 /* プロセス終了コード（do_wait()で親に返される） */
@@ -158,5 +174,12 @@ void schedule(void);
 void scheduler_tick(void);
 void wake_up_process(struct task_struct *tsk);
 void sched_init(void);
+
+/* コンテキストスイッチ（arch/i386/kernel/entry.S で実装） */
+void __switch_to(struct task_struct *prev, struct task_struct *next);
+
+/* プロセス管理 API（arch/i386/kernel/process.c で実装） */
+void copy_thread(struct task_struct *p, struct task_struct *orig);
+void switch_mm(struct mm_struct *prev, struct mm_struct *next);
 
 #endif /* _KFS_SCHED_H */
