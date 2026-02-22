@@ -2,6 +2,7 @@
 #include "unit_test_framework.h"
 #include <asm-i386/desc.h>
 #include <asm-i386/pgtable.h>
+#include <asm-i386/ptrace.h>
 #include <kfs/mm_types.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
@@ -224,6 +225,56 @@ KFS_TEST(test_copy_thread_with_fn_independent_sp)
 	kfree(child_fn);
 }
 
+/* copy_thread() が pt_regs.eax = 0（子の fork 戻り値）を設定することを確認 */
+KFS_TEST(test_copy_thread_sets_child_eax_zero)
+{
+	struct task_struct *child;
+	struct pt_regs *regs;
+
+	child = (struct task_struct *)kmalloc(sizeof(struct task_struct));
+	KFS_ASSERT_TRUE(child != NULL);
+	child->stack = kmalloc(THREAD_SIZE);
+	KFS_ASSERT_TRUE(child->stack != NULL);
+
+	copy_thread(child, NULL);
+
+	/* task_pt_regs() でスタック最上部の pt_regs を取得 */
+	regs = task_pt_regs(child);
+	KFS_ASSERT_EQ(0UL, (unsigned long)regs->eax);
+
+	kfree(child->stack);
+	kfree(child);
+}
+
+/* task_pt_regs() がスタック範囲内のアドレスを返すことを確認 */
+KFS_TEST(test_task_pt_regs_in_stack_range)
+{
+	struct task_struct *child;
+	struct pt_regs *regs;
+	unsigned long stack_start;
+	unsigned long stack_end;
+
+	child = (struct task_struct *)kmalloc(sizeof(struct task_struct));
+	KFS_ASSERT_TRUE(child != NULL);
+	child->stack = kmalloc(THREAD_SIZE);
+	KFS_ASSERT_TRUE(child->stack != NULL);
+
+	copy_thread(child, NULL);
+
+	stack_start = (unsigned long)child->stack;
+	stack_end = stack_start + THREAD_SIZE;
+	regs = task_pt_regs(child);
+
+	/* pt_regs はスタック範囲内に収まる */
+	KFS_ASSERT_TRUE((unsigned long)regs >= stack_start);
+	KFS_ASSERT_TRUE((unsigned long)regs + sizeof(*regs) <= stack_end);
+	/* pt_regs は fork_frame より上（高アドレス）にある */
+	KFS_ASSERT_TRUE((unsigned long)regs > child->thread.sp);
+
+	kfree(child->stack);
+	kfree(child);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_mm_null, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_mm_valid, setup_test, teardown_test),
@@ -233,6 +284,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_to_switches_stack, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_with_fn_sets_ebx, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_with_fn_independent_sp, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_sets_child_eax_zero, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_task_pt_regs_in_stack_range, setup_test, teardown_test),
 };
 
 int register_unit_tests_process(struct kfs_test_case **out)

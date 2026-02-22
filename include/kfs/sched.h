@@ -2,6 +2,7 @@
 #define _KFS_SCHED_H
 
 #include <asm-i386/page.h>
+#include <asm-i386/ptrace.h>
 #include <kfs/capability.h>
 #include <kfs/list.h>
 #include <kfs/mm_types.h>
@@ -198,5 +199,13 @@ void __switch_to(struct task_struct *prev, struct task_struct *next);
 void copy_thread(struct task_struct *p, struct task_struct *orig);
 void copy_thread_with_fn(struct task_struct *p, void (*fn)(void));
 void switch_mm(struct mm_struct *prev, struct mm_struct *next);
+
+/** task のカーネルスタック内の pt_regs へのポインタを返す
+ * @brief スタック最上部（stack + THREAD_SIZE 直下）に pt_regs が配置されている
+ */
+#define task_pt_regs(task) ((struct pt_regs *)((unsigned long)(task)->stack + THREAD_SIZE) - 1)
+
+/* fork システムコールヘルパー（arch/i386/kernel/syscall.c で実装） */
+int sys_fork(void);
 
 #endif /* _KFS_SCHED_H */
