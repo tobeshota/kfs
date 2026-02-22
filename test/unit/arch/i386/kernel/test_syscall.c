@@ -242,7 +242,7 @@ KFS_TEST(test_int80_getuid)
 KFS_TEST(test_int80_wait_no_children)
 {
 	long result;
-	__asm__ volatile("movl $7, %%eax\n\t"   /* __NR_wait */
+	__asm__ volatile("movl $7, %%eax\n\t"	 /* __NR_wait */
 					 "xorl %%ebx, %%ebx\n\t" /* EBX = NULL (wstatusポインタ) */
 					 "int $0x80\n\t"
 					 "movl %%eax, %0"
@@ -261,9 +261,9 @@ KFS_TEST(test_int80_wait_no_children)
 KFS_TEST(test_int80_signal_sigusr1_ign)
 {
 	long result;
-	__asm__ volatile("movl $48, %%eax\n\t"  /* __NR_signal */
-					 "movl $10, %%ebx\n\t"  /* EBX = SIGUSR1 (10) */
-					 "movl $1,  %%ecx\n\t"  /* ECX = SIG_IGN (1) */
+	__asm__ volatile("movl $48, %%eax\n\t" /* __NR_signal */
+					 "movl $10, %%ebx\n\t" /* EBX = SIGUSR1 (10) */
+					 "movl $1,  %%ecx\n\t" /* ECX = SIG_IGN (1) */
 					 "int $0x80\n\t"
 					 "movl %%eax, %0"
 					 : "=r"(result)
@@ -281,8 +281,8 @@ KFS_TEST(test_int80_signal_sigusr1_ign)
 KFS_TEST(test_int80_kill_sig0)
 {
 	long result;
-	__asm__ volatile("movl $37, %%eax\n\t"  /* __NR_kill */
-					 "movl $1,  %%ebx\n\t"  /* EBX = pid=1 (init_task) */
+	__asm__ volatile("movl $37, %%eax\n\t"	 /* __NR_kill */
+					 "movl $1,  %%ebx\n\t"	 /* EBX = pid=1 (init_task) */
 					 "xorl %%ecx, %%ecx\n\t" /* ECX = sig=0 (存在確認のみ) */
 					 "int $0x80\n\t"
 					 "movl %%eax, %0"
