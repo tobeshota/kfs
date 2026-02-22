@@ -5,6 +5,10 @@
 #define __NR_exit 1
 #define __NR_fork 2
 #define __NR_write 4
+#define __NR_wait 7					/* Linux i386 互換番号 */
+#define __NR_getuid 24				/* Linux i386 互換番号 */
+#define __NR_kill 37				/* Linux i386 互換番号 */
+#define __NR_signal 48				/* Linux i386 互換番号 */
 #define __NR_sched_setscheduler 156 /* Linux i386 互換番号 */
 #define __NR_sched_getscheduler 157 /* Linux i386 互換番号 */
 

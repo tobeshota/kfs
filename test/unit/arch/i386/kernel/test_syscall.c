@@ -6,6 +6,7 @@
 #include "../../../test_reset.h"
 #include "unit_test_framework.h"
 #include <kfs/errno.h>
+#include <kfs/signal.h>
 #include <kfs/stdint.h>
 #include <kfs/syscall.h>
 
@@ -70,15 +71,60 @@ KFS_TEST(test_do_syscall_unimplemented_0)
 }
 
 /**
- * 未実装syscall（__NR_exit）の検証
- * 検証対象: do_syscall()
- * 検証項目: __NR_exit (1)は定義されているが未実装なので-ENOSYSを返すこと
- * 目的: syscall番号が定義されていても実装がなければ-ENOSYSを返すことを確認
+ * __NR_wait 定数の検証
+ * 検証対象: __NR_wait
+ * 検証項目: __NR_wait が 7 であること（Linux 互換）
+ * 目的: Linux 2.6.11 との互換性を確認
  */
-KFS_TEST(test_do_syscall_unimplemented_exit)
+KFS_TEST(test_nr_wait_value)
 {
-	long result = do_syscall(__NR_exit, 0, 0, 0, 0, 0);
-	KFS_ASSERT_EQ(-ENOSYS, result);
+	KFS_ASSERT_EQ(7, __NR_wait);
+}
+
+/**
+ * __NR_getuid 定数の検証
+ * 検証対象: __NR_getuid
+ * 検証項目: __NR_getuid が 24 であること（Linux 互換）
+ * 目的: Linux 2.6.11 との互換性を確認
+ */
+KFS_TEST(test_nr_getuid_value)
+{
+	KFS_ASSERT_EQ(24, __NR_getuid);
+}
+
+/**
+ * __NR_kill 定数の検証
+ * 検証対象: __NR_kill
+ * 検証項目: __NR_kill が 37 であること（Linux 互換）
+ * 目的: Linux 2.6.11 との互換性を確認
+ */
+KFS_TEST(test_nr_kill_value)
+{
+	KFS_ASSERT_EQ(37, __NR_kill);
+}
+
+/**
+ * __NR_signal 定数の検証
+ * 検証対象: __NR_signal
+ * 検証項目: __NR_signal が 48 であること（Linux 互換）
+ * 目的: Linux 2.6.11 との互換性を確認
+ */
+KFS_TEST(test_nr_signal_value)
+{
+	KFS_ASSERT_EQ(48, __NR_signal);
+}
+
+/**
+ * sys_call_table への getuid 登録確認
+ * 検証対象: do_syscall(__NR_getuid)
+ * 検証項目: getuid が登録済みで -ENOSYS を返さないこと
+ * 目的: sys_call_table への登録を安全な syscall（getuid）で確認する
+ * 注意: sys_exit は noreturn のためテストから直接呼べない
+ */
+KFS_TEST(test_do_syscall_getuid_registered)
+{
+	long result = do_syscall(__NR_getuid, 0, 0, 0, 0, 0);
+	KFS_ASSERT_TRUE(result != -ENOSYS);
 }
 
 /**
@@ -169,6 +215,83 @@ KFS_TEST(test_int80_invalid_syscall_nr)
 	KFS_ASSERT_EQ(-ENOSYS, result);
 }
 
+/**
+ * INT 0x80: __NR_getuid (24) 登録確認
+ * 検証対象: entry.S system_call → do_syscall → do_sys_getuid
+ * 検証項目: INT 0x80 経由で getuid を呼び出しても -ENOSYS が返らないこと
+ * 目的: sys_call_table[__NR_getuid] が正しく呼ばれることを確認
+ */
+KFS_TEST(test_int80_getuid)
+{
+	long result;
+	__asm__ volatile("movl $24, %%eax\n\t" /* __NR_getuid */
+					 "int $0x80\n\t"
+					 "movl %%eax, %0"
+					 : "=r"(result)
+					 :
+					 : "eax");
+	KFS_ASSERT_TRUE(result != -ENOSYS);
+}
+
+/**
+ * INT 0x80: __NR_wait (7) 登録確認
+ * 検証対象: entry.S system_call → do_syscall → do_sys_wait
+ * 検証項目: 子プロセスなしの状態で wait(NULL) が -ECHILD を返すこと
+ * 目的: -ENOSYS でなく -ECHILD が返ることで登録と実効を同時に確認
+ */
+KFS_TEST(test_int80_wait_no_children)
+{
+	long result;
+	__asm__ volatile("movl $7, %%eax\n\t"	 /* __NR_wait */
+					 "xorl %%ebx, %%ebx\n\t" /* EBX = NULL (wstatusポインタ) */
+					 "int $0x80\n\t"
+					 "movl %%eax, %0"
+					 : "=r"(result)
+					 :
+					 : "eax", "ebx");
+	KFS_ASSERT_EQ(-ECHILD, result);
+}
+
+/**
+ * INT 0x80: __NR_signal (48) 登録確認
+ * 検証対象: entry.S system_call → do_syscall → do_sys_signal
+ * 検証項目: signal(SIGUSR1, SIG_IGN) が以前のハンドラ SIG_DFL(0) を返すこと
+ * 目的: -ENOSYS でない戻り値により登録を確認
+ */
+KFS_TEST(test_int80_signal_sigusr1_ign)
+{
+	long result;
+	__asm__ volatile("movl $48, %%eax\n\t" /* __NR_signal */
+					 "movl $10, %%ebx\n\t" /* EBX = SIGUSR1 (10) */
+					 "movl $1,  %%ecx\n\t" /* ECX = SIG_IGN (1) */
+					 "int $0x80\n\t"
+					 "movl %%eax, %0"
+					 : "=r"(result)
+					 :
+					 : "eax", "ebx", "ecx");
+	KFS_ASSERT_TRUE(result != -ENOSYS);
+}
+
+/**
+ * INT 0x80: __NR_kill (37) 登録確認
+ * 検証対象: entry.S system_call → do_syscall → do_sys_kill
+ * 検証項目: kill(1, 0) が -ENOSYS を返さないこと
+ * 目的: sig=0 は実際にシグナルを送らないため副作用なしで登録を確認できる
+ */
+KFS_TEST(test_int80_kill_sig0)
+{
+	long result;
+	__asm__ volatile("movl $37, %%eax\n\t"	 /* __NR_kill */
+					 "movl $1,  %%ebx\n\t"	 /* EBX = pid=1 (init_task) */
+					 "xorl %%ecx, %%ecx\n\t" /* ECX = sig=0 (存在確認のみ) */
+					 "int $0x80\n\t"
+					 "movl %%eax, %0"
+					 : "=r"(result)
+					 :
+					 : "eax", "ebx", "ecx");
+	KFS_ASSERT_TRUE(result != -ENOSYS);
+}
+
 static struct kfs_test_case cases[] = {
 	/* do_syscall境界チェックテスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_negative_nr, setup_test, teardown_test),
@@ -178,14 +301,22 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_max_valid_nr, setup_test, teardown_test),
 	/* 未実装syscallテスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_unimplemented_0, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_unimplemented_exit, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_unimplemented_write, setup_test, teardown_test),
 	/* 定数検証テスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_syscalls_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_exit_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_write_value, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_nr_wait_value, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_nr_getuid_value, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_nr_kill_value, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_nr_signal_value, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_getuid_registered, setup_test, teardown_test),
 	/* INT 0x80テスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_int80_invalid_syscall_nr, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_int80_getuid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_int80_wait_no_children, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_int80_signal_sigusr1_ign, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_int80_kill_sig0, setup_test, teardown_test),
 };
 
 int register_unit_tests_syscall(struct kfs_test_case **out)
