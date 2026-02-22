@@ -156,6 +156,74 @@ KFS_TEST(test_switch_to_switches_stack)
 	kfree(task);
 }
 
+/* copy_thread_with_fn() が fork_frame.ebx に関数ポインタを設定することを確認 */
+KFS_TEST(test_copy_thread_with_fn_sets_ebx)
+{
+	struct task_struct *child;
+	unsigned long *stack_ptr;
+	/* "DEAD CODE": 実行されない偽の関数ポインタ */
+	void (*dummy_fn)(void) = (void (*)(void))0xDEADC0DE;
+
+	child = (struct task_struct *)kmalloc(sizeof(struct task_struct));
+	KFS_ASSERT_TRUE(child != NULL);
+	child->stack = kmalloc(THREAD_SIZE);
+	KFS_ASSERT_TRUE(child->stack != NULL);
+
+	copy_thread_with_fn(child, dummy_fn);
+
+	/* fork_frame の ebx スロット（index 2）が関数ポインタになっていること */
+	stack_ptr = (unsigned long *)child->thread.sp;
+	KFS_ASSERT_EQ((unsigned long)dummy_fn, stack_ptr[2]); /* EBX */
+
+	/* ret_addr（index 4）は ret_from_fork を指すこと */
+	KFS_ASSERT_EQ((unsigned long)ret_from_fork, stack_ptr[4]);
+
+	/* thread.ip も ret_from_fork を指すこと */
+	KFS_ASSERT_EQ((unsigned long)ret_from_fork, child->thread.ip);
+
+	kfree(child->stack);
+	kfree(child);
+}
+
+/** copy_thread_with_fn() と copy_thread() がそれぞれ独立した SP を持つことを確認 */
+KFS_TEST(test_copy_thread_with_fn_independent_sp)
+{
+	struct task_struct *child_fork;
+	struct task_struct *child_fn;
+	void (*dummy_fn)(void) = (void (*)(void))0xDEADBEEF;
+
+	child_fork = (struct task_struct *)kmalloc(sizeof(struct task_struct));
+	KFS_ASSERT_TRUE(child_fork != NULL);
+	child_fork->stack = kmalloc(THREAD_SIZE);
+	KFS_ASSERT_TRUE(child_fork->stack != NULL);
+
+	child_fn = (struct task_struct *)kmalloc(sizeof(struct task_struct));
+	KFS_ASSERT_TRUE(child_fn != NULL);
+	child_fn->stack = kmalloc(THREAD_SIZE);
+	KFS_ASSERT_TRUE(child_fn->stack != NULL);
+
+	copy_thread(child_fork, NULL);
+	copy_thread_with_fn(child_fn, dummy_fn);
+
+	/* SP のオフセットは同じ（どちらも THREAD_SIZE - sizeof(fork_frame)）*/
+	unsigned long fork_offset = child_fork->thread.sp - (unsigned long)child_fork->stack;
+	unsigned long fn_offset = child_fn->thread.sp - (unsigned long)child_fn->stack;
+	KFS_ASSERT_EQ(fork_offset, fn_offset);
+
+	/* copy_thread の EBX スロットは 0 */
+	unsigned long *fork_sp = (unsigned long *)child_fork->thread.sp;
+	KFS_ASSERT_EQ(0UL, fork_sp[2]); /* EBX == 0 */
+
+	/* copy_thread_with_fn の EBX スロットは dummy_fn */
+	unsigned long *fn_sp = (unsigned long *)child_fn->thread.sp;
+	KFS_ASSERT_EQ((unsigned long)dummy_fn, fn_sp[2]); /* EBX == dummy_fn */
+
+	kfree(child_fork->stack);
+	kfree(child_fork);
+	kfree(child_fn->stack);
+	kfree(child_fn);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_mm_null, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_mm_valid, setup_test, teardown_test),
@@ -163,6 +231,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_tss_initialization, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_to_updates_tss_esp0, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_to_switches_stack, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_with_fn_sets_ebx, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_with_fn_independent_sp, setup_test, teardown_test),
 };
 
 int register_unit_tests_process(struct kfs_test_case **out)
