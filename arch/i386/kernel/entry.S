@@ -352,6 +352,10 @@ __switch_to:
  */
 .globl ret_from_fork
 ret_from_fork:
-	/* Phase 7: カーネルスレッド用の最小実装 */
+	test	%ebx, %ebx         /* ebx == 0 か判定（ebx & ebx を評価）しZFフラグ等を更新する */
+	jz	.Lret_from_fork_done   /* ZFフラグが0なら関数呼び出しをスキップ */
+	call	*%ebx              /* ebx が指す関数を呼び出す */
+
+.Lret_from_fork_done:
 	ret
 

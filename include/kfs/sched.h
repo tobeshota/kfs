@@ -196,6 +196,7 @@ void __switch_to(struct task_struct *prev, struct task_struct *next);
 
 /* プロセス管理 API（arch/i386/kernel/process.c で実装） */
 void copy_thread(struct task_struct *p, struct task_struct *orig);
+void copy_thread_with_fn(struct task_struct *p, void (*fn)(void));
 void switch_mm(struct mm_struct *prev, struct mm_struct *next);
 
 #endif /* _KFS_SCHED_H */
