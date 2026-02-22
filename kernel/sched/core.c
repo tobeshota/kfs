@@ -128,9 +128,10 @@ void sched_init(void)
 	rr_enqueue(&init_task);
 }
 
-/** スリープ中のタスクを起床させる
- * @brief タスク状態を TASK_RUNNING に変更し，RR ランキューに追加する．
- * @param tsk 起床させるタスク
+/** プロセスを起床させる
+ * @brief プロセスの状態をTASK_RUNNINGに変更し，RRランキューに追加する．
+ *        これにより，プロセスは次回のスケジューリングにおいて実行対象の候補となる．
+ * @param tsk 起床させるプロセス
  */
 void wake_up_process(struct task_struct *tsk)
 {
