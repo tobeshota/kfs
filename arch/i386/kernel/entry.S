@@ -342,20 +342,21 @@ __switch_to:
  * @brief 子タスクが最初に __switch_to() で復帰する際に実行される
  *
  * @details
- * Phase 7 の最小実装。カーネルスレッド間のコンテキストスイッチに対応。
- * Phase 9（プロセス実装）で以下を追加予定：
- *   - pt_regs からレジスタを復元（ユーザーモードへの復帰）
- *   - kernel_thread の場合の関数呼び出し
+ * __switch_to() が子の thread.sp を ESP に設定して ret すると
+ * fork_frame のリターンアドレス（= ret_from_fork）にジャンプし、
+ * その時点の ESP は pt_regs.ebx フィールドを指している。
+ * RESTORE_ALL で pt_regs 全体を pop し、iret でユーザー空間へ復帰する。
+ * これにより fork() が子プロセスで 0 を返す（pt_regs.eax = 0）。
  *
- * @note 現在の実装では、カーネルスレッドが __switch_to() で復帰する際に
- *       schedule() を抜けて呼び出し元に戻る
+ * カーネルスレッド（fn != NULL）の場合は fn() を呼び出してから
+ * RESTORE_ALL で復帰する。
  */
 .globl ret_from_fork
 ret_from_fork:
-	test	%ebx, %ebx         /* ebx == 0 か判定（ebx & ebx を評価）しZFフラグ等を更新する */
-	jz	.Lret_from_fork_done   /* ZFフラグが0なら関数呼び出しをスキップ */
-	call	*%ebx              /* ebx が指す関数を呼び出す */
+	test	%ebx, %ebx         /* ebx == 0 か判定: fn ポインタが NULL か確認 */
+	jz	.Lret_from_fork_done   /* NULL なら fn 呼び出しをスキップ */
+	call	*%ebx              /* カーネルスレッドの fn を呼び出す */
 
 .Lret_from_fork_done:
-	ret
+	RESTORE_ALL                /* pt_regs を pop して iret でユーザー空間へ復帰 */
 
