@@ -1,7 +1,9 @@
 #include <asm-i386/pgtable.h>
+#include <asm-i386/ptrace.h>
 #include <kfs/mm_types.h>
 #include <kfs/sched.h>
 #include <kfs/stddef.h>
+#include <kfs/string.h>
 
 /** fork() で生成された子プロセスのカーネルスタック末尾に配置される初期スタックフレーム
  * copy_thread() が stack + THREAD_SIZE の直下（= スタック末尾）に1つ配置する
@@ -52,38 +54,33 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next)
 void copy_thread(struct task_struct *p, struct task_struct *orig)
 {
 	extern void ret_from_fork(void); /* entry.S で定義 */
+	struct pt_regs *childregs;
 	struct fork_frame *frame;
 
-	(void)orig; /* 親タスクは今回未使用 */
-
-	/** スタック末尾の直下にフレームを配置
-	 * カーネルスタックの末尾アドレスは，
-	 * カーネルスタックの先頭アドレス(p->stack)に
-	 * カーネルスタックのサイズ(THREAD_SIZE)を足した値である．
-	 * カーネルスタックの末尾アドレスからstruct fork_frameのサイズだけ下がり，
-	 * frame->{edi, esi, ebx, ebp, ret_addr}を配置する．
+	/** スタック最上部に pt_regs を配置し、その直下に fork_frame を積む
+	 *
+	 * レイアウト（高アドレス→低アドレス）:
+	 *   stack + THREAD_SIZE
+	 *   ┌──────────────┐
+	 *   │  pt_regs     │ ← childregs = task_pt_regs(p)
+	 *   ├──────────────┤
+	 *   │  fork_frame  │ ← frame = (struct fork_frame *)childregs - 1
+	 *   └──────────────┘ ← thread.sp
 	 */
-	frame = (struct fork_frame *)((unsigned long)p->stack + THREAD_SIZE) - 1;
+	childregs = task_pt_regs(p);
+	memset(childregs, 0, sizeof(*childregs));
+	if (orig)
+	{
+		/* 親の pt_regs をコピーして子の eax だけ 0 に書き換える */
+		*childregs = *task_pt_regs(orig);
+	}
+	childregs->eax = 0; /* 子の fork() 戻り値 */
 
+	frame = (struct fork_frame *)childregs - 1;
 	frame->edi = 0;
 	frame->esi = 0;
 	frame->ebx = 0;
 	frame->ebp = 0;
-	/** 子プロセスが最初に実行する関数をret_from_fork()に設定する
-	 * @brief 子プロセスのリターンアドレスをret_from_fork()に設定する
-	 *
-	 * @note __switch_to() は次のようなアセンブリコードで
-	 *       子プロセスのスタックからレジスタを復元し，
-	 *       ret で ret_from_fork() にジャンプする
-	 * ```
-	 * 	movl  next->thread.sp, %esp   ; ESP ← frame の先頭
-	 * 	popl  %edi                    ; edi 復元（= 0）
-	 * 	popl  %esi                    ; esi 復元（= 0）
-	 * 	popl  %ebx                    ; ebx 復元（= 0）
-	 * 	popl  %ebp                    ; ebp 復元（= 0）
-	 * 	ret                           ; ret_addr をポップして ret_from_fork へジャンプ
-	 * ```
-	 */
 	frame->ret_addr = (unsigned long)ret_from_fork;
 
 	p->thread.sp = (unsigned long)frame;
@@ -100,10 +97,14 @@ void copy_thread(struct task_struct *p, struct task_struct *orig)
 void copy_thread_with_fn(struct task_struct *p, void (*fn)(void))
 {
 	extern void ret_from_fork(void); /* entry.S で定義 */
+	struct pt_regs *childregs;
 	struct fork_frame *frame;
 
-	frame = (struct fork_frame *)((unsigned long)p->stack + THREAD_SIZE) - 1;
+	/* copy_thread() と同じレイアウト: pt_regs at top, fork_frame below */
+	childregs = task_pt_regs(p);
+	memset(childregs, 0, sizeof(*childregs));
 
+	frame = (struct fork_frame *)childregs - 1;
 	frame->edi = 0;
 	frame->esi = 0;
 	frame->ebx = (unsigned long)fn; /* ret_from_fork が call *%%ebx で呼び出す */

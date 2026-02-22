@@ -3,6 +3,8 @@
 #include <kfs/sys.h>
 #include <kfs/syscall.h>
 
+extern pid_t do_fork(void);
+
 /**　未実装のシステムコール用のスタブ
  * @return -ENOSYS
  * @note 関数名は system not implemented syscall の意
@@ -40,7 +42,26 @@ static long do_sched_getscheduler(long arg1, long arg2, long arg3, long arg4, lo
  */
 typedef long (*syscall_fn_t)(long, long, long, long, long);
 
+/* sys_fork() - fork() システムコール
+ * @return 親: 子 PID、子: 0（ret_from_fork で pt_regs.eax = 0 が設定済み）
+ */
+static long do_sys_fork(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)do_fork();
+}
+
+int sys_fork(void)
+{
+	return (int)do_fork();
+}
+
 static syscall_fn_t sys_call_table[NR_syscalls] = {
+	[__NR_fork] = do_sys_fork,
 	[__NR_sched_setscheduler] = do_sched_setscheduler,
 	[__NR_sched_getscheduler] = do_sched_getscheduler,
 };

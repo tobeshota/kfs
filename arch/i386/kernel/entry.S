@@ -250,7 +250,7 @@ system_call:
 /* task_struct のオフセット定数 */
 #define TASK_STACK 4
 #define TASK_MM 12
-#define TASK_THREAD_SP 668
+#define TASK_THREAD_SP 412
 #define THREAD_SIZE 4096
 #define TSS_ESP0 4
 
