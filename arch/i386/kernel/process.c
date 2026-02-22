@@ -90,4 +90,28 @@ void copy_thread(struct task_struct *p, struct task_struct *orig)
 	p->thread.ip = (unsigned long)ret_from_fork;
 }
 
+/** exec_fn() 専用: カーネルスレッドとして fn を実行するフレームを構築する
+ * @brief copy_thread() との違いは fork_frame.ebx に fn を仕込む点のみ．
+ * @param p  新しい子プロセス
+ * @param fn fork 後に ret_from_fork が call する関数ポインタ
+ * @note ret_from_fork は ebx != 0 の場合に call *%%ebx を実行する
+ * @see  ret_from_fork (arch/i386/kernel/entry.S)
+ */
+void copy_thread_with_fn(struct task_struct *p, void (*fn)(void))
+{
+	extern void ret_from_fork(void); /* entry.S で定義 */
+	struct fork_frame *frame;
+
+	frame = (struct fork_frame *)((unsigned long)p->stack + THREAD_SIZE) - 1;
+
+	frame->edi = 0;
+	frame->esi = 0;
+	frame->ebx = (unsigned long)fn; /* ret_from_fork が call *%%ebx で呼び出す */
+	frame->ebp = 0;
+	frame->ret_addr = (unsigned long)ret_from_fork;
+
+	p->thread.sp = (unsigned long)frame;
+	p->thread.ip = (unsigned long)ret_from_fork;
+}
+
 /* __switch_to() の実装は arch/i386/kernel/entry.S で行う */
