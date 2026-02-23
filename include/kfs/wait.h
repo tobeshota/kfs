@@ -3,19 +3,16 @@
 
 #include <kfs/sched.h>
 
-/** 子プロセスの終了を待ち、ゾンビを回収する
- * @param wstatus 終了ステータスを書き込むポインタ（NULLで無視）
- * @return 回収した子プロセスのPID
- * @note Linux 6.18 kernel/exit.c do_wait()相当
- */
-pid_t do_wait(int *wstatus);
+/* 子が正常終了した場合に真 */
+#define WIFEXITED(status) (((status) & 0x7f) == 0)
+/* 正常終了時の終了コード（exit(N) の N）を取り出す */
+#define WEXITSTATUS(status) (((status) >> 8) & 0xff)
+/* シグナルで終了した場合に真 */
+#define WIFSIGNALED(status) (((status) & 0x7f) != 0x7f && ((status) & 0x7f) != 0)
+/* 終了シグナル番号を取り出す */
+#define WTERMSIG(status) ((status) & 0x7f)
 
-/** waitシステムコール用ヘルパー
- * @param wstatus 終了ステータスを書き込むポインタ
- * @return 回収した子プロセスのPID、エラー時負数
- * @note Linux 6.18 kernel/exit.c sys_wait4()相当（最小実装）
- * @note Phase 10でシステムコールテーブルから呼ばれる
- */
+pid_t do_wait(int *wstatus);
 pid_t sys_wait(int *wstatus);
 
 #endif /* _KFS_WAIT_H */
