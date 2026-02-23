@@ -1,6 +1,8 @@
 #include <asm-i386/pgtable.h>
 #include <kfs/mm.h>
 #include <kfs/pid.h>
+#include <kfs/printk.h>
+#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
 
@@ -63,13 +65,8 @@ void do_exit(int code)
 
 	/* TASK_DEADに変更（スケジューラがrunqueueから除外する） */
 	tsk->__state = TASK_DEAD;
-
-	/* TODO: Phase 4でSIGCHLDを親に送信 */
-	/* send_signal(SIGCHLD, tsk->parent); */
-
-	/* スケジューラに制御を渡す（この関数は返ってこない） */
-	/* TODO: Phase 7でschedule()実装 */
-	/* schedule(); */
+	rr_dequeue(tsk); /* ランキューから除外して再スケジュールされないようにする */
+	schedule();
 }
 
 /** プロセスを揮発させる
