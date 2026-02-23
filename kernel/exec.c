@@ -1,6 +1,5 @@
 #include <kfs/sched.h>
-
-extern void sys_exit(int status);
+#include <kfs/unistd.h>
 
 /** カーネル内の関数をプロセスとして実行する
  * @brief fn(arg) を実行して終了する（noreturn）
@@ -22,6 +21,6 @@ extern void sys_exit(int status);
 void __attribute__((noreturn)) exec_fn(void (*fn)(void *), void *arg)
 {
 	fn(arg);
-	sys_exit(0);
+	exit(0);
 	__builtin_unreachable();
 }
