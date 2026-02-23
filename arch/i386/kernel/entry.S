@@ -46,14 +46,17 @@
 	popl %es
 	popl %fs
 	popl %gs
-	addl $4, %esp		/* orig_eax (error_code) をスキップ */	/* 【ring-0 → ring-3 の瞬間（syscall/例外からの復帰時）】
+	addl $4, %esp	/* orig_eax (error_code) をスキップ */
+	/** 割り込みから復帰する
+	 * @note ring-0 → ring-3 の瞬間（syscall/例外からの復帰時）である．
 	 * iret はカーネルスタックに積まれた CS を確認し、
 	 * CPL=3（__USER_CS）であれば ring-3 への降格と判断して
 	 *   EIP ← 保存された ring-3 の次の命令アドレス
 	 *   CS  ← __USER_CS（CPL=3）
 	 *   ESP ← 保存された ring-3 のスタックポインタ
-	 * を一括でロードする。この iret の完了が ring-0 → ring-3 の遷移の瞬間。 */
-	iret				/* 割り込みから復帰 */
+	 * を一括でロードする。この iret の完了が ring-0 → ring-3 の遷移の瞬間。
+	 */
+	iret
 .endm
 
 /**
