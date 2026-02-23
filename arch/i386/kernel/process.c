@@ -73,11 +73,20 @@ void copy_thread(struct task_struct *p, struct task_struct *orig, unsigned long 
 	childregs = task_pt_regs(p);
 	if (user_eip)
 	{
-		/* ring-0(カーネル空間)からdo_fork()等で
-		 * ring-3で動くユーザプロセスを生成する場合 */
+		/** ring-0 → ring-3
+		 * @details
+		 * カーネル（ring-0）が do_fork() で ring-3 プロセスを産む経路．
+		 * ここで cs=__USER_CS|3 を pt_regs に書いておくことで，
+		 * ret_from_fork の末尾にある iret 命令が
+		 *   cs  ← __USER_CS|3  （CPL=3 へ降格）
+		 *   eip ← user_eip     （ユーザプロセスの開始アドレス）
+		 *   esp ← user_esp     （ユーザスタックトップ）
+		 * を CPU にロードし，その瞬間に ring-0 → ring-3 へ遷移する．
+		 * iret 以降は CPU は ring-3 として動作する．
+		 */
 		memset(childregs, 0, sizeof(*childregs));
 		childregs->eip = user_eip;
-		childregs->cs = __USER_CS | 3;
+		childregs->cs = __USER_CS | 3; /* iret でここを CS にロード → ring-3 へ */
 		childregs->esp = user_esp;
 		childregs->ss = __USER_DS | 3;
 		childregs->eflags = 0x200; /* IF=1 */
@@ -90,14 +99,18 @@ void copy_thread(struct task_struct *p, struct task_struct *orig, unsigned long 
 	}
 	else
 	{
-		/* ring-3(ユーザ空間)からINT 0x80等で
-		 * ring-3で動くユーザプロセスを生成する場合 */
+		/** ring-3 → ring-0 → ring-3
+		 * @details
+		 * ユーザプロセス（ring-3）が INT 0x80 で fork() syscall を呼んだ経路．
+		 * INT 0x80 の時点で CPU はすでに ring-3 → ring-0 へ昇格しており，
+		 * 今ここ（copy_thread）はカーネル（ring-0）として動いている．
+		 * 親の pt_regs をそのままコピーすることで，子の cs/eip/esp/ss にも
+		 * 親と同じ ring-3 の値が入り，ret_from_fork の iret が
+		 * ring-0 → ring-3 へ再び降格して fork() の戻り先に戻る．
+		 */
 		memset(childregs, 0, sizeof(*childregs));
 		if (orig)
 		{
-			/* 親の pt_regs をコピーすることで子の cs/eip/esp/ss も
-			 * 親と同じ ring-3 値になり，ret_from_fork → iret で
-			 * 自動的に ring-3 に戻る */
 			*childregs = *task_pt_regs(orig);
 		}
 	}
