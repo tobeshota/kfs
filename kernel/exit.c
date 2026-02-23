@@ -101,10 +101,10 @@ void release_task(struct task_struct *p)
 		p->signal = NULL;
 	}
 
-	/* スタックを解放 */
+	/* スタックを解放（alloc_pages で確保したので free_pages で解放） */
 	if (p->stack)
 	{
-		kfree(p->stack);
+		free_pages((struct page *)p->stack, 0);
 		p->stack = NULL;
 	}
 
