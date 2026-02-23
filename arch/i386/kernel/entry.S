@@ -347,16 +347,8 @@ __switch_to:
  * その時点の ESP は pt_regs.ebx フィールドを指している。
  * RESTORE_ALL で pt_regs 全体を pop し、iret でユーザー空間へ復帰する。
  * これにより fork() が子プロセスで 0 を返す（pt_regs.eax = 0）。
- *
- * カーネルスレッド（fn != NULL）の場合は fn() を呼び出してから
- * RESTORE_ALL で復帰する。
  */
 .globl ret_from_fork
 ret_from_fork:
-	test	%ebx, %ebx         /* ebx == 0 か判定: fn ポインタが NULL か確認 */
-	jz	.Lret_from_fork_done   /* NULL なら fn 呼び出しをスキップ */
-	call	*%ebx              /* カーネルスレッドの fn を呼び出す */
-
-.Lret_from_fork_done:
 	RESTORE_ALL                /* pt_regs を pop して iret でユーザー空間へ復帰 */
 
