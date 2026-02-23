@@ -1,3 +1,4 @@
+#include "../../../support/run_in_ring3.h"
 #include "../../../test_reset.h"
 #include "unit_test_framework.h"
 #include <asm-i386/desc.h>
@@ -6,6 +7,7 @@
 #include <kfs/mm_types.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
+#include <kfs/unistd.h>
 
 /* 外部シンボル */
 extern struct tss_struct init_tss;
@@ -207,6 +209,60 @@ KFS_TEST(test_task_pt_regs_in_stack_range)
 	kfree(child);
 }
 
+/* copy_thread() に user_eip/user_esp を渡すと ring-3 用 pt_regs が設定されることを確認 */
+KFS_TEST(test_copy_thread_user_regs)
+{
+	struct task_struct *child;
+	struct pt_regs *regs;
+
+	child = (struct task_struct *)kmalloc(sizeof(struct task_struct));
+	KFS_ASSERT_TRUE(child != NULL);
+	child->stack = kmalloc(THREAD_SIZE);
+	KFS_ASSERT_TRUE(child->stack != NULL);
+
+	copy_thread(child, NULL, 0xDEAD0000UL, 0xBEEF0000UL);
+
+	regs = task_pt_regs(child);
+	/* ring-3 で実行を開始するアドレスが user_eip に設定されていること */
+	KFS_ASSERT_EQ(0xDEAD0000UL, (unsigned long)regs->eip);
+	/* cs の RPL（下位 2 bit）が 3 = ring-3 であること。
+	 * iret はこの値を見て特権レベルを決定するため最重要。 */
+	KFS_ASSERT_EQ((unsigned long)(__USER_CS | 3), (unsigned long)regs->cs);
+	/* ring-3 に降りたときのスタックポインタが user_esp に設定されていること */
+	KFS_ASSERT_EQ(0xBEEF0000UL, (unsigned long)regs->esp);
+	/* ss の RPL が 3 = ring-3 であること。cs と同様 iret が参照する。 */
+	KFS_ASSERT_EQ((unsigned long)(__USER_DS | 3), (unsigned long)regs->ss);
+	/* IF=1（割り込み許可）が設定されていること。
+	 * これがないとユーザプロセス実行中に割り込みが来ずスケジューリングが止まる。 */
+	KFS_ASSERT_EQ(0x200UL, (unsigned long)regs->eflags);
+	/* fork() の子の戻り値が 0 であること（POSIX 規定） */
+	KFS_ASSERT_EQ(0UL, (unsigned long)regs->eax);
+
+	kfree(child->stack);
+	kfree(child);
+}
+
+/* ---- test_process_lifecycle (Commit 2 で有効化) ----
+ * カーネルページに PAGE_USER が付与されていないため ring-3 から
+ * exec_fn/lifecycle_worker(supervisor-only ページ)を呼べず page fault になる。
+ * Commit 2 で boot.S のページテーブル初期化を修正してから有効化する。
+ * 詳細は Documentation/fr-exec-fn.md の Commit 2 参照。
+ *
+ * static volatile int g_lifecycle_ran = 0;
+ * static void lifecycle_worker(void *arg) { (void)arg; g_lifecycle_ran = 1; }
+ * static void lifecycle_in_ring3(void) {
+ *     pid_t pid = fork();
+ *     if (pid == 0) exec_fn(lifecycle_worker, NULL);
+ *     wait(NULL); exit(0);
+ * }
+ * KFS_TEST(test_process_lifecycle) {
+ *     static unsigned long ustack[256];
+ *     g_lifecycle_ran = 0;
+ *     run_in_ring3(lifecycle_in_ring3, ustack, 256);
+ *     KFS_ASSERT_EQ(1, g_lifecycle_ran);
+ * }
+ */
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_mm_null, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_mm_valid, setup_test, teardown_test),
@@ -216,6 +272,12 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_to_switches_stack, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_sets_child_eax_zero, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_task_pt_regs_in_stack_range, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_user_regs, setup_test, teardown_test),
+	/* test_process_lifecycle は Commit 2 で追加する。
+	 * ring-3 から実行する関数（lifecycle_in_ring3/exec_fn/worker）が
+	 * supervisor-only ページ（PAGE_USER なし）にあるため、ring-3 から
+	 * 実行すると page fault が発生する。Commit 2 でカーネルページに
+	 * PAGE_USER を付与するか、専用のユーザ空間セクションを用意した後に追加する。 */
 };
 
 int register_unit_tests_process(struct kfs_test_case **out)
