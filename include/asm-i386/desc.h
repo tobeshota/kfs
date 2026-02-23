@@ -69,6 +69,9 @@ struct idt_entry
  * @param n         割り込み番号 (0-255)
  * @param addr      ハンドラ関数のアドレス
  * @param type_attr ゲートタイプとDPL (IDT_GATE_*)
+ * @note selector = __KERNEL_CS (CPL=0) を固定でセットするため，
+ *       割り込み発生時に CPU が CS に __KERNEL_CS をロードし，
+ *       ハンドラは常に ring-0 (特権モード) として実行される．
  */
 #define _set_gate(idt_table, n, addr, type_attr)                                                                       \
 	do                                                                                                                 \
