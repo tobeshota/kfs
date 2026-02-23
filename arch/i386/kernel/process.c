@@ -81,6 +81,12 @@ void copy_thread(struct task_struct *p, struct task_struct *orig, unsigned long 
 		childregs->esp = user_esp;
 		childregs->ss = __USER_DS | 3;
 		childregs->eflags = 0x200; /* IF=1 */
+		/* RESTORE_ALL で popl %ds 等が走るため 0 のままだと
+		 * ring-3 復帰直後に DS=0 → メモリアクセス例外が発生する */
+		childregs->ds = __USER_DS | 3;
+		childregs->es = __USER_DS | 3;
+		childregs->fs = __USER_DS | 3;
+		childregs->gs = __USER_DS | 3;
 	}
 	else
 	{
