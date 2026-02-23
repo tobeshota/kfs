@@ -68,7 +68,7 @@ KFS_TEST(test_copy_thread_stack_setup)
 	KFS_ASSERT_TRUE(child->stack != NULL);
 
 	/* copy_thread を呼び出し */
-	copy_thread(child, NULL);
+	copy_thread(child, NULL, 0, 0);
 
 	/* thread.sp がスタック範囲内にあることを確認 */
 	unsigned long stack_start = (unsigned long)child->stack;
@@ -140,7 +140,7 @@ KFS_TEST(test_switch_to_switches_stack)
 	task->mm = NULL;
 
 	/* copy_thread でスタックを初期化 */
-	copy_thread(task, NULL);
+	copy_thread(task, NULL, 0, 0);
 
 	/* thread.sp がスタック範囲内であることを確認 */
 	unsigned long stack_start = (unsigned long)task->stack;
@@ -168,7 +168,7 @@ KFS_TEST(test_copy_thread_sets_child_eax_zero)
 	child->stack = kmalloc(THREAD_SIZE);
 	KFS_ASSERT_TRUE(child->stack != NULL);
 
-	copy_thread(child, NULL);
+	copy_thread(child, NULL, 0, 0);
 
 	/* task_pt_regs() でスタック最上部の pt_regs を取得 */
 	regs = task_pt_regs(child);
@@ -191,7 +191,7 @@ KFS_TEST(test_task_pt_regs_in_stack_range)
 	child->stack = kmalloc(THREAD_SIZE);
 	KFS_ASSERT_TRUE(child->stack != NULL);
 
-	copy_thread(child, NULL);
+	copy_thread(child, NULL, 0, 0);
 
 	stack_start = (unsigned long)child->stack;
 	stack_end = stack_start + THREAD_SIZE;
