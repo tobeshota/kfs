@@ -3,6 +3,8 @@
 #include <kfs/gfp.h>
 #include <kfs/mm.h>
 #include <kfs/pid.h>
+#include <kfs/printk.h>
+#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
 #include <kfs/string.h>
@@ -32,8 +34,12 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 		return NULL;
 	}
 
-	/* カーネルスタックを割り当て */
-	stack = kmalloc(THREAD_SIZE);
+	/* カーネルスタックを割り当て
+	 * kmalloc(THREAD_SIZE) はメタデータ 8 バイト分オフセットされた ptr を返すため
+	 * task->stack + THREAD_SIZE が PAGE 境界を超えて pt_regs.esp/ss を破壊する。
+	 * alloc_pages は PAGE_SIZE 境界に揃った ptr を返すため安全。
+	 */
+	stack = (void *)alloc_pages(GFP_KERNEL, 0);
 	if (!stack)
 	{
 		kmem_cache_free(task_struct_cachep, tsk);
@@ -161,7 +167,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 	{
 		if (p->stack)
 		{
-			kfree(p->stack);
+			free_pages((struct page *)p->stack, 0);
 		}
 		kmem_cache_free(task_struct_cachep, p);
 		return NULL;
@@ -175,7 +181,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 		put_pid(pid);
 		if (p->stack)
 		{
-			kfree(p->stack);
+			free_pages((struct page *)p->stack, 0);
 		}
 		kmem_cache_free(task_struct_cachep, p);
 		return NULL;
@@ -192,7 +198,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 		put_pid(pid);
 		if (p->stack)
 		{
-			kfree(p->stack);
+			free_pages((struct page *)p->stack, 0);
 		}
 		kmem_cache_free(task_struct_cachep, p);
 		return NULL;
@@ -241,6 +247,9 @@ pid_t do_fork(unsigned long user_eip, unsigned long user_esp)
 
 	/* コンテキストスイッチ用スタックフレームを設定 */
 	copy_thread(p, current, user_eip, user_esp);
+
+	/* 子プロセスをRRランキューに登録してスケジューリング可能にする */
+	rr_enqueue(p);
 
 	/* 新プロセスのPIDを返す */
 	return p->pid;
