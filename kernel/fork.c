@@ -198,8 +198,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 		return NULL;
 	}
 
-	/* コンテキストスイッチ用スタックフレームを設定 */
-	copy_thread(p, orig);
+	/* コンテキストスイッチ用スタックフレームは do_fork() で設定する */
 
 	/* 親子関係を設定 */
 	p->parent = orig;			  /* 親はコピー元 */
@@ -221,10 +220,14 @@ struct task_struct *copy_process(struct task_struct *orig)
 }
 
 /** プロセスを誕生させる
+ * @param user_eip 子が ring-3 で実行を開始するアドレス（0 なら親の pt_regs をコピー）
+ * @param user_esp 子の ring-3 スタックポインタ（user_eip=0 なら無視）
  * @return 新しいプロセスのPID（成功）、負のエラーコード（失敗）
- * @note Linux 6.18のkernel_clone()相当。Phase 10でsys_fork()から呼ばれる
+ * @note Linux 6.18のkernel_clone()相当。
+ *       sys_fork() からは do_fork(0,0) で呼ぶ（親の pt_regs をコピー）。
+ *       cmd_sched() 等からは do_fork(eip, esp) で呼ぶ（ring-3 直接起動）。
  */
-pid_t do_fork(void)
+pid_t do_fork(unsigned long user_eip, unsigned long user_esp)
 {
 	struct task_struct *p;
 	extern struct task_struct *current; /* 現在のプロセス */
@@ -235,6 +238,9 @@ pid_t do_fork(void)
 	{
 		return -EAGAIN;
 	}
+
+	/* コンテキストスイッチ用スタックフレームを設定 */
+	copy_thread(p, current, user_eip, user_esp);
 
 	/* 新プロセスのPIDを返す */
 	return p->pid;

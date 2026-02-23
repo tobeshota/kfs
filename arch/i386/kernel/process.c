@@ -1,3 +1,4 @@
+#include <asm-i386/desc.h>
 #include <asm-i386/pgtable.h>
 #include <asm-i386/ptrace.h>
 #include <kfs/mm_types.h>
@@ -44,6 +45,8 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next)
 /** 子プロセスのカーネルスタック上に初期スタックフレームを積む
  * @param p    新しい子プロセス
  * @param orig 親プロセス（現在未使用）
+ * @param user_eip ユーザープロセスの開始アドレス
+ * @param user_esp ユーザープロセスのスタックポインタ
  *
  * @brief
  * fork() で生成された子プロセスが初めて __switch_to() でスケジュールされた際に，
@@ -51,7 +54,7 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next)
  *
  * @note callee-saved レジスタの初期値は 0（子プロセスは親の値を継承しない）
  */
-void copy_thread(struct task_struct *p, struct task_struct *orig)
+void copy_thread(struct task_struct *p, struct task_struct *orig, unsigned long user_eip, unsigned long user_esp)
 {
 	extern void ret_from_fork(void); /* entry.S で定義 */
 	struct pt_regs *childregs;
@@ -68,11 +71,29 @@ void copy_thread(struct task_struct *p, struct task_struct *orig)
 	 *   └──────────────┘ ← thread.sp
 	 */
 	childregs = task_pt_regs(p);
-	memset(childregs, 0, sizeof(*childregs));
-	if (orig)
+	if (user_eip)
 	{
-		/* 親の pt_regs をコピーして子の eax だけ 0 に書き換える */
-		*childregs = *task_pt_regs(orig);
+		/* ring-0(カーネル空間)からdo_fork()等で
+		 * ring-3で動くユーザプロセスを生成する場合 */
+		memset(childregs, 0, sizeof(*childregs));
+		childregs->eip = user_eip;
+		childregs->cs = __USER_CS | 3;
+		childregs->esp = user_esp;
+		childregs->ss = __USER_DS | 3;
+		childregs->eflags = 0x200; /* IF=1 */
+	}
+	else
+	{
+		/* ring-3(ユーザ空間)からINT 0x80等で
+		 * ring-3で動くユーザプロセスを生成する場合 */
+		memset(childregs, 0, sizeof(*childregs));
+		if (orig)
+		{
+			/* 親の pt_regs をコピーすることで子の cs/eip/esp/ss も
+			 * 親と同じ ring-3 値になり，ret_from_fork → iret で
+			 * 自動的に ring-3 に戻る */
+			*childregs = *task_pt_regs(orig);
+		}
 	}
 	childregs->eax = 0; /* 子の fork() 戻り値 */
 

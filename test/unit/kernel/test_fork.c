@@ -9,7 +9,7 @@
 
 /* テスト対象関数（kernel/fork.c） */
 extern struct task_struct *copy_process(struct task_struct *orig);
-extern pid_t do_fork(void);
+extern pid_t do_fork(unsigned long user_eip, unsigned long user_esp);
 extern void fork_init(void);
 
 /* テスト用ヘルパー（kernel/sched/core.c） */
@@ -256,7 +256,7 @@ KFS_TEST(test_do_fork_basic)
 	current = &init_task;
 
 	/* do_fork()を実行 */
-	child_pid = do_fork();
+	child_pid = do_fork(0, 0);
 
 	/* 正のPIDが返ること */
 	KFS_ASSERT_TRUE(child_pid > 0);

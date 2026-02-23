@@ -196,13 +196,16 @@ void sched_init(void);
 void __switch_to(struct task_struct *prev, struct task_struct *next);
 
 /* プロセス管理 API（arch/i386/kernel/process.c で実装） */
-void copy_thread(struct task_struct *p, struct task_struct *orig);
+void copy_thread(struct task_struct *p, struct task_struct *orig, unsigned long user_eip, unsigned long user_esp);
 void switch_mm(struct mm_struct *prev, struct mm_struct *next);
 
 /** task のカーネルスタック内の pt_regs へのポインタを返す
  * @brief スタック最上部（stack + THREAD_SIZE 直下）に pt_regs が配置されている
  */
 #define task_pt_regs(task) ((struct pt_regs *)((unsigned long)(task)->stack + THREAD_SIZE) - 1)
+
+/* fork/exec カーネル内部 API（kernel/fork.c で実装） */
+pid_t do_fork(unsigned long user_eip, unsigned long user_esp);
 
 /* fork システムコールヘルパー（arch/i386/kernel/syscall.c で実装） */
 int sys_fork(void);
