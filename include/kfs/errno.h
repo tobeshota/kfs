@@ -7,6 +7,7 @@
 #define ENOMEM 12 /* Out of memory */
 #define EINVAL 22 /* Invalid argument */
 #define ESRCH 3	  /* No such process */
+#define EBADF 9	  /* Bad file number */
 #define ENOSYS 38 /* Function not implemented */
 
 #endif /* _KFS_ERRNO_H */

@@ -24,10 +24,18 @@ void __attribute__((noreturn)) exit(int status)
 	__builtin_unreachable();
 }
 
-/* 子プロセスの終了を待つ */
+/* 子プロセスの終了を待ち，終了した子プロセスを揮発させる */
 pid_t wait(int *wstatus)
 {
 	long ret;
 	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_wait), "b"(wstatus) : "memory");
 	return (pid_t)ret;
+}
+
+/* fd にバイト列を書き込む（1=stdout, 2=stderr, 4=COM1シリアル） */
+int write(int fd, const void *buf, unsigned int count)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_write), "b"(fd), "c"(buf), "d"(count) : "memory");
+	return (int)ret;
 }
