@@ -48,6 +48,7 @@ mb2_header_end:
 /* ページング定数 */
 .set PAGE_PRESENT,    0x001  /* Presentビット */
 .set PAGE_WRITE,      0x002  /* Read/Writeビット */
+.set PAGE_USER,       0x004  /* User/Supervisorビット：ring-3アクセス許可 */
 .set PAGE_SIZE,       4096   /* 4KBページサイズ */
 .set KERNEL_OFFSET,   0xC0000000  /* Higher halfオフセット（3GB） */
 
@@ -187,12 +188,12 @@ setup_paging:
     mov $boot_page_table_identity, %edi   /* EDI = ページテーブルの先頭アドレス */
     mov $1024, %ecx                       /* ECX = 1024 (ループカウンタ) */
 1:
-    mov %eax, %edx                        /* EDXに物理アドレスをセットする */
-    or $(PAGE_PRESENT | PAGE_WRITE), %edx /* EDXにセットした物理アドレスが指すページをPresentかつRead/Writeに設定 */
-    mov %edx, (%edi)                      /* EDXの値をEDIが指すメモリ(現在のページテーブルエントリ)に書き込む */
-    add $PAGE_SIZE, %eax                  /* EAXを次のページの物理アドレスに更新する */
-    add $4, %edi                          /* EDIを次のページテーブルエントリに更新する */
-    loop 1b                               /* ECXをデクリメントし，0でなければ1にジャンプ */
+    mov %eax, %edx                                /* EDXに物理アドレスをセットする */
+    or $(PAGE_PRESENT | PAGE_WRITE), %edx          /* Present+RW: 恒等マッピングはカーネル専用 */
+    mov %edx, (%edi)                              /* EDXの値をEDIが指すメモリ(現在のページテーブルエントリ)に書き込む */
+    add $PAGE_SIZE, %eax                          /* EAXを次のページの物理アドレスに更新する */
+    add $4, %edi                                  /* EDIを次のページテーブルエントリに更新する */
+    loop 1b                                       /* ECXをデクリメントし，0でなければ1にジャンプ */
 
     /* カーネル用Higher halfマッピングをセットアップ（0xC0000000 - 0xC0400000）
      * 物理0x00000000 - 0x00400000にマップ
@@ -201,12 +202,12 @@ setup_paging:
     mov $boot_page_table_kernel, %edi     /* EDI = ページテーブルの先頭アドレス */
     mov $1024, %ecx                       /* ECX = 1024 (ループカウンタ) */
 2:
-    mov %eax, %edx                        /* EDXに物理アドレスをセットする */
-    or $(PAGE_PRESENT | PAGE_WRITE), %edx /* EDXにセットした物理アドレスが指すページをPresentかつRead/Writeに設定 */
-    mov %edx, (%edi)                      /* EDXの値をEDIが指すメモリ(現在のページテーブルエントリ)に書き込む */
-    add $PAGE_SIZE, %eax                  /* EAXを次のページの物理アドレスに更新する */
-    add $4, %edi                          /* EDIを次のページテーブルエントリに更新する */
-    loop 2b                               /* ECXをデクリメントし，0でなければ2にジャンプ */
+    mov %eax, %edx                                /* EDXに物理アドレスをセットする */
+    or $(PAGE_PRESENT | PAGE_WRITE | PAGE_USER), %edx /* Present+RW+User: ring-3から実行可能にする */
+    mov %edx, (%edi)                              /* EDXの値をEDIが指すメモリ(現在のページテーブルエントリ)に書き込む */
+    add $PAGE_SIZE, %eax                          /* EAXを次のページの物理アドレスに更新する */
+    add $4, %edi                                  /* EDIを次のページテーブルエントリに更新する */
+    loop 2b                                       /* ECXをデクリメントし，0でなければ2にジャンプ */
 
     /** ページディレクトリにページテーブルをインストール
      * エントリ0: 恒等マッピング（仮想0x00000000-0x003FFFFF → 物理0x00000000-0x003FFFFF）
@@ -214,7 +215,7 @@ setup_paging:
      *       仮想アドレス0x00000000 / 4MB = 0 → エントリ0
      */
     mov $boot_page_table_identity, %eax
-    or $(PAGE_PRESENT | PAGE_WRITE), %eax
+    or $(PAGE_PRESENT | PAGE_WRITE), %eax          /* 恒等マッピングはカーネル専用（PAGE_USERなし） */
     mov $boot_page_directory, %edi
     mov %eax, (%edi)                    /* boot_page_directory[0] = boot_page_table_identity | Present | Write */
 
@@ -224,10 +225,10 @@ setup_paging:
      *       エントリ768は仮想アドレス空間の3GB～3GB+4MBを管理する
      */
     mov $boot_page_table_kernel, %eax
-    or $(PAGE_PRESENT | PAGE_WRITE), %eax
+    or $(PAGE_PRESENT | PAGE_WRITE | PAGE_USER), %eax
     mov $boot_page_directory, %edi
     add $(768 * 4), %edi                /* ページディレクトリの768番目のエントリ（4バイト×768）にオフセット */
-    mov %eax, (%edi)                    /* boot_page_directory[768] = boot_page_table_kernel | Present | Write */
+    mov %eax, (%edi)                    /* boot_page_directory[768] = boot_page_table_kernel | Present | Write | User */
 
     ret
 

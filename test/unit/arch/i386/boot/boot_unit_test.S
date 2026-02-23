@@ -15,6 +15,7 @@
 /* ページング定数 */
 .set PAGE_PRESENT,    0x001  /* Presentビット */
 .set PAGE_WRITE,      0x002  /* Read/Writeビット */
+.set PAGE_USER,       0x004  /* User/Supervisorビット（ring-3からアクセス可能） */
 .set PAGE_SIZE,       4096   /* 4KBページサイズ */
 .set KERNEL_OFFSET,   0xC0000000  /* Higher halfオフセット（3GB） */
 
@@ -126,7 +127,7 @@ setup_paging:
 
 1:
     mov %eax, %edx
-    or $(PAGE_PRESENT | PAGE_WRITE), %edx
+    or $(PAGE_PRESENT | PAGE_WRITE), %edx          /* 恒等マッピングはカーネル専用（PAGE_USERなし） */
     mov %edx, (%edi)
     add $PAGE_SIZE, %eax
     add $4, %edi
@@ -141,7 +142,7 @@ setup_paging:
 
 2:
     mov %eax, %edx
-    or $(PAGE_PRESENT | PAGE_WRITE), %edx
+    or $(PAGE_PRESENT | PAGE_WRITE | PAGE_USER), %edx
     mov %edx, (%edi)
     add $PAGE_SIZE, %eax
     add $4, %edi
@@ -151,13 +152,13 @@ setup_paging:
      * エントリ0: 恒等マッピング（0x00000000 - 0x00400000）
      */
     mov $boot_page_table_identity, %eax
-    or $(PAGE_PRESENT | PAGE_WRITE), %eax
+    or $(PAGE_PRESENT | PAGE_WRITE), %eax          /* 恒等マッピングはカーネル専用（PAGE_USERなし） */
     mov $boot_page_directory, %edi
     mov %eax, (%edi)
 
     /* エントリ768（0xC0000000 / 4MB）: Higher halfカーネルマッピング */
     mov $boot_page_table_kernel, %eax
-    or $(PAGE_PRESENT | PAGE_WRITE), %eax
+    or $(PAGE_PRESENT | PAGE_WRITE | PAGE_USER), %eax
     mov $boot_page_directory, %edi
     add $(768 * 4), %edi  /* 768番目のエントリ */
     mov %eax, (%edi)
