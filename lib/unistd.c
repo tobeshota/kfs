@@ -4,7 +4,20 @@
 /**
  * POSIX プロセス管理 API — ring-3 から INT 0x80 で syscall を発行する実装
  *
- * ring-3 から呼ばれることを前提とする。ring-0 から呼ぶと CPU が ss/esp を
+ * 【ring-3 → ring-0 の瞬間】
+ * 各関数内の `int $0x80` 命令を CPU が実行した瞬間に遷移が起きる。
+ * CPU は IDT の system_gate (vector 0x80) を参照し、
+ *   1. ring-3 の SS/ESP/EFLAGS/CS/EIP をカーネルスタックに自動 push
+ *   2. CS を __KERNEL_CS（CPL=0）にセット
+ *   3. EIP を system_call ハンドラ（entry.S）に変更
+ * この一連の動作が `int $0x80` の1命令で完結し、次の命令は ring-0 で動く。
+ *
+ * 【ring-0 → ring-3 への帰還】
+ * syscall 終了後、entry.S の RESTORE_ALL 末尾の `iret` が
+ * カーネルスタックに積まれた CS（__USER_CS, CPL=3）を復元して ring-3 に戻る。
+ * この関数群の `int $0x80` の「次の C 命令」は既に ring-3 で動いている。
+ *
+ * ring-0 から呼ぶと CPU が ss/esp を
  * スタックに積まないため pt_regs レイアウトが壊れる。
  * 単体テストからは run_in_ring3() で ring-3 に降りてから呼ぶこと。
  */

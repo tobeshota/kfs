@@ -46,7 +46,13 @@
 	popl %es
 	popl %fs
 	popl %gs
-	addl $4, %esp		/* orig_eax (error_code) をスキップ */
+	addl $4, %esp		/* orig_eax (error_code) をスキップ */	/* 【ring-0 → ring-3 の瞬間（syscall/例外からの復帰時）】
+	 * iret はカーネルスタックに積まれた CS を確認し、
+	 * CPL=3（__USER_CS）であれば ring-3 への降格と判断して
+	 *   EIP ← 保存された ring-3 の次の命令アドレス
+	 *   CS  ← __USER_CS（CPL=3）
+	 *   ESP ← 保存された ring-3 のスタックポインタ
+	 * を一括でロードする。この iret の完了が ring-0 → ring-3 の遷移の瞬間。 */
 	iret				/* 割り込みから復帰 */
 .endm
 
@@ -169,6 +175,14 @@ IRQ_ENTRY irq15, 15		/* IRQ15: Secondary ATA */
  */
 .globl system_call
 system_call:
+	/* 【ring-3 → ring-0 の着地点】
+	 * ring-3 プロセスが `int $0x80` を実行した直後、CPU が自動的にここへ飛ぶ。
+	 * この時点で CPU はすでに:
+	 *   - CS  = __KERNEL_CS（CPL=0, ring-0）に切り替わっている
+	 *   - ESP = カーネルスタック（TSS.esp0 が指す先）に切り替わっている
+	 *   - カーネルスタックには ring-3 の SS/ESP/EFLAGS/CS/EIP が積まれている
+	 * つまり `int $0x80` の瞬間が ring-3 → ring-0 の遷移であり、
+	 * ここは ring-0 としての「最初の1行目」である。 */
 	pushl %eax			/* orig_eax: システムコール番号を保存 */
 	SAVE_ALL
 	/* do_syscall(nr, arg1, arg2, arg3, arg4, arg5) を呼び出す */
