@@ -1,14 +1,18 @@
 #include <asm-i386/pgtable.h>
 #include <kfs/console.h>
+#include <kfs/exec.h>
 #include <kfs/keyboard.h>
 #include <kfs/neofetch.h>
 #include <kfs/panic.h>
 #include <kfs/printk.h>
 #include <kfs/reboot.h>
+#include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
 #include <kfs/stdint.h>
 #include <kfs/string.h>
+#include <kfs/unistd.h>
+#include <kfs/wait.h>
 
 #define SHELL_PROMPT "kfs $ " /* シェルプロンプト文字列 */
 #define CMD_BUFFER_SIZE 256	  /* コマンドバッファのサイズ */
@@ -103,6 +107,64 @@ void cmd_loadkeys(const char *args)
 		printk("loadkeys: unknown keymap '%s'\n", layout);
 		printk("Available keymaps: us, fr, qwerty, azerty\n");
 	}
+}
+
+/** sched コマンド用ワーカー: "-" を VGAとCOM1に書き込む */
+static void write_dash(void *arg)
+{
+	(void)arg;
+	write(1, "-", 1);
+	write(4, "-", 1);
+}
+
+/** sched コマンド用ワーカー: "_" を VGAとCOM1に書き込む */
+static void write_under(void *arg)
+{
+	(void)arg;
+	write(1, "_", 1);
+	write(4, "_", 1);
+}
+
+/** sched コマンド: ユーザ空間におけるプロセスのライフサイクルをテストする
+ * @brief ring-3において，プロセスがfork()で誕生し，exec_fn()で生まれ変わり，
+ *        exit()で終了し，親のwait()によって揮発するまでの全過程が意図通りであることを確かめる．
+ *        期待する出力は，"-"と"_"が交互に50回ずつ（合計100回）表示された後に改行が出ることである．
+ */
+static void sched_ring3_main(void)
+{
+	for (int i = 0; i < 50; i++)
+	{
+		/* プロセスを誕生させる */
+		pid_t pid = fork();
+		if (pid < 0)
+		{
+			write(1, "Failed to fork process\n", 23);
+			exit(1);
+		}
+		else if (pid == 0)
+		{
+			/* 子プロセスのうち，
+			 * PIDが偶数の者は"-"を出力し，奇数の者は"_"を出力する */
+			exec_fn(i % 2 == 0 ? write_dash : write_under, NULL);
+		}
+		/* 親プロセスは我が子の終了を待ち，
+		 * 終了した我が子を揮発させる */
+		wait(NULL);
+	}
+	write(1, "\n", 1);
+	write(4, "\n", 1);
+
+	/* 親プロセスが終了する */
+	exit(0);
+}
+
+static void cmd_sched(void)
+{
+	static unsigned long ustack[256];
+
+	/* ring-0 → ring-3 へ降りてスケジューリングループを実行し、終了を待つ */
+	do_fork((unsigned long)sched_ring3_main, (unsigned long)(ustack + 256));
+	do_wait(NULL);
 }
 
 /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
@@ -287,6 +349,13 @@ static void execute_command(const char *cmd)
 	if (strncmp(cmd, "neofetch", 8) == 0)
 	{
 		print_neofetch();
+		return;
+	}
+
+	/* sched コマンド: ring-3 プロセスのスケジューリング実証 */
+	if (strcmp(cmd, "sched") == 0)
+	{
+		cmd_sched();
 		return;
 	}
 
