@@ -1,6 +1,7 @@
 #include <kfs/list.h>
 #include <kfs/mm_types.h>
 #include <kfs/pid.h>
+#include <kfs/printk.h>
 #include <kfs/rr.h>
 #include <kfs/sched.h>
 
@@ -124,6 +125,11 @@ struct task_struct *find_task_by_pid(pid_t pid)
  */
 void sched_init(void)
 {
+	/* rr_init() でキューをクリアする前に run_list を空に戻す。
+	 * こうしないと rr_enqueue の二重登録防止チェック
+	 * (!list_empty(&run_list)) が誤動作し、init_task が
+	 * キューに再登録されなくなる（複数回呼び出し時の冪等性保証）。 */
+	INIT_LIST_HEAD(&init_task.run_list);
 	rr_init();
 	rr_enqueue(&init_task);
 }
@@ -150,20 +156,36 @@ void scheduler_tick(void)
 
 /** スケジューラ本体（コンテキストスイッチ）
  * @brief RR ランキューから次のタスクを選択し current ポインタを更新する．
- *        Commit 5 で __switch_to(prev, next) による実レジスタ切り替えに置き換える．
+ *        自発的に呼ばれた場合（do_wait等）は current を末尾に回して他タスクに yield する。
+ * @return 1=コンテキストスイッチ実施, 0=スイッチなし（runnableなnextが存在しない）
  */
-void schedule(void)
+int schedule(void)
 {
 	struct task_struct *next;
-	struct task_struct *prev;
+	struct task_struct *prev = current;
 
-	next = rr_pick_next();
-	if (!next || next == current)
+	/* 自発的 yield: current を末尾に回すことで他タスクが先頭になれるようにする。
+	 * ランキューにない場合（TASK_DEAD 等）は何もしない。 */
+	if (!list_empty(&prev->run_list))
 	{
-		return;
+		rr_dequeue(prev);
+		rr_enqueue(prev);
 	}
 
-	prev = current;
+	next = rr_pick_next();
+	if (!next || next == prev)
+	{
+		return 0; /* スイッチなし */
+	}
+
+	/* thread.sp == 0 のタスクは __switch_to 未経験（ユニットテスト初期化前等）
+	 * のため切り替えると ESP=0 でトリプルフォルトする。スキップする。 */
+	if (!next->thread.sp)
+	{
+		return 0; /* スイッチなし */
+	}
+
 	current = next;
 	__switch_to(prev, next);
+	return 1; /* スイッチ実施 */
 }

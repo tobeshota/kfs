@@ -187,7 +187,7 @@ struct task_struct
 extern struct task_struct *current;
 
 /* スケジューラ API（kernel/sched/core.c で実装） */
-void schedule(void);
+int schedule(void); /* 1=context switched, 0=no switch */
 void scheduler_tick(void);
 void wake_up_process(struct task_struct *tsk);
 void sched_init(void);
@@ -205,6 +205,7 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next);
 #define task_pt_regs(task) ((struct pt_regs *)((unsigned long)(task)->stack + THREAD_SIZE) - 1)
 
 /* fork/exec カーネル内部 API（kernel/fork.c で実装） */
+void fork_init(void);
 pid_t do_fork(unsigned long user_eip, unsigned long user_esp);
 
 /* fork システムコールヘルパー（arch/i386/kernel/syscall.c で実装） */
