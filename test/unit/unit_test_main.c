@@ -1,13 +1,17 @@
 #include "coverage/coverage.h"
 #include "unit_test_framework.h"
+#include <asm-i386/desc.h>
+#include <asm-i386/i8259.h>
 #include <asm-i386/io.h>
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
 #include <kfs/mm.h>
 #include <kfs/multiboot.h>
 #include <kfs/printk.h>
+#include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
+#include <kfs/timer.h>
 
 int kfs_test_failures = 0;
 
@@ -32,6 +36,25 @@ void start_unit_test_kernel(void)
 		page_alloc_init(multiboot_info_ptr, multiboot_magic);
 		kmem_cache_init();
 	}
+
+	/* IDT初期化（INT 0x80 = ring-3からのsyscall用） */
+	idt_init();
+
+	/* スケジューラ初期化（RRキュー確立・init_task登録） */
+	extern void init_idle_task(void);
+	extern void fork_init(void);
+	extern void pid_init(void);
+	init_idle_task();
+	sched_init();
+
+	/* PIT タイマー初期化（IRQ0 → scheduler_tick()） */
+	/* 8259A PIC を先に初期化しないと IRQ0 が vector 0x08（DF）に飛ぶ */
+	init_8259A();
+	timer_init();
+
+	/* fork・PID初期化（task_struct_cachep確立） */
+	fork_init();
+	pid_init();
 
 	extern int register_unit_tests(struct kfs_test_case * *out);
 	struct kfs_test_case *cases = 0;

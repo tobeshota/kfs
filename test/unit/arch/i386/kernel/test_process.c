@@ -4,6 +4,8 @@
 #include <asm-i386/desc.h>
 #include <asm-i386/pgtable.h>
 #include <asm-i386/ptrace.h>
+#include <kfs/exec.h>
+#include <kfs/list.h>
 #include <kfs/mm_types.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
@@ -12,11 +14,39 @@
 /* 外部シンボル */
 extern struct tss_struct init_tss;
 extern void ret_from_fork(void);
+extern struct task_struct init_task;
+extern struct task_struct *current;
+extern struct list_head task_list;
+
+/* 初期化関数 */
+extern void fork_init(void);
+extern void pid_init(void);
+extern void init_idle_task(void);
+
+/** テスト専用：init_taskとtask_listを強制的にリセット */
+static void reset_init_task_for_test(void)
+{
+	INIT_LIST_HEAD(&task_list);
+	INIT_LIST_HEAD(&init_task.children);
+	INIT_LIST_HEAD(&init_task.sibling);
+	INIT_LIST_HEAD(&init_task.tasks);
+	INIT_LIST_HEAD(&init_task.run_list);
+	init_task.__state = TASK_RUNNING;
+	init_task.pid = 0;
+	init_task.parent = &init_task;
+	current = &init_task;
+}
 
 /* セットアップ・ティアダウン */
 static void setup_test(void)
 {
 	reset_all_state_for_test();
+	kmem_cache_init();
+	pid_init();
+	reset_init_task_for_test();
+	init_idle_task();
+	sched_init();
+	fork_init();
 }
 
 static void teardown_test(void)
@@ -242,26 +272,30 @@ KFS_TEST(test_copy_thread_user_regs)
 	kfree(child);
 }
 
-/* ---- test_process_lifecycle (Commit 2 で有効化) ----
- * カーネルページに PAGE_USER が付与されていないため ring-3 から
- * exec_fn/lifecycle_worker(supervisor-only ページ)を呼べず page fault になる。
- * Commit 2 で boot.S のページテーブル初期化を修正してから有効化する。
- * 詳細は Documentation/fr-exec-fn.md の Commit 2 参照。
- *
- * static volatile int g_lifecycle_ran = 0;
- * static void lifecycle_worker(void *arg) { (void)arg; g_lifecycle_ran = 1; }
- * static void lifecycle_in_ring3(void) {
- *     pid_t pid = fork();
- *     if (pid == 0) exec_fn(lifecycle_worker, NULL);
- *     wait(NULL); exit(0);
- * }
- * KFS_TEST(test_process_lifecycle) {
- *     static unsigned long ustack[256];
- *     g_lifecycle_ran = 0;
- *     run_in_ring3(lifecycle_in_ring3, ustack, 256);
- *     KFS_ASSERT_EQ(1, g_lifecycle_ran);
- * }
- */
+static volatile int g_lifecycle_ran = 0;
+static void lifecycle_worker(void *arg)
+{
+	(void)arg;
+	g_lifecycle_ran = 1;
+}
+static void lifecycle_in_ring3(void)
+{
+	pid_t pid = fork();
+	if (pid == 0)
+	{
+		exec_fn(lifecycle_worker, NULL);
+	}
+	wait(NULL);
+	exit(0);
+}
+
+KFS_TEST(test_process_lifecycle)
+{
+	static unsigned long ustack[256];
+	g_lifecycle_ran = 0;
+	run_in_ring3(lifecycle_in_ring3, ustack, 256);
+	KFS_ASSERT_EQ(1, g_lifecycle_ran);
+}
 
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_mm_null, setup_test, teardown_test),
@@ -273,11 +307,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_sets_child_eax_zero, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_task_pt_regs_in_stack_range, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_user_regs, setup_test, teardown_test),
-	/* test_process_lifecycle は Commit 2 で追加する。
-	 * ring-3 から実行する関数（lifecycle_in_ring3/exec_fn/worker）が
-	 * supervisor-only ページ（PAGE_USER なし）にあるため、ring-3 から
-	 * 実行すると page fault が発生する。Commit 2 でカーネルページに
-	 * PAGE_USER を付与するか、専用のユーザ空間セクションを用意した後に追加する。 */
+	KFS_REGISTER_TEST_WITH_SETUP(test_process_lifecycle, setup_test, teardown_test),
 };
 
 int register_unit_tests_process(struct kfs_test_case **out)

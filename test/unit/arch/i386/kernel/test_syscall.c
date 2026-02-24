@@ -128,15 +128,16 @@ KFS_TEST(test_do_syscall_getuid_registered)
 }
 
 /**
- * 未実装syscall（__NR_write）の検証
+ * 実装済みsyscall（__NR_write）の検証
  * 検証対象: do_syscall()
- * 検証項目: __NR_write (4)は定義されているが未実装なので-ENOSYSを返すこと
- * 目的: syscall番号が定義されていても実装がなければ-ENOSYSを返すことを確認
+ * 検証項目: __NR_write (4) は実装済みであり、未サポートの fd=0 に対して -EBADF を返すこと
+ * 目的: write syscall が sys_ni_syscall ではなく実装関数にルーティングされることを確認
  */
 KFS_TEST(test_do_syscall_unimplemented_write)
 {
-	long result = do_syscall(__NR_write, 0, 0, 0, 0, 0);
-	KFS_ASSERT_EQ(-ENOSYS, result);
+	/* fd=0 (stdin) は未サポート → -EBADF が返る（-ENOSYS ではない） */
+	long result = do_syscall(__NR_write, 0, 0, 1, 0, 0);
+	KFS_ASSERT_EQ(-EBADF, result);
 }
 
 /**
