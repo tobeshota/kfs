@@ -65,7 +65,8 @@ void start_kernel(void)
 		/* Slabアロケータ初期化（kmalloc/kfree使用可能に） */
 		kmem_cache_init();
 
-		/* 仮想メモリアロケータ初期化（vmalloc/vfree使用可能に） */
+		/* プロセス管理初期化（task_struct_cachep確立） */
+		fork_init();
 		vmalloc_init();
 
 		mem_init();

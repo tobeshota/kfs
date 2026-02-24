@@ -1,11 +1,14 @@
+#include <kfs/console.h>
 #include <kfs/errno.h>
 #include <kfs/printk.h>
+#include <kfs/serial.h>
 #include <kfs/signal.h>
+#include <kfs/stddef.h>
 #include <kfs/sys.h>
 #include <kfs/syscall.h>
 #include <kfs/wait.h>
 
-extern pid_t do_fork(void);
+extern pid_t do_fork(unsigned long user_eip, unsigned long user_esp);
 extern void sys_exit(int error_code);
 
 /**　未実装のシステムコール用のスタブ
@@ -45,6 +48,51 @@ static long do_sched_getscheduler(long arg1, long arg2, long arg3, long arg4, lo
  */
 typedef long (*syscall_fn_t)(long, long, long, long, long);
 
+/** write() システムコール
+ * @param arg1 fd   1=stdout/2=stderr → VGA端末、4=シリアルCOM1
+ * @param arg2 buf  書き込むデータのポインタ
+ * @param arg3 count バイト数
+ * @return 書き込んだバイト数、エラー時負数
+ */
+static long do_sys_write(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	int fd = (int)arg1;
+	const char *buf = (const char *)arg2;
+	size_t count = (size_t)arg3;
+	size_t i;
+
+	(void)arg4;
+	(void)arg5;
+
+	/* fdの妙合性を先に確認（bufを調べる前に行う） */
+	if (fd != 1 && fd != 2 && fd != 4)
+	{
+		return -EBADF;
+	}
+
+	if (!buf || count == 0)
+	{
+		return 0;
+	}
+
+	if (fd == 1 || fd == 2)
+	{
+		/* stdout / stderr → VGA端末に1文字ずつ出力 */
+		for (i = 0; i < count; i++)
+		{
+			terminal_putchar(buf[i]);
+		}
+		return (long)count;
+	}
+	if (fd == 4)
+	{
+		/* COM1シリアル → serial_write でバルク出力 */
+		serial_write(buf, count);
+		return (long)count;
+	}
+	return -EBADF;
+}
+
 /** fork() システムコール
  * @return 親: 子 PID、子: 0（ret_from_fork で pt_regs.eax = 0 が設定済み）
  */
@@ -55,12 +103,12 @@ static long do_sys_fork(long arg1, long arg2, long arg3, long arg4, long arg5)
 	(void)arg3;
 	(void)arg4;
 	(void)arg5;
-	return (long)do_fork();
+	return (long)do_fork(0, 0);
 }
 
 int sys_fork(void)
 {
-	return (int)do_fork();
+	return (int)do_fork(0, 0);
 }
 
 /** exit() システムコール
@@ -132,6 +180,7 @@ static long do_sys_kill(long arg1, long arg2, long arg3, long arg4, long arg5)
 static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_exit] = (syscall_fn_t)do_sys_exit,
 	[__NR_fork] = do_sys_fork,
+	[__NR_write] = do_sys_write,
 	[__NR_wait] = do_sys_wait,
 	[__NR_getuid] = do_sys_getuid,
 	[__NR_kill] = do_sys_kill,

@@ -187,7 +187,7 @@ struct task_struct
 extern struct task_struct *current;
 
 /* スケジューラ API（kernel/sched/core.c で実装） */
-void schedule(void);
+int schedule(void); /* 1=context switched, 0=no switch */
 void scheduler_tick(void);
 void wake_up_process(struct task_struct *tsk);
 void sched_init(void);
@@ -196,8 +196,7 @@ void sched_init(void);
 void __switch_to(struct task_struct *prev, struct task_struct *next);
 
 /* プロセス管理 API（arch/i386/kernel/process.c で実装） */
-void copy_thread(struct task_struct *p, struct task_struct *orig);
-void copy_thread_with_fn(struct task_struct *p, void (*fn)(void));
+void copy_thread(struct task_struct *p, struct task_struct *orig, unsigned long user_eip, unsigned long user_esp);
 void switch_mm(struct mm_struct *prev, struct mm_struct *next);
 
 /** task のカーネルスタック内の pt_regs へのポインタを返す
@@ -205,7 +204,14 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next);
  */
 #define task_pt_regs(task) ((struct pt_regs *)((unsigned long)(task)->stack + THREAD_SIZE) - 1)
 
+/* fork/exec カーネル内部 API（kernel/fork.c で実装） */
+void fork_init(void);
+pid_t do_fork(unsigned long user_eip, unsigned long user_esp);
+
 /* fork システムコールヘルパー（arch/i386/kernel/syscall.c で実装） */
 int sys_fork(void);
+
+/* exec_fn（kernel/exec.c で実装） */
+void __attribute__((noreturn)) exec_fn(void (*fn)(void *), void *arg);
 
 #endif /* _KFS_SCHED_H */

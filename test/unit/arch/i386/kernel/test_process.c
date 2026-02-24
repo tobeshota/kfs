@@ -1,20 +1,52 @@
+#include "../../../support/run_in_ring3.h"
 #include "../../../test_reset.h"
 #include "unit_test_framework.h"
 #include <asm-i386/desc.h>
 #include <asm-i386/pgtable.h>
 #include <asm-i386/ptrace.h>
+#include <kfs/exec.h>
+#include <kfs/list.h>
 #include <kfs/mm_types.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
+#include <kfs/unistd.h>
 
 /* 外部シンボル */
 extern struct tss_struct init_tss;
 extern void ret_from_fork(void);
+extern struct task_struct init_task;
+extern struct task_struct *current;
+extern struct list_head task_list;
+
+/* 初期化関数 */
+extern void fork_init(void);
+extern void pid_init(void);
+extern void init_idle_task(void);
+
+/** テスト専用：init_taskとtask_listを強制的にリセット */
+static void reset_init_task_for_test(void)
+{
+	INIT_LIST_HEAD(&task_list);
+	INIT_LIST_HEAD(&init_task.children);
+	INIT_LIST_HEAD(&init_task.sibling);
+	INIT_LIST_HEAD(&init_task.tasks);
+	INIT_LIST_HEAD(&init_task.run_list);
+	init_task.__state = TASK_RUNNING;
+	init_task.pid = 0;
+	init_task.parent = &init_task;
+	current = &init_task;
+}
 
 /* セットアップ・ティアダウン */
 static void setup_test(void)
 {
 	reset_all_state_for_test();
+	kmem_cache_init();
+	pid_init();
+	reset_init_task_for_test();
+	init_idle_task();
+	sched_init();
+	fork_init();
 }
 
 static void teardown_test(void)
@@ -68,7 +100,7 @@ KFS_TEST(test_copy_thread_stack_setup)
 	KFS_ASSERT_TRUE(child->stack != NULL);
 
 	/* copy_thread を呼び出し */
-	copy_thread(child, NULL);
+	copy_thread(child, NULL, 0, 0);
 
 	/* thread.sp がスタック範囲内にあることを確認 */
 	unsigned long stack_start = (unsigned long)child->stack;
@@ -140,7 +172,7 @@ KFS_TEST(test_switch_to_switches_stack)
 	task->mm = NULL;
 
 	/* copy_thread でスタックを初期化 */
-	copy_thread(task, NULL);
+	copy_thread(task, NULL, 0, 0);
 
 	/* thread.sp がスタック範囲内であることを確認 */
 	unsigned long stack_start = (unsigned long)task->stack;
@@ -157,74 +189,6 @@ KFS_TEST(test_switch_to_switches_stack)
 	kfree(task);
 }
 
-/* copy_thread_with_fn() が fork_frame.ebx に関数ポインタを設定することを確認 */
-KFS_TEST(test_copy_thread_with_fn_sets_ebx)
-{
-	struct task_struct *child;
-	unsigned long *stack_ptr;
-	/* "DEAD CODE": 実行されない偽の関数ポインタ */
-	void (*dummy_fn)(void) = (void (*)(void))0xDEADC0DE;
-
-	child = (struct task_struct *)kmalloc(sizeof(struct task_struct));
-	KFS_ASSERT_TRUE(child != NULL);
-	child->stack = kmalloc(THREAD_SIZE);
-	KFS_ASSERT_TRUE(child->stack != NULL);
-
-	copy_thread_with_fn(child, dummy_fn);
-
-	/* fork_frame の ebx スロット（index 2）が関数ポインタになっていること */
-	stack_ptr = (unsigned long *)child->thread.sp;
-	KFS_ASSERT_EQ((unsigned long)dummy_fn, stack_ptr[2]); /* EBX */
-
-	/* ret_addr（index 4）は ret_from_fork を指すこと */
-	KFS_ASSERT_EQ((unsigned long)ret_from_fork, stack_ptr[4]);
-
-	/* thread.ip も ret_from_fork を指すこと */
-	KFS_ASSERT_EQ((unsigned long)ret_from_fork, child->thread.ip);
-
-	kfree(child->stack);
-	kfree(child);
-}
-
-/** copy_thread_with_fn() と copy_thread() がそれぞれ独立した SP を持つことを確認 */
-KFS_TEST(test_copy_thread_with_fn_independent_sp)
-{
-	struct task_struct *child_fork;
-	struct task_struct *child_fn;
-	void (*dummy_fn)(void) = (void (*)(void))0xDEADBEEF;
-
-	child_fork = (struct task_struct *)kmalloc(sizeof(struct task_struct));
-	KFS_ASSERT_TRUE(child_fork != NULL);
-	child_fork->stack = kmalloc(THREAD_SIZE);
-	KFS_ASSERT_TRUE(child_fork->stack != NULL);
-
-	child_fn = (struct task_struct *)kmalloc(sizeof(struct task_struct));
-	KFS_ASSERT_TRUE(child_fn != NULL);
-	child_fn->stack = kmalloc(THREAD_SIZE);
-	KFS_ASSERT_TRUE(child_fn->stack != NULL);
-
-	copy_thread(child_fork, NULL);
-	copy_thread_with_fn(child_fn, dummy_fn);
-
-	/* SP のオフセットは同じ（どちらも THREAD_SIZE - sizeof(fork_frame)）*/
-	unsigned long fork_offset = child_fork->thread.sp - (unsigned long)child_fork->stack;
-	unsigned long fn_offset = child_fn->thread.sp - (unsigned long)child_fn->stack;
-	KFS_ASSERT_EQ(fork_offset, fn_offset);
-
-	/* copy_thread の EBX スロットは 0 */
-	unsigned long *fork_sp = (unsigned long *)child_fork->thread.sp;
-	KFS_ASSERT_EQ(0UL, fork_sp[2]); /* EBX == 0 */
-
-	/* copy_thread_with_fn の EBX スロットは dummy_fn */
-	unsigned long *fn_sp = (unsigned long *)child_fn->thread.sp;
-	KFS_ASSERT_EQ((unsigned long)dummy_fn, fn_sp[2]); /* EBX == dummy_fn */
-
-	kfree(child_fork->stack);
-	kfree(child_fork);
-	kfree(child_fn->stack);
-	kfree(child_fn);
-}
-
 /* copy_thread() が pt_regs.eax = 0（子の fork 戻り値）を設定することを確認 */
 KFS_TEST(test_copy_thread_sets_child_eax_zero)
 {
@@ -236,7 +200,7 @@ KFS_TEST(test_copy_thread_sets_child_eax_zero)
 	child->stack = kmalloc(THREAD_SIZE);
 	KFS_ASSERT_TRUE(child->stack != NULL);
 
-	copy_thread(child, NULL);
+	copy_thread(child, NULL, 0, 0);
 
 	/* task_pt_regs() でスタック最上部の pt_regs を取得 */
 	regs = task_pt_regs(child);
@@ -259,7 +223,7 @@ KFS_TEST(test_task_pt_regs_in_stack_range)
 	child->stack = kmalloc(THREAD_SIZE);
 	KFS_ASSERT_TRUE(child->stack != NULL);
 
-	copy_thread(child, NULL);
+	copy_thread(child, NULL, 0, 0);
 
 	stack_start = (unsigned long)child->stack;
 	stack_end = stack_start + THREAD_SIZE;
@@ -275,6 +239,64 @@ KFS_TEST(test_task_pt_regs_in_stack_range)
 	kfree(child);
 }
 
+/* copy_thread() に user_eip/user_esp を渡すと ring-3 用 pt_regs が設定されることを確認 */
+KFS_TEST(test_copy_thread_user_regs)
+{
+	struct task_struct *child;
+	struct pt_regs *regs;
+
+	child = (struct task_struct *)kmalloc(sizeof(struct task_struct));
+	KFS_ASSERT_TRUE(child != NULL);
+	child->stack = kmalloc(THREAD_SIZE);
+	KFS_ASSERT_TRUE(child->stack != NULL);
+
+	copy_thread(child, NULL, 0xDEAD0000UL, 0xBEEF0000UL);
+
+	regs = task_pt_regs(child);
+	/* ring-3 で実行を開始するアドレスが user_eip に設定されていること */
+	KFS_ASSERT_EQ(0xDEAD0000UL, (unsigned long)regs->eip);
+	/* cs の RPL（下位 2 bit）が 3 = ring-3 であること。
+	 * iret はこの値を見て特権レベルを決定するため最重要。 */
+	KFS_ASSERT_EQ((unsigned long)(__USER_CS | 3), (unsigned long)regs->cs);
+	/* ring-3 に降りたときのスタックポインタが user_esp に設定されていること */
+	KFS_ASSERT_EQ(0xBEEF0000UL, (unsigned long)regs->esp);
+	/* ss の RPL が 3 = ring-3 であること。cs と同様 iret が参照する。 */
+	KFS_ASSERT_EQ((unsigned long)(__USER_DS | 3), (unsigned long)regs->ss);
+	/* IF=1（割り込み許可）が設定されていること。
+	 * これがないとユーザプロセス実行中に割り込みが来ずスケジューリングが止まる。 */
+	KFS_ASSERT_EQ(0x200UL, (unsigned long)regs->eflags);
+	/* fork() の子の戻り値が 0 であること（POSIX 規定） */
+	KFS_ASSERT_EQ(0UL, (unsigned long)regs->eax);
+
+	kfree(child->stack);
+	kfree(child);
+}
+
+static volatile int g_lifecycle_ran = 0;
+static void lifecycle_worker(void *arg)
+{
+	(void)arg;
+	g_lifecycle_ran = 1;
+}
+static void lifecycle_in_ring3(void)
+{
+	pid_t pid = fork();
+	if (pid == 0)
+	{
+		exec_fn(lifecycle_worker, NULL);
+	}
+	wait(NULL);
+	exit(0);
+}
+
+KFS_TEST(test_process_lifecycle)
+{
+	static unsigned long ustack[256];
+	g_lifecycle_ran = 0;
+	run_in_ring3(lifecycle_in_ring3, ustack, 256);
+	KFS_ASSERT_EQ(1, g_lifecycle_ran);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_mm_null, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_mm_valid, setup_test, teardown_test),
@@ -282,10 +304,10 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_tss_initialization, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_to_updates_tss_esp0, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_switch_to_switches_stack, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_with_fn_sets_ebx, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_with_fn_independent_sp, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_sets_child_eax_zero, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_task_pt_regs_in_stack_range, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_copy_thread_user_regs, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_process_lifecycle, setup_test, teardown_test),
 };
 
 int register_unit_tests_process(struct kfs_test_case **out)

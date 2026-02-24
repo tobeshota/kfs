@@ -3,6 +3,8 @@
 #include <kfs/gfp.h>
 #include <kfs/mm.h>
 #include <kfs/pid.h>
+#include <kfs/printk.h>
+#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
 #include <kfs/string.h>
@@ -32,8 +34,12 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 		return NULL;
 	}
 
-	/* カーネルスタックを割り当て */
-	stack = kmalloc(THREAD_SIZE);
+	/* カーネルスタックを割り当て
+	 * kmalloc(THREAD_SIZE) はメタデータ 8 バイト分オフセットされた ptr を返すため
+	 * task->stack + THREAD_SIZE が PAGE 境界を超えて pt_regs.esp/ss を破壊する。
+	 * alloc_pages は PAGE_SIZE 境界に揃った ptr を返すため安全。
+	 */
+	stack = (void *)alloc_pages(GFP_KERNEL, 0);
 	if (!stack)
 	{
 		kmem_cache_free(task_struct_cachep, tsk);
@@ -161,7 +167,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 	{
 		if (p->stack)
 		{
-			kfree(p->stack);
+			free_pages((struct page *)p->stack, 0);
 		}
 		kmem_cache_free(task_struct_cachep, p);
 		return NULL;
@@ -175,7 +181,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 		put_pid(pid);
 		if (p->stack)
 		{
-			kfree(p->stack);
+			free_pages((struct page *)p->stack, 0);
 		}
 		kmem_cache_free(task_struct_cachep, p);
 		return NULL;
@@ -192,14 +198,13 @@ struct task_struct *copy_process(struct task_struct *orig)
 		put_pid(pid);
 		if (p->stack)
 		{
-			kfree(p->stack);
+			free_pages((struct page *)p->stack, 0);
 		}
 		kmem_cache_free(task_struct_cachep, p);
 		return NULL;
 	}
 
-	/* コンテキストスイッチ用スタックフレームを設定 */
-	copy_thread(p, orig);
+	/* コンテキストスイッチ用スタックフレームは do_fork() で設定する */
 
 	/* 親子関係を設定 */
 	p->parent = orig;			  /* 親はコピー元 */
@@ -221,10 +226,14 @@ struct task_struct *copy_process(struct task_struct *orig)
 }
 
 /** プロセスを誕生させる
+ * @param user_eip 子が ring-3 で実行を開始するアドレス（0 なら親の pt_regs をコピー）
+ * @param user_esp 子の ring-3 スタックポインタ（user_eip=0 なら無視）
  * @return 新しいプロセスのPID（成功）、負のエラーコード（失敗）
- * @note Linux 6.18のkernel_clone()相当。Phase 10でsys_fork()から呼ばれる
+ * @note Linux 6.18のkernel_clone()相当。
+ *       sys_fork() からは do_fork(0,0) で呼ぶ（親の pt_regs をコピー）。
+ *       cmd_sched() 等からは do_fork(eip, esp) で呼ぶ（ring-3 直接起動）。
  */
-pid_t do_fork(void)
+pid_t do_fork(unsigned long user_eip, unsigned long user_esp)
 {
 	struct task_struct *p;
 	extern struct task_struct *current; /* 現在のプロセス */
@@ -235,6 +244,12 @@ pid_t do_fork(void)
 	{
 		return -EAGAIN;
 	}
+
+	/* コンテキストスイッチ用スタックフレームを設定 */
+	copy_thread(p, current, user_eip, user_esp);
+
+	/* 子プロセスをRRランキューに登録してスケジューリング可能にする */
+	rr_enqueue(p);
 
 	/* 新プロセスのPIDを返す */
 	return p->pid;
