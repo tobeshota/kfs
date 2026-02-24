@@ -43,20 +43,20 @@ void reset_all_state_for_test(void)
 	vmalloc_init();
 
 	/* スケジューラ状態をリセット（init_task.run_list の不整合を防ぐ） */
-        /* グローバルタスクリストをクリア */
-        INIT_LIST_HEAD(&task_list);
-        /* init_task の各リストをリセット */
-        INIT_LIST_HEAD(&init_task.children);
-        INIT_LIST_HEAD(&init_task.sibling);
-        INIT_LIST_HEAD(&init_task.tasks);
-        /* run_list を空にしないと rr_enqueue の二重登録防止チェックが誤作動する */
-        INIT_LIST_HEAD(&init_task.run_list);
-        /* init_task の状態を起動直後に戻す */
-        init_task.__state = TASK_RUNNING;
-        init_task.pid = 0;
-        init_task.parent = &init_task;
-        current = &init_task;
-        /* RR ランキューをクリアして init_task を再登録 */
-        init_idle_task();
-        sched_init();
+	/* グローバルタスクリストをクリア */
+	INIT_LIST_HEAD(&task_list);
+	/* init_task の各リストをリセット */
+	INIT_LIST_HEAD(&init_task.children);
+	INIT_LIST_HEAD(&init_task.sibling);
+	INIT_LIST_HEAD(&init_task.tasks);
+	/* run_list を空にしないと rr_enqueue の二重登録防止チェックが誤作動する */
+	INIT_LIST_HEAD(&init_task.run_list);
+	/* init_task の状態を起動直後に戻す */
+	init_task.__state = TASK_RUNNING;
+	init_task.pid = 0;
+	init_task.parent = &init_task;
+	current = &init_task;
+	/* RR ランキューをクリアして init_task を再登録 */
+	init_idle_task();
+	sched_init();
 }
