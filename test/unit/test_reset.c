@@ -11,6 +11,8 @@
 #include <kfs/vmalloc.h>
 
 /* core.c 内部のグローバルシンボルへのアクセス */
+extern struct task_struct init_task;
+extern struct task_struct *current;
 extern struct list_head task_list;
 extern void init_idle_task(void);
 
