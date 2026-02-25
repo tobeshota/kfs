@@ -197,6 +197,51 @@ KFS_TEST(test_memcmp_and_memchr)
 	KFS_ASSERT_TRUE(memchr(data, 9, sizeof(data)) == 0);
 }
 
+KFS_TEST(test_atoi_basic)
+{
+	KFS_ASSERT_EQ(440, atoi("440"));
+	KFS_ASSERT_EQ(0, atoi("0"));
+	KFS_ASSERT_EQ(1, atoi("1"));
+}
+
+KFS_TEST(test_atoi_negative)
+{
+	KFS_ASSERT_EQ(-42, atoi("-42"));
+	KFS_ASSERT_EQ(-1, atoi("-1"));
+	KFS_ASSERT_EQ(-262, atoi("-262"));
+}
+
+KFS_TEST(test_atoi_leading_spaces)
+{
+	KFS_ASSERT_EQ(262, atoi("  262"));
+	KFS_ASSERT_EQ(262, atoi("\t262"));
+	KFS_ASSERT_EQ(-5, atoi("   -5"));
+}
+
+KFS_TEST(test_atoi_plus_sign)
+{
+	KFS_ASSERT_EQ(42, atoi("+42"));
+}
+
+KFS_TEST(test_atoi_overflow_positive)
+{
+	/* 2147483648 は LONG_MAX+1 → LONG_MAX = 2147483647 に */
+	KFS_ASSERT_EQ(2147483647, atoi("2147483648"));
+}
+
+KFS_TEST(test_atoi_overflow_negative)
+{
+	/* -2147483649 は LONG_MIN-1 → (int)LONG_MIN に */
+	int result = atoi("-2147483649");
+	KFS_ASSERT_EQ((int)(-2147483647L - 1), result);
+}
+
+KFS_TEST(test_atoi_stops_at_non_digit)
+{
+	KFS_ASSERT_EQ(42, atoi("42abc"));
+	KFS_ASSERT_EQ(0, atoi("abc"));
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_strlen, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_strnlen_clamps, setup_test, teardown_test),
@@ -212,6 +257,13 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_memset_and_memcpy, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_memmove_handles_overlap, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_memcmp_and_memchr, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_atoi_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_atoi_negative, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_atoi_leading_spaces, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_atoi_plus_sign, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_atoi_overflow_positive, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_atoi_overflow_negative, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_atoi_stops_at_non_digit, setup_test, teardown_test),
 };
 
 int register_unit_tests_string(struct kfs_test_case **out)

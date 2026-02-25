@@ -66,4 +66,9 @@ typedef uint64_t uintmax_t;
 /* Other commonly used macros */
 #define SIZE_MAX UINT32_MAX
 
+/* long limits (i386: long = 32-bit) */
+#define LONG_MAX 2147483647L
+#define LONG_MIN (-2147483647L - 1)
+#define ULONG_MAX 4294967295UL
+
 #endif /* _KFS_STDINT_H */

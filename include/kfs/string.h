@@ -61,4 +61,8 @@ int memcmp(const void *lhs, const void *rhs, __kernel_size_t count);
 void *memchr(const void *ptr, int ch, __kernel_size_t count);
 #endif
 
+#ifndef __HAVE_ARCH_ATOI
+int atoi(const char *str);
+#endif
+
 #endif /* _STRING_H_ */
