@@ -9,7 +9,7 @@
  *         bit1 (Speaker enable) を読み取る．
  * @return 0x03 = 鳴っている / 0x00 = 止まっている
  */
-#define SPEAKER_IS_ON() (inb(SPEAKER_CTRL_PORT) & 0x03)
+#define IS_SPEAKER_ON() (inb(SPEAKER_CTRL_PORT) & 0x03)
 
 static void setup_test(void)
 {
@@ -26,7 +26,7 @@ static void teardown_test(void)
 KFS_TEST(test_pcspkr_init_turns_off_speaker)
 {
 	pcspkr_init();
-	KFS_ASSERT_EQ(0x00, SPEAKER_IS_ON());
+	KFS_ASSERT_EQ(0x00, IS_SPEAKER_ON());
 }
 
 /** pcspkr_tone() が port 0x61 の bit0/bit1 を立てることを確認する
@@ -37,7 +37,7 @@ KFS_TEST(test_pcspkr_tone_enables_speaker)
 {
 	pcspkr_init();
 	pcspkr_tone(440); /* A4 */
-	KFS_ASSERT_EQ(0x03, SPEAKER_IS_ON());
+	KFS_ASSERT_EQ(0x03, IS_SPEAKER_ON());
 }
 
 /* pcspkr_stop() が port 0x61 の bit0/bit1 を落とすことを確認する */
@@ -45,7 +45,7 @@ KFS_TEST(test_pcspkr_stop_turns_off_speaker)
 {
 	pcspkr_tone(440);
 	pcspkr_stop();
-	KFS_ASSERT_EQ(0x00, SPEAKER_IS_ON());
+	KFS_ASSERT_EQ(0x00, IS_SPEAKER_ON());
 }
 
 /* pcspkr_tone(0) は pcspkr_stop() と同じくスピーカーをオフにすることを確認する */
@@ -53,16 +53,16 @@ KFS_TEST(test_pcspkr_tone_zero_calls_stop)
 {
 	pcspkr_tone(440);
 	pcspkr_tone(0);
-	KFS_ASSERT_EQ(0x00, SPEAKER_IS_ON());
+	KFS_ASSERT_EQ(0x00, IS_SPEAKER_ON());
 }
 
 /* 異なる周波数を連続して設定しても speaker が有効なままであることを確認する */
 KFS_TEST(test_pcspkr_tone_retone)
 {
 	pcspkr_tone(262); /* C4 */
-	KFS_ASSERT_EQ(0x03, SPEAKER_IS_ON());
+	KFS_ASSERT_EQ(0x03, IS_SPEAKER_ON());
 	pcspkr_tone(523); /* C5 */
-	KFS_ASSERT_EQ(0x03, SPEAKER_IS_ON());
+	KFS_ASSERT_EQ(0x03, IS_SPEAKER_ON());
 }
 
 static struct kfs_test_case cases[] = {
