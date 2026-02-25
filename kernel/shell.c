@@ -4,6 +4,7 @@
 #include <kfs/keyboard.h>
 #include <kfs/neofetch.h>
 #include <kfs/panic.h>
+#include <kfs/pcspkr.h>
 #include <kfs/printk.h>
 #include <kfs/reboot.h>
 #include <kfs/sched.h>
@@ -165,6 +166,46 @@ static void cmd_sched(void)
 	/* ring-0 → ring-3 へ降りてスケジューリングループを実行し、終了を待つ */
 	do_fork((unsigned long)sched_ring3_main, (unsigned long)(ustack + 256));
 	do_wait(NULL);
+}
+
+/** beep コマンド: 指定周波数の矩形波を 1 秒間鳴らす
+ * @param args コマンド名以降の文字列（周波数文字列または空文字列）
+ *
+ * @note
+ *   コマンド       周波数     音名
+ *   beep          -         使い方を表示
+ *   beep 0        -         停止
+ *   beep 262      262 Hz    C4（ド）
+ *   beep 330      330 Hz    E4（ミ）
+ *   beep 392      392 Hz    G4（ソ）
+ *   beep 440      440 Hz    A4（ラ）← 国際標準チューニング基準音
+ *   beep 494      494 Hz    B4（シ）
+ *   beep 523      523 Hz    C5（高いド）
+ */
+static void cmd_beep(const char *args)
+{
+	while (*args == ' ')
+	{
+		args++;
+	}
+	if (*args == '\0')
+	{
+		printk("Usage: beep <freq_hz>  (e.g. beep 440)\n");
+		return;
+	}
+	int freq = atoi(args);
+	if (freq <= 0)
+	{
+		pcspkr_stop();
+		printk("beep: stopped\n");
+		return;
+	}
+	printk("beep: %d Hz\n", freq);
+	pcspkr_tone((uint32_t)freq);
+	/* 約1秒のスピンウェイト（Phase B で jiffies ベースに置き換える） */
+	for (volatile uint32_t i = 0; i < 500000000UL; i++)
+		;
+	pcspkr_stop();
 }
 
 /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
@@ -356,6 +397,13 @@ static void execute_command(const char *cmd)
 	if (strcmp(cmd, "sched") == 0)
 	{
 		cmd_sched();
+		return;
+	}
+
+	/* beep コマンド: 指定周波数の矩形波を 1 秒間鳴らす */
+	if (strncmp(cmd, "beep", 4) == 0 && (cmd[4] == ' ' || cmd[4] == '\0'))
+	{
+		cmd_beep(cmd + 4);
 		return;
 	}
 

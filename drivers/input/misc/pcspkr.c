@@ -28,13 +28,12 @@
 			  PIT_CH2_SQUARE_WAVE, SPEAKER_CTRL_PORT */
 
 /** PC スピーカードライバを初期化する
- * @brief port 0x61 の bit0 (Gate) と bit1 (Speaker) を落とし、
- *        スピーカーをオフ状態で起動する。
- *        start_kernel() の serial_init() 直後に呼ぶこと。
+ * @brief スピーカーをオフ状態で起動する．
+ * @note start_kernel() の serial_init() 直後に呼ぶこと．
  */
 void pcspkr_init(void)
 {
-	outb(SPEAKER_CTRL_PORT, inb(SPEAKER_CTRL_PORT) & ~0x03);
+	pcspkr_stop();
 }
 
 /** 指定した周波数の矩形波をスピーカーから出力する
@@ -69,7 +68,7 @@ void pcspkr_tone(uint32_t freq_hz)
 	outb(PIT_CHANNEL2_PORT, (uint8_t)(count & 0xFF));
 	outb(PIT_CHANNEL2_PORT, (uint8_t)((count >> 8) & 0xFF));
 
-	/* Gate ON (bit0) + Speaker ON (bit1)：RMW で他ビットを保持 */
+	/* bit 0,1 を共に 1 にして音を鳴らす */
 	outb(SPEAKER_CTRL_PORT, inb(SPEAKER_CTRL_PORT) | 0x03);
 }
 
@@ -79,5 +78,6 @@ void pcspkr_tone(uint32_t freq_hz)
  */
 void pcspkr_stop(void)
 {
+	/* bit 0,1 を共に 0 にして音を止める */
 	outb(SPEAKER_CTRL_PORT, inb(SPEAKER_CTRL_PORT) & ~0x03);
 }
