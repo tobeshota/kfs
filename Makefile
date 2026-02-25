@@ -8,6 +8,13 @@
 include .env
 export
 
+# PC スピーカー音声バックエンド（make run / make run-kernel 専用）
+ifeq ($(shell uname -s),Darwin)
+    QEMU_AUDIO ?= -audiodev coreaudio,id=snd -machine pc,pcspk-audiodev=snd
+else
+    QEMU_AUDIO ?=
+endif
+
 # ===== Docker image settings =====
 IMAGE ?= $(ISA)-compile-toolchain
 DOCKER ?= docker
