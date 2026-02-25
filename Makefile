@@ -8,6 +8,13 @@
 include .env
 export
 
+# PC スピーカー音声バックエンド（make run / make run-kernel 専用）
+ifeq ($(shell uname -s),Darwin)
+    QEMU_AUDIO ?= -audiodev coreaudio,id=snd -machine pc,pcspk-audiodev=snd
+else
+    QEMU_AUDIO ?=
+endif
+
 # ===== Docker image settings =====
 IMAGE ?= $(ISA)-compile-toolchain
 DOCKER ?= docker
@@ -118,10 +125,10 @@ re: fclean all
 run: run-iso-bios
 
 run-iso-bios: $(ISO_BIOS)
-	qemu-system-$(ISA) -cdrom $(ISO_BIOS) -serial stdio
+	qemu-system-$(ISA) -cdrom $(ISO_BIOS) -serial stdio $(QEMU_AUDIO)
 
 run-kernel: $(KERNEL)
-	qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio
+	qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio $(QEMU_AUDIO)
 
 # QEMU上でUEFIで起動する
 # 備考: OVMFはQEMUパッケージ内に含まれる
