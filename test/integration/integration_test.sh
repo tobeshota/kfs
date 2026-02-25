@@ -97,7 +97,10 @@ run_kernel_capture() {
 				# QMPモニターを使用してキーボード入力をシミュレート
 				local container_monitor="${monitor_script/#$REPO_ROOT/$container_root}"
 				# モニタースクリプトをコンテナ内にコピーするため、tmpファイルの位置をartifacts内に
-				local container_monitor_script="$ARTIFACTS_DIR/monitor_script.tmp"
+				# log_file からテスト名を導出して並列実行時のファイル名衝突を回避する
+				local _test_basename
+				_test_basename="$(basename "${log_file%.log}")"
+				local container_monitor_script="$ARTIFACTS_DIR/monitor_script_${_test_basename}.tmp"
 				cp "$monitor_script" "$container_monitor_script"
 				local container_monitor_path="${container_monitor_script/#$REPO_ROOT/$container_root}"
 				local qemu_args="-kernel $container_root/Image -serial file:$container_tmp_log -display none -no-reboot -no-shutdown -qmp stdio"
@@ -136,31 +139,60 @@ if ((${#tests[@]} == 0)); then
 	exit 1
 fi
 
+# ── 並列実行 ─────────────────────────────────────────────────
+# 各テストを独立したサブシェルでバックグラウンド起動し、
+# 終了後に result ファイルで PASS/FAIL を集計する。
+declare -A _pids
+
+for t in "${tests[@]}"; do
+	name="$(basename "$t" .sh)"
+	log_file="$ARTIFACTS_DIR/${name}.log"
+	result_file="$ARTIFACTS_DIR/${name}.result"
+	out_file="$ARTIFACTS_DIR/${name}.out"
+	input_file="${t%.sh}.input"
+
+	echo "[integration] START: ${name}.sh"
+	(
+		if [[ -f "$input_file" ]]; then
+			run_kernel_capture "$log_file" "$input_file" || true
+		else
+			run_kernel_capture "$log_file" || true
+		fi
+		if LOG_FILE="$log_file" bash -eu "$t"; then
+			echo "PASS" >"$result_file"
+		else
+			echo "FAIL" >"$result_file"
+		fi
+	) >"$out_file" 2>&1 &
+	_pids["$name"]=$!
+done
+
+# 全テスト完了を待機
+for name in "${!_pids[@]}"; do
+	wait "${_pids[$name]}" || true
+done
+
+# 結果集計（出力をテスト名順に表示）
 passed=0
 failed=0
 
 for t in "${tests[@]}"; do
-	name="$(basename "$t")"
-	echo "[integration] >>> $name"
-	log_file="$ARTIFACTS_DIR/${name%.sh}.log"
+	name="$(basename "$t" .sh)"
+	log_file="$ARTIFACTS_DIR/${name}.log"
+	result_file="$ARTIFACTS_DIR/${name}.result"
+	out_file="$ARTIFACTS_DIR/${name}.out"
 
-	# テストスクリプトが入力ファイルを指定できるようにする
-	# test_xxx.sh の横に test_xxx.input があればそれを使用
-	input_file="${t%.sh}.input"
-	if [[ -f "$input_file" ]]; then
-		echo "[integration]     Using input file: $input_file"
-		run_kernel_capture "$log_file" "$input_file"
-	else
-		run_kernel_capture "$log_file"
-	fi
+	# サブシェルの出力を表示
+	[[ -f "$out_file" ]] && cat "$out_file" && rm -f "$out_file"
 
-	if LOG_FILE="$log_file" bash -eu "$t"; then
-		echo "[integration] PASS: $name"
+	if [[ -f "$result_file" ]] && [[ "$(cat "$result_file")" == "PASS" ]]; then
+		echo "[integration] PASS: ${name}.sh"
 		passed=$((passed + 1))
 	else
-		echo "[integration] FAIL: $name (see $log_file)"
+		echo "[integration] FAIL: ${name}.sh (see $log_file)"
 		failed=$((failed + 1))
 	fi
+	rm -f "$result_file"
 done
 
 echo "[integration] Summary: ${passed} passed, ${failed} failed"
