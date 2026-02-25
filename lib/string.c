@@ -1,3 +1,4 @@
+#include <kfs/stdint.h>
 #include <kfs/string.h>
 
 size_t strlen(const char *s)
@@ -253,4 +254,40 @@ void *memchr(const void *ptr, int ch, size_t count)
 		p++;
 	}
 	return NULL;
+}
+
+int atoi(const char *str)
+{
+	int sign = 1;
+	long val = 0;
+
+	/* 先頭の空白文字（space, \t \n \v \f \r）をスキップ */
+	while (*str == ' ' || (*str >= '\t' && *str <= '\r'))
+	{
+		str++;
+	}
+
+	/* 符号を取得 */
+	if (*str == '-')
+	{
+		sign = -1;
+	}
+	if (*str == '+' || *str == '-')
+	{
+		str++;
+	}
+
+	/* 数字を順に蓄積する
+	 * オーバーフロー検査: val*10 + d > LONG_MAX
+	 *   ⟺ val > (LONG_MAX - d) / 10  (乗算前に除算で先行検査) */
+	while (*str >= '0' && *str <= '9')
+	{
+		int d = *str++ - '0';
+		if (val > (LONG_MAX - d) / 10)
+		{
+			return sign > 0 ? (int)LONG_MAX : (int)LONG_MIN;
+		}
+		val = val * 10 + d;
+	}
+	return (int)(val * sign);
 }
