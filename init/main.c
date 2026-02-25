@@ -5,6 +5,7 @@
 #include <kfs/keyboard.h>
 #include <kfs/mm.h>
 #include <kfs/multiboot.h>
+#include <kfs/pcspkr.h>
 #include <kfs/printk.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
@@ -27,6 +28,7 @@ extern void page_alloc_init(unsigned long mbi_ptr, uint32_t magic);
 void start_kernel(void)
 {
 	serial_init();
+	pcspkr_init();
 	terminal_initialize();
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK));
 

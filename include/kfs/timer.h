@@ -32,6 +32,36 @@
  */
 #define PIT_CH0_RATE_GEN 0x34
 
+/** i8254 PIT Channel 2 (PC スピーカー用)
+ * @brief Channel 0 (IRQ0 タイマー) とは独立したカウンタ。干渉しない。
+ */
+#define PIT_CHANNEL2_PORT 0x42 /* チャネル 2 データポート */
+
+/** i8254 PITのチャネル2をモード3（矩形波ジェネレータ）に設定するコマンドワード
+ * @details PIT_CH2_SQUARE_WAVE = 0xB6 = 1011 0110
+ *  bit 7-6 = 10  : チャネル 2 選択
+ *  bit 5-4 = 11  : lobyte/hibyte モード（下位バイト → 上位バイトの順で書き込み）
+ *  bit 3-1 = 011 : モード 3（矩形波ジェネレータ）
+ *                  N/2 クロック HIGH → N/2 クロック LOW を繰り返す完全な矩形波。
+ *                  スピーカーコイルを駆動するには Mode 2 のような
+ *                  「ほぼ HIGH、一瞬だけ LOW」のパルスではなく
+ *                  均等な矩形波が必要。
+ *  bit 0   = 0   : バイナリカウント
+ *
+ * @see MODE 3: SQUARE WAVE MODE
+ *      at https://www.scs.stanford.edu/10wi-cs140/pintos/specs/8254.pdf
+ */
+#define PIT_CH2_SQUARE_WAVE 0xB6
+
+/** PC スピーカー制御ポート (System Control Port B)
+ * @details
+ *  bit 0 (r/w): Channel 2 Gate — 1 でカウント開始、0 で停止
+ *  bit 1 (r/w): Speaker enable — 1 で Channel 2 OUT をスピーカーコイルに接続
+ *  bit 2〜7   : 他用途（NMI 制御等）。触らない。
+ *  ※ bit 0,1 を共に 1 にすることで初めて音が出る。RMW が必要。
+ */
+#define SPEAKER_CTRL_PORT 0x61
+
 void timer_init(void);
 
 #endif /* _KFS_TIMER_H */
