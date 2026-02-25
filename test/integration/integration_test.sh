@@ -17,7 +17,7 @@ echo "[integration] Build kernel (via Docker image if needed)"
 make -C "$REPO_ROOT" -s kernel
 
 TIMEOUT_BIN="${TIMEOUT_BIN:-timeout}"
-TIMEOUT_SECS="${TIMEOUT_SECS:-20}"
+TIMEOUT_SECS="${TIMEOUT_SECS:-8}"
 ISA="${ISA:-i386}"
 
 if ! command -v "$TIMEOUT_BIN" >/dev/null 2>&1; then
@@ -73,9 +73,9 @@ run_kernel_capture() {
 			# QMPモニターを使用してキーボード入力をシミュレート
 			local qemu_args="-kernel $REPO_ROOT/Image -serial file:$tmp_log -display none -no-reboot -no-shutdown -qmp stdio"
 			(
-				sleep 1 # カーネル起動待ち
+				sleep 0.5 # カーネル起動待ち
 				cat "$monitor_script"
-				sleep 3 # コマンド実行待ち
+				sleep 2 # コマンド実行待ち
 			) | "$TIMEOUT_BIN" "${TIMEOUT_SECS}s" $qemu_bin $qemu_args >/dev/null 2>&1 || true
 		else
 			# 入力ファイルがない場合は -serial file を使用
@@ -102,7 +102,7 @@ run_kernel_capture() {
 				local container_monitor_path="${container_monitor_script/#$REPO_ROOT/$container_root}"
 				local qemu_args="-kernel $container_root/Image -serial file:$container_tmp_log -display none -no-reboot -no-shutdown -qmp stdio"
 				"$docker_bin" run --rm -v "$REPO_ROOT":$container_root -w $container_root "$image" \
-					bash -c "(sleep 1; cat $container_monitor_path; sleep 3) | timeout ${TIMEOUT_SECS}s qemu-system-$ISA $qemu_args" >/dev/null 2>&1 || true
+					bash -c "(sleep 0.5; cat $container_monitor_path; sleep 2) | timeout ${TIMEOUT_SECS}s qemu-system-$ISA $qemu_args" >/dev/null 2>&1 || true
 				rm -f "$container_monitor_script"
 			else
 				# 入力ファイルがない場合は -serial file を使用
