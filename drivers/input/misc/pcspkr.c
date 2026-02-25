@@ -24,8 +24,10 @@
 
 #include <asm-i386/io.h>
 #include <kfs/pcspkr.h>
-#include <kfs/timer.h> /* CLOCK_TICK_RATE, PIT_MODE_CMD_PORT, PIT_CHANNEL2_PORT,
-			  PIT_CH2_SQUARE_WAVE, SPEAKER_CTRL_PORT */
+
+/* CLOCK_TICK_RATE, PIT_MODE_CMD_PORT,
+   PIT_CHANNEL2_PORT, PIT_CH2_SQUARE_WAVE, SPEAKER_CTRL_PORT */
+#include <kfs/timer.h>
 
 /** PC スピーカードライバを初期化する
  * @brief スピーカーをオフ状態で起動する．
