@@ -97,17 +97,33 @@ iso-uefi: kernel grub-uefi.cfg
 
 else
 
-# --- Wrapper: run the same targets inside Docker ---
-kernel: ensure-image
+define ensure_image
+	@if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
+		echo "Building Docker image from arch/$(ISA)/compile.dockerfile..."; \
+		$(DOCKER) build --platform $(DOCKER_PLATFORM) -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) .; \
+	fi
+	@echo "Using Docker image: $(IMAGE)"
+endef
+
+$(KERNEL): $(KERNEL_SRCS_C) $(KERNEL_SRCS_S) $(KERNEL_SRCS_H) arch/$(ISA)/boot/linker.ld
+	$(call ensure_image)
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) kernel'
+
+kernel: $(KERNEL)
 
 iso: iso-bios
 
-iso-bios: ensure-image
+$(ISO_BIOS): $(KERNEL) grub-bios.cfg
+	$(call ensure_image)
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) iso-bios'
 
-iso-uefi: ensure-image
+iso-bios: $(ISO_BIOS)
+
+$(ISO_UEFI): $(KERNEL) grub-uefi.cfg
+	$(call ensure_image)
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) iso-uefi'
+
+iso-uefi: $(ISO_UEFI)
 
 endif
 
@@ -162,4 +178,4 @@ fmt:
 		&& clang-format -i -style="{BasedOnStyle: Microsoft, IndentWidth: 4, TabWidth: 4, UseTab: Always, InsertBraces: true}" $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H) \
 		&& shfmt -w $(TEST_SRCS_SH)'
 
-.PHONY: all kernel iso-bios iso-uefi run run-iso-bios run-kernel run-iso-uefi clean fclean re ensure-image test coverage fmt
+.PHONY: all iso run run-iso-bios run-kernel run-iso-uefi clean fclean re ensure-image test unit integration coverage fmt
