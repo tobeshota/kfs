@@ -4,14 +4,22 @@
 #include <kfs/sched.h>
 #include <kfs/timer.h>
 
+/** 起動からの tick 数
+ * @brief HZ=1000 より 1 tick = 1ms．
+ */
+volatile uint32_t jiffies = 0;
+
 /** IRQ0 ハンドラ
- * @brief 毎ティック scheduler_tick() を呼び出す
+ * @brief 毎ティック jiffies をインクリメントし scheduler_tick() を呼び出す
  */
 static int timer_interrupt(int irq, struct pt_regs *regs)
 {
 	(void)irq;
 	(void)regs;
+	jiffies++;
 	scheduler_tick();
+	/* 満了済みタイマーを実行 */
+	run_local_timers();
 	return IRQ_HANDLED;
 }
 
