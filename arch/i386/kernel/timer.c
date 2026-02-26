@@ -18,6 +18,8 @@ static int timer_interrupt(int irq, struct pt_regs *regs)
 	(void)regs;
 	jiffies++;
 	scheduler_tick();
+	/* 満了済みタイマーを実行 */
+	run_local_timers();
 	return IRQ_HANDLED;
 }
 
