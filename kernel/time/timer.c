@@ -4,7 +4,7 @@
 /** グローバルタイマーキュー
  * @note expiresで昇順ソート済み
  */
-static LIST_HEAD(timer_queue);
+LIST_HEAD(timer_queue);
 
 /** タイマーを初期化する
  * @param timer  初期化するタイマー
