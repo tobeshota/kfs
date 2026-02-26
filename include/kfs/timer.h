@@ -7,6 +7,32 @@
 #define HZ 1000					/* ヘルツ（1秒あたりのタイマー割り込み回数） */
 #define CLOCK_TICK_RATE 1193182 /* i8254 PIT 入力クロック周波数 [Hz] */
 
+extern volatile uint32_t jiffies;
+
+/** tick 比較マクロ
+ * @param a  「後（larger）」であると期待する jiffies 値
+ * @param b  「前（smaller）」であると期待する jiffies 値
+ * @details
+ *  jiffies は uint32_t なので 0xFFFFFFFF の次は 0x00000000 に折り返す。
+ *  単純な `a > b` 比較はこの折り返しで誤判定を起こす:
+ *
+ *    例) jiffies=0xFFFFFF00, expires=0xFFFFFF00+100=0x00000063
+ *    0x00000063 > 0xFFFFFF00  →  false  ← 間違い（折り返しで大小が逆転）
+ *
+ *  `time_after(a, b)` は差分を int32_t にキャストして符号で判定する:
+ *    (int32_t)((b) - (a)) < 0
+ *
+ *    b=0xFFFFFF00, a=0x00000063 のとき:
+ *      0xFFFFFF00 - 0x00000063 = 0xFFFFFF9D
+ *      int32_t として解釈 → -99（負）→ true：a の方が後
+ *
+ * @note
+ * この手法は差分が INT32_MAX (約 24.8 日分) を超えないことを前提とする。
+ * タイマー満了まで 24.8 日を超えるような値は設定しないこと。
+ */
+#define time_after(a, b)  ((int32_t)((b) - (a)) < 0)
+#define time_before(a, b) time_after(b, a)
+
 /** i8254 PIT I/O port addresses
  * @brief チャネル 0〜2 はそれぞれ独立したカウンタを持つ
  */
