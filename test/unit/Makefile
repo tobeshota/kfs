@@ -89,14 +89,6 @@ $(BUILD_DIR)/coverage/%.o: ./coverage/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
-# Log directory
-$(LOGDIR):
-	@mkdir -p $(LOGDIR)
-
-# Report directory
-$(REPORT_DIR):
-	@mkdir -p $(REPORT_DIR)
-
 -include $(DEPS)
 
 kernel: $(KERNEL)
@@ -160,6 +152,13 @@ fclean: clean
 	@rm -f $(KERNEL) $(ISO_BIOS) $(ISO_UEFI)
 
 re: fclean all
+
+# Log / report directories (needed by run-iso-bios on both host and container)
+$(LOGDIR):
+	@mkdir -p $(LOGDIR)
+
+$(REPORT_DIR):
+	@mkdir -p $(REPORT_DIR)
 
 # ===== Run with QEMU (prefer host, fallback to container) =====
 run: run-iso-bios
