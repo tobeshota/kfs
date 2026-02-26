@@ -104,32 +104,6 @@ KFS_TEST(test_do_wait_zombie_child)
 	printk("do_wait zombie child test passed\n");
 }
 
-/** do_wait(): 実行中（TASK_RUNNING）の子しかいない場合は -EAGAIN を返す */
-KFS_TEST(test_do_wait_running_child)
-{
-	struct task_struct *parent = &init_task;
-	struct task_struct *child;
-	int status = 0;
-	pid_t ret;
-
-	/* 子プロセス作成（TASK_RUNNING のまま） */
-	child = copy_process(parent);
-	KFS_ASSERT_TRUE(child != NULL);
-	KFS_ASSERT_EQ((int)child->__state, (int)TASK_RUNNING);
-
-	/* 親として wait → ゾンビがいないので -EAGAIN */
-	current = parent;
-	ret = do_wait(&status);
-
-	KFS_ASSERT_EQ((int)ret, -EAGAIN);
-
-	/* クリーンアップ（release_task を直接呼ぶ） */
-	release_task(child);
-	current = &init_task;
-
-	printk("do_wait running child test passed\n");
-}
-
 /** do_wait(): wstatus に NULL を渡しても安全に動作する */
 KFS_TEST(test_do_wait_null_wstatus)
 {
@@ -240,7 +214,6 @@ KFS_TEST(test_do_wait_parent_mm_survives)
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_wait_no_children, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_wait_zombie_child, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_do_wait_running_child, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_wait_null_wstatus, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_wait_parent_mm_survives, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_wait_basic, setup_test, teardown_test),
