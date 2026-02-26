@@ -177,6 +177,19 @@ static long do_sys_kill(long arg1, long arg2, long arg3, long arg4, long arg5)
 	return (long)sys_kill((pid_t)arg1, (int)arg2);
 }
 
+/** msleep(ms) システムコール
+ * @param arg1 スリープ時間 [ミリ秒]
+ * @return 0: 成功
+ */
+static long do_sys_msleep(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return sys_msleep((uint32_t)arg1);
+}
+
 static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_exit] = (syscall_fn_t)do_sys_exit,
 	[__NR_fork] = do_sys_fork,
@@ -187,6 +200,7 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_signal] = do_sys_signal,
 	[__NR_sched_setscheduler] = do_sched_setscheduler,
 	[__NR_sched_getscheduler] = do_sched_getscheduler,
+	[__NR_msleep] = do_sys_msleep,
 };
 
 /** システムコールディスパッチャ

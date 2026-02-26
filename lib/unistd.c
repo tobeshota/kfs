@@ -52,3 +52,11 @@ int write(int fd, const void *buf, unsigned int count)
 	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_write), "b"(fd), "c"(buf), "d"(count) : "memory");
 	return (int)ret;
 }
+
+/* 指定ミリ秒スリープする（HZ=1000 なので ms == tick 数） */
+int msleep(unsigned int ms)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_msleep), "b"((long)ms) : "memory");
+	return (int)ret;
+}
