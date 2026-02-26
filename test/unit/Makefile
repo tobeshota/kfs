@@ -120,18 +120,36 @@ unit-bios: iso-bios
 
 else
 
-# --- Wrapper: run the same targets inside Docker ---
-kernel: ensure-image
+define ensure_image
+	@if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
+		echo "Building Docker image from arch/$(ISA)/compile.dockerfile..."; \
+		$(DOCKER) build --platform $(DOCKER_PLATFORM) -f ../../arch/$(ISA)/compile.dockerfile -t $(IMAGE) .; \
+	fi
+	@echo "Using Docker image: $(IMAGE)"
+endef
+
+$(KERNEL): $(SRCS_C) $(SRCS_S) $(BOOTSTRAP) $(COVERAGE_C) ../../arch/$(ISA)/boot/linker.ld
+	$(call ensure_image)
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) kernel'
 
-iso-bios: ensure-image
+kernel: $(KERNEL)
+
+$(ISO_BIOS): $(KERNEL) ./grub-bios.cfg
+	$(call ensure_image)
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) iso-bios'
 
-iso-uefi: ensure-image
+iso-bios: $(ISO_BIOS)
+
+$(ISO_UEFI): $(KERNEL) ./grub-uefi.cfg
+	$(call ensure_image)
 	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) iso-uefi'
 
-unit: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) unit'
+iso-uefi: $(ISO_UEFI)
+
+# unit はテスト実行（QEMU）を伴うため常に run を呼ぶが，
+# $(ISO_BIOS) がファイルターゲットのためソース変更がなければ Docker ビルドはスキップされる
+unit: $(ISO_BIOS)
+	$(MAKE) run
 
 endif
 
@@ -178,4 +196,4 @@ coverage-instrument:
 	@echo "Instrumenting production code..."
 	@python3 coverage/insert_coverage_func.py ../../ build/coverage/ coverage/log/coverage_manifest.txt
 
-.PHONY: all kernel iso-bios iso-uefi run run-iso-bios clean fclean re ensure-image unit test coverage coverage-instrument
+.PHONY: all run run-iso-bios clean fclean re ensure-image unit test coverage coverage-instrument
