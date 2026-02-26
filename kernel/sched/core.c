@@ -165,11 +165,15 @@ int schedule(void)
 	struct task_struct *prev = current;
 
 	/* 自発的 yield: current を末尾に回すことで他タスクが先頭になれるようにする。
-	 * ランキューにない場合（TASK_DEAD 等）は何もしない。 */
+	 * ランキューにない場合（TASK_DEAD 等）は何もしない。
+	 * TASK_RUNNING のときだけ再エンキューする。
+	 * TASK_INTERRUPTIBLE / TASK_UNINTERRUPTIBLE は wake_up_process() が
+	 * 呼ばれるまでランキューに戻さない。 */
 	if (!list_empty(&prev->run_list))
 	{
 		rr_dequeue(prev);
-		rr_enqueue(prev);
+		if (prev->__state == TASK_RUNNING)
+			rr_enqueue(prev);
 	}
 
 	next = rr_pick_next();
