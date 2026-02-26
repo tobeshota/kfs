@@ -263,3 +263,33 @@ void __init fork_init(void)
 	/* task_struct用スラブキャッシュを作成 */
 	task_struct_cachep = kmem_cache_create("task_struct", sizeof(struct task_struct));
 }
+
+/** 指定した関数をカーネル空間のプロセスとして実行する
+ * @brief copy_thread_with_fn() が fork_frame.ebx = fn を設定することで
+ *        ret_from_fork がカーネルスレッドパス（call *%%ebx）へ分岐する。
+ * @param fn 新プロセスで実行するカーネル関数
+ * @return 子PID（成功）、負数（失敗）
+ */
+pid_t kernel_thread(void (*fn)(void))
+{
+	extern void copy_thread_with_fn(struct task_struct * p, void (*fn)(void));
+	struct task_struct *p;
+
+	p = copy_process(current);
+	if (!p)
+	{
+		return -EAGAIN;
+	}
+
+	/* fork_frame.ebx = fn を設定
+	 * これにより，ret_from_fork がカーネルスレッドパスを選択する */
+	copy_thread_with_fn(p, fn);
+
+	/* PF_KTHREAD を明示的に設定する */
+	p->flags |= PF_KTHREAD;
+
+	/* RR ランキューに登録してスケジューリング可能にする */
+	rr_enqueue(p);
+
+	return p->pid;
+}

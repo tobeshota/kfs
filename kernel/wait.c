@@ -55,13 +55,9 @@ pid_t do_wait(int *wstatus)
 			}
 		}
 
-		/* ゾンビ子がまだいない: 子プロセスが実行できるよう CPU を譲る.
-		 * schedule() が 0 を返した場合（自分以外に runnable なタスクがない）は
-		 * hlt でタイマー割り込みを待ってからリトライする。 */
-		if (!schedule())
-		{
-			__asm__ volatile("hlt");
-		}
+		/* ゾンビ子がまだいない: 子プロセスが実行できるよう CPU を譲る。
+		 * init_task が cpu_idle_loop() で hlt するため呼び出し元は hlt 不要。 */
+		schedule();
 	}
 }
 

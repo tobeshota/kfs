@@ -359,13 +359,22 @@ __switch_to:
  * @brief 子タスクが最初に __switch_to() で復帰する際に実行される
  *
  * @details
- * __switch_to() が子の thread.sp を ESP に設定して ret すると
- * fork_frame のリターンアドレス（= ret_from_fork）にジャンプし、
- * その時点の ESP は pt_regs.ebx フィールドを指している。
- * RESTORE_ALL で pt_regs 全体を pop し、iret でユーザー空間へ復帰する。
- * これにより fork() が子プロセスで 0 を返す（pt_regs.eax = 0）。
+ * __switch_to() が fork_frame のレジスタを復元して ret すると
+ * ここにジャンプする。%ebx の値でカーネルスレッドかユーザープロセスかを判別する。
+ *
+ * カーネルスレッド（copy_thread_with_fn が fork_frame.ebx = fn を設定）:
+ *   call *%ebx  → fn() を実行、戻ったら do_exit(0)
+ *
+ * ユーザプロセス（copy_thread が fork_frame.ebx = 0 を設定）:
+ *   RESTORE_ALL → iret でユーザー空間へ復帰
  */
 .globl ret_from_fork
 ret_from_fork:
-	RESTORE_ALL                /* pt_regs を pop して iret でユーザー空間へ復帰 */
-
+	testl	%ebx, %ebx
+	jz	.Lret_from_fork_user	/* %ebx == 0 → ユーザプロセス */
+	/* カーネルスレッドパス: fn() を呼び出し後 do_exit(0) へ */
+	call	*%ebx
+	pushl	$0
+	call	do_exit			/* fn() が戻った場合の安全網（通常到達しない） */
+.Lret_from_fork_user:
+	RESTORE_ALL			/* pt_regs を pop して iret でユーザー空間へ復帰 */

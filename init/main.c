@@ -84,5 +84,11 @@ void start_kernel(void)
 	/* シェルを起動（無限ループに入る）
 	 * テスト環境ではshell_run()がオーバーライドされてすぐに戻る */
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK));
-	shell_run();
+
+	/* シェルをカーネルスレッド（PID=1）として起動する */
+	kernel_thread(shell_run);
+
+	/* init_task はここから cpu_idle_loop() でアイドル待機する。
+	 * この呼び出しから戻ることはない。 */
+	cpu_idle_loop();
 }
