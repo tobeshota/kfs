@@ -11,6 +11,7 @@
 extern struct task_struct *copy_process(struct task_struct *orig);
 extern pid_t do_fork(unsigned long user_eip, unsigned long user_esp);
 extern void fork_init(void);
+extern pid_t kernel_thread(void (*fn)(void));
 
 /* テスト用ヘルパー（kernel/sched/core.c） */
 extern struct task_struct *find_task_by_pid(pid_t pid);
@@ -271,6 +272,17 @@ KFS_TEST(test_do_fork_basic)
 	printk("do_fork basic test passed\n");
 }
 
+/** kernel_thread() が正の PID を返すことを検証 */
+static void dummy_kthread_fn(void)
+{
+}
+
+KFS_TEST(test_kernel_thread_returns_pid)
+{
+	pid_t pid = kernel_thread(dummy_kthread_fn);
+	KFS_ASSERT_TRUE(pid > 0);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_mm, setup_test, teardown_test),
@@ -279,6 +291,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_find_task_by_pid_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_find_task_by_pid_not_found, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_fork_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kernel_thread_returns_pid, setup_test, teardown_test),
 };
 
 int register_unit_tests_fork(struct kfs_test_case **out)
