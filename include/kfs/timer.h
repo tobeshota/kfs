@@ -1,6 +1,7 @@
 #ifndef _KFS_TIMER_H
 #define _KFS_TIMER_H
 
+#include <kfs/list.h>
 #include <kfs/stdint.h>
 
 /* タイマー周波数 */
@@ -87,6 +88,23 @@ extern volatile uint32_t jiffies;
  *  ※ bit 0,1 を共に 1 にすることで初めて音が出る。RMW が必要。
  */
 #define SPEAKER_CTRL_PORT 0x61
+
+/** カーネルタイマー
+ * @brief 指定 jiffies にコールバックを呼ぶエントリ。
+ *        満了したら自動的にキューから削除される。
+ */
+struct timer_list
+{
+	struct list_head entry;                   /* タイマーキューへのリンク */
+	uint32_t         expires;                 /* 満了 jiffies */
+	void (*function)(struct timer_list *);    /* 満了時コールバック */
+	void            *data;                    /* コールバックに渡す任意データ */
+};
+
+void timer_setup(struct timer_list *timer, void (*fn)(struct timer_list *));
+void add_timer(struct timer_list *timer);
+void del_timer(struct timer_list *timer);
+void run_local_timers(void);
 
 void timer_init(void);
 

@@ -88,6 +88,17 @@ static inline void list_del(struct list_head *entry)
 	entry->prev = NULL;
 }
 
+/** リストからノードを削除し、自分自身を指す空状態に戻す
+ * @brief list_del + INIT_LIST_HEAD の組み合わせ。
+ *        削除後も list_empty() で「キューに入っていない」判定が使えるようになる。
+ * @param entry 削除するノード
+ */
+static inline void list_del_init(struct list_head *entry)
+{
+	__list_del(entry->prev, entry->next);
+	INIT_LIST_HEAD(entry);
+}
+
 /** リストが空かチェックする
  * @param head チェックするリストヘッド
  * @return リストが空なら1、要素があれば0
