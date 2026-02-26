@@ -141,7 +141,8 @@ iso-uefi: $(ISO_UEFI)
 # unit はテスト実行（QEMU）を伴うため常に run を呼ぶが，
 # $(ISO_BIOS) がファイルターゲットのためソース変更がなければ Docker ビルドはスキップされる
 unit: $(ISO_BIOS)
-	$(MAKE) run
+	$(call ensure_image)
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make run'
 
 endif
 
