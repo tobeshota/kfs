@@ -14,8 +14,8 @@ void timer_setup(struct timer_list *timer, void (*fn)(struct timer_list *))
 {
 	INIT_LIST_HEAD(&timer->entry);
 	timer->function = fn;
-	timer->data     = (void *)0;
-	timer->expires  = 0;
+	timer->data = (void *)0;
+	timer->expires = 0;
 }
 
 /** タイマーをキューに expires 昇順で挿入する
@@ -34,7 +34,9 @@ void add_timer(struct timer_list *timer)
 		struct timer_list *t = list_entry(pos, struct timer_list, entry);
 		/* timer->expires が t->expires より前（小さい）なら t の直前に挿入 */
 		if (time_before(timer->expires, t->expires))
+		{
 			break;
+		}
 	}
 	/* pos の直前に挿入（昇順を維持）。
 	 * pos == &timer_queue のときはリスト末尾への追加になる。 */
@@ -67,9 +69,11 @@ void run_local_timers(void)
 
 		/* 昇順なので最初に expires > jiffies が来たら以降は全部未満了 */
 		if (time_after(t->expires, jiffies))
+		{
 			break;
+		}
 
 		list_del_init(&t->entry); /* キューから外してから */
-		t->function(t);           /* コールバック実行 */
+		t->function(t);			  /* コールバック実行 */
 	}
 }

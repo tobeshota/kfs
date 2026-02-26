@@ -173,7 +173,9 @@ int schedule(void)
 	{
 		rr_dequeue(prev);
 		if (prev->__state == TASK_RUNNING)
+		{
 			rr_enqueue(prev);
+		}
 	}
 
 	next = rr_pick_next();

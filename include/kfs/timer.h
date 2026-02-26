@@ -95,10 +95,10 @@ extern volatile uint32_t jiffies;
  */
 struct timer_list
 {
-	struct list_head entry;                   /* タイマーキューへのリンク */
-	uint32_t         expires;                 /* 満了 jiffies */
-	void (*function)(struct timer_list *);    /* 満了時コールバック */
-	void            *data;                    /* コールバックに渡す任意データ */
+	struct list_head entry;				   /* タイマーキューへのリンク */
+	uint32_t expires;					   /* 満了 jiffies */
+	void (*function)(struct timer_list *); /* 満了時コールバック */
+	void *data;							   /* コールバックに渡す任意データ */
 };
 
 void timer_setup(struct timer_list *timer, void (*fn)(struct timer_list *));
