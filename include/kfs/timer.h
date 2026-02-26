@@ -105,6 +105,7 @@ void timer_setup(struct timer_list *timer, void (*fn)(struct timer_list *));
 void add_timer(struct timer_list *timer);
 void del_timer(struct timer_list *timer);
 void run_local_timers(void);
+long schedule_timeout(long timeout);
 
 void timer_init(void);
 
