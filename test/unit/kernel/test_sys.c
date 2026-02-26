@@ -107,6 +107,18 @@ KFS_TEST(test_sys_capset_invalid_pid_returns_esrch)
 	KFS_ASSERT_EQ(-ESRCH, sys_capset(-42, &new_cap, NULL, NULL));
 }
 
+/** sys_msleep(0) は schedule_timeout を呼ばずに即座に 0 を返すはず
+ * 検証対象: kernel/sys.c sys_msleep()
+ * 検証項目: ms == 0 のとき早期リターンで 0 が返る
+ */
+static void test_sys_msleep_zero_returns_immediately(void)
+{
+	long ret = sys_msleep(0);
+
+	KFS_ASSERT_EQ(0, (int)ret);
+	printk("test_sys_msleep_zero_returns_immediately: OK\n");
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_getuid_returns_uid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_setuid_succeeds_with_cap, setup_test, teardown_test),
@@ -115,6 +127,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_capget_invalid_pid_returns_esrch, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_capset_pid0_updates_current, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_capset_invalid_pid_returns_esrch, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_msleep_zero_returns_immediately, setup_test, teardown_test),
 };
 
 int register_unit_tests_sys(struct kfs_test_case **out)

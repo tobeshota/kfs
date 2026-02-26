@@ -173,7 +173,7 @@ KFS_TEST(test_do_syscall_large_negative)
  */
 KFS_TEST(test_nr_syscalls_value)
 {
-	KFS_ASSERT_EQ(158, NR_syscalls);
+	KFS_ASSERT_EQ(159, NR_syscalls);
 }
 
 /**

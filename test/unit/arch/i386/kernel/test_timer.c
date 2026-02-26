@@ -1,13 +1,31 @@
 #include "../../../test_reset.h"
 #include "unit_test_framework.h"
 #include <asm-i386/io.h>
+#include <kfs/list.h>
 #include <kfs/printk.h>
+#include <kfs/rr.h>
+#include <kfs/sched.h>
 #include <kfs/timer.h>
+
+extern void timer_queue_reset(void);
+extern struct list_head timer_queue;
+extern struct task_struct init_task;
 
 /* セットアップ */
 static void setup_test(void)
 {
 	reset_all_state_for_test();
+}
+
+/* schedule_timeout() 用セットアップ: current をランキューに乗せる */
+static void setup_test_schedule_timeout(void)
+{
+	reset_all_state_for_test();
+	timer_queue_reset();
+	INIT_LIST_HEAD(&init_task.run_list);
+	rr_init();
+	rr_enqueue(&init_task);
+	current = &init_task;
 }
 
 static void teardown_test(void)
@@ -147,6 +165,31 @@ KFS_TEST(test_timer_init_and_latch_readback)
 	KFS_ASSERT_TRUE(changed);
 }
 
+/** schedule_timeout() 復帰後に current->__state が TASK_RUNNING に戻っているはず
+ * 検証対象: kernel/time/timer.c schedule_timeout()
+ * 検証項目: schedule() から戻った後に __state = TASK_RUNNING が設定される
+ * 備考: ユニットテスト環境では rr_pick_next() が NULL を返すので即帰る
+ */
+static void test_schedule_timeout_restores_running_state(void)
+{
+	schedule_timeout(10);
+
+	KFS_ASSERT_TRUE(current->__state == TASK_RUNNING);
+}
+
+/** schedule_timeout() 復帰後にタイマーキューが空になっているはず
+ * 検証対象: kernel/time/timer.c schedule_timeout()
+ * 検証項目: del_timer() によりタイマーキューに残エントリがない
+ * 備考: 割り込みなし環境では満了前に帰る（早起き相当）ので del_timer() によるキュー削除を検証する
+ */
+static void test_schedule_timeout_cleans_up_timer(void)
+{
+	schedule_timeout(10);
+
+	/* del_timer() でタイマーが片付けられているはず */
+	KFS_ASSERT_TRUE(list_empty(&timer_queue));
+}
+
 static struct kfs_test_case cases[] = {
 	/* 定数テスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_timer_frequency_constants, setup_test, teardown_test),
@@ -155,6 +198,10 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_timer_count_calculation, setup_test, teardown_test),
 	/* ハードウェアアクセステスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_timer_init_and_latch_readback, setup_test, teardown_test),
+	/* schedule_timeout() テスト */
+	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_timeout_restores_running_state, setup_test_schedule_timeout,
+								 teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_timeout_cleans_up_timer, setup_test_schedule_timeout, teardown_test),
 };
 
 int register_unit_tests_timer(struct kfs_test_case **out)
