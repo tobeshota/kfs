@@ -156,17 +156,20 @@ void scheduler_tick(void)
 
 /** スケジューラ本体（コンテキストスイッチ）
  * @brief RR ランキューから次のタスクを選択し current ポインタを更新する．
- *        自発的に呼ばれた場合（do_wait等）は current を末尾に回して他タスクに yield する。
+ *        自発的に呼ばれた場合（do_wait等）は current をランキュー末尾に回して他タスクを先頭に立てる。
  * @return 1=コンテキストスイッチ実施, 0=スイッチなし（runnableなnextが存在しない）
+ * @note hlt は呼び出し元の責任とする。
+ *       do_wait() は schedule() が 0 を返したとき hlt でタイマー割り込みを待つ。
+ *       shell_run() のメインループも同様。
  */
 int schedule(void)
 {
 	struct task_struct *next;
 	struct task_struct *prev = current;
 
-	/* 自発的 yield: current を末尾に回すことで他タスクが先頭になれるようにする。
+	/* current をランキューの末尾に回して他タスクが先頭に来られるようにする。
 	 * ランキューにない場合（TASK_DEAD 等）は何もしない。
-	 * TASK_RUNNING のときだけ再エンキューする。
+	 * TASK_RUNNING のときだけ末尾に再挿入する。
 	 * TASK_INTERRUPTIBLE / TASK_UNINTERRUPTIBLE は wake_up_process() が
 	 * 呼ばれるまでランキューに戻さない。 */
 	if (!list_empty(&prev->run_list))
@@ -179,16 +182,20 @@ int schedule(void)
 	}
 
 	next = rr_pick_next();
+
+	/* ランキューが空，または自分以外に runnable なタスクがない */
 	if (!next || next == prev)
 	{
 		return 0; /* スイッチなし */
 	}
 
-	/* thread.sp == 0 のタスクは __switch_to 未経験（ユニットテスト初期化前等）
-	 * のため切り替えると ESP=0 でトリプルフォルトする。スキップする。 */
+	/* next->thread.sp == 0 は copy_thread() が未呼び出しで
+	 * カーネルスタックフレームが未設定であることを意味する。
+	 * （do_fork() を経ずに作られたタスク，初回スイッチ前の init_task 等）
+	 * ESP=0 で __switch_to するとトリプルフォールトするためスキップする。 */
 	if (!next->thread.sp)
 	{
-		return 0; /* スイッチなし */
+		return 0;
 	}
 
 	current = next;

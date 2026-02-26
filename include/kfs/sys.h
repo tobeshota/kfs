@@ -11,5 +11,6 @@ int sys_capset(pid_t pid, const kernel_cap_t *effective, const kernel_cap_t *per
 			   const kernel_cap_t *inheritable);
 int sys_sched_setscheduler(pid_t pid, int policy, int priority);
 int sys_sched_getscheduler(pid_t pid);
+long sys_msleep(uint32_t ms);
 
 #endif /* _KFS_SYS_H */

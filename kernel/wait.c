@@ -15,8 +15,8 @@ extern void release_task(struct task_struct *p);
  * @param wstatus 終了ステータスを書き込むポインタ（NULLで無視）
  * @return 回収した子プロセスのPID
  *         -ECHILD: 子プロセスが存在しない
- *         -EAGAIN: ゾンビ子なし＋schedule()がスイッチしなかった（runnable な子なし）
- * @note Linux 6.18 kernel/exit.c do_wait()相当
+ * @note 子がまだゾンビでない場合は schedule() で CPU を譲り，
+ *       schedule() 内部で hlt してタイマー割り込みを待てる．
  */
 pid_t do_wait(int *wstatus)
 {
@@ -56,11 +56,11 @@ pid_t do_wait(int *wstatus)
 		}
 
 		/* ゾンビ子がまだいない: 子プロセスが実行できるよう CPU を譲る.
-		 * schedule() が0を返した（runnable な子が存在しない）
-		 * 場合は -EAGAIN を返して呼び出し元に判断を委ねる。 */
+		 * schedule() が 0 を返した場合（自分以外に runnable なタスクがない）は
+		 * hlt でタイマー割り込みを待ってからリトライする。 */
 		if (!schedule())
 		{
-			return -EAGAIN;
+			__asm__ volatile("hlt");
 		}
 	}
 }

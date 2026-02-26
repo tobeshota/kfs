@@ -8,6 +8,7 @@
 #include <kfs/pid.h>
 #include <kfs/sched.h>
 #include <kfs/sys.h>
+#include <kfs/timer.h>
 
 /** 現在のプロセスの実ユーザー ID を返す */
 int sys_getuid(void)
@@ -119,4 +120,18 @@ int sys_sched_getscheduler(pid_t pid)
 	}
 
 	return (int)tsk->policy;
+}
+
+/** ms ミリ秒スリープする
+ * @param ms スリープ時間 [ミリ秒]（HZ=1000 なので ms == tick 数）
+ * @return 0: 成功
+ */
+long sys_msleep(uint32_t ms)
+{
+	if (ms == 0)
+	{
+		return 0;
+	}
+	schedule_timeout((long)ms);
+	return 0;
 }
