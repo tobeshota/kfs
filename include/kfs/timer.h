@@ -30,7 +30,7 @@ extern volatile uint32_t jiffies;
  * この手法は差分が INT32_MAX (約 24.8 日分) を超えないことを前提とする。
  * タイマー満了まで 24.8 日を超えるような値は設定しないこと。
  */
-#define time_after(a, b)  ((int32_t)((b) - (a)) < 0)
+#define time_after(a, b) ((int32_t)((b) - (a)) < 0)
 #define time_before(a, b) time_after(b, a)
 
 /** i8254 PIT I/O port addresses
