@@ -101,6 +101,13 @@ void psg_stop(int ch)
  * @note IRQ0 ハンドラから毎 tick 呼ばれる
  * @note jiffies はこの関数が呼ばれる前に
  *       timer_interrupt() でインクリメントされている．
+ * @details TDM（時分割多重）の仕組み
+ * 時間軸:
+ *   | ch0 | ch1 | ch2 | nz | ch0 | ch1 | ch2 | nz | ...
+ *   ← 1ms →← 1ms →← 1ms →← 1ms →
+ * PC スピーカーには常に「どれか 1 チャンネル」の周波数が出力される．
+ * 4チャンネルを 4ms で 1 周するため、各チャンネルの実効出力は 250Hz ペースで更新．
+ * 人間の耳は 20ms 程度の応答時間があるため、4 チャンネルが同時に聞こえるように感じる．
  */
 void psg_tick(void)
 {
