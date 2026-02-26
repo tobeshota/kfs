@@ -128,3 +128,30 @@ void copy_thread(struct task_struct *p, struct task_struct *orig, unsigned long 
 }
 
 /* __switch_to() の実装は arch/i386/kernel/entry.S で行う */
+
+/** カーネルスレッド用の初期スタックフレームを構築する
+ * @brief kernel_thread() から呼ばれる．fork_frame.ebx に fn をセットし
+ *        ret_from_fork がカーネルスレッドパスで call *%%ebx を実行できるようにする．
+ * @param p  新しいカーネルスレッドの task_struct
+ * @param fn スレッドのメイン関数
+ */
+void copy_thread_with_fn(struct task_struct *p, void (*fn)(void))
+{
+	extern void ret_from_fork(void);
+	struct pt_regs *childregs;
+	struct fork_frame *frame;
+
+	childregs = task_pt_regs(p);
+	memset(childregs, 0, sizeof(*childregs));
+	/* カーネルスレッドは iret でユーザー空間に戻らないため pt_regs は全ゼロでよい */
+
+	frame = (struct fork_frame *)childregs - 1;
+	frame->edi = 0;
+	frame->esi = 0;
+	frame->ebx = (unsigned long)fn; /* ret_from_fork が call *%%ebx で実行する */
+	frame->ebp = 0;
+	frame->ret_addr = (unsigned long)ret_from_fork;
+
+	p->thread.sp = (unsigned long)frame;
+	p->thread.ip = (unsigned long)ret_from_fork;
+}
