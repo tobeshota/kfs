@@ -1,8 +1,11 @@
 #include "../../test_reset.h"
 #include "unit_test_framework.h"
 #include <kfs/list.h>
+#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/string.h>
+
+extern struct task_struct init_task;
 
 /* 全テストで共通のセットアップ関数 */
 static void setup_test(void)
@@ -23,8 +26,6 @@ static void teardown_test(void)
  */
 static void test_init_task_initialization(void)
 {
-	extern struct task_struct init_task;
-
 	/* PID 0である */
 	KFS_ASSERT_TRUE(init_task.pid == 0);
 
@@ -105,10 +106,88 @@ static void test_task_state_constants(void)
 		   TASK_RUNNING, TASK_INTERRUPTIBLE, TASK_UNINTERRUPTIBLE);
 }
 
+/* rr_enqueue/dequeue を直接呼んで schedule() の TASK_INTERRUPTIBLE パスを再現する */
+static void init_test_task_for_sched(struct task_struct *tsk)
+{
+	tsk->policy = SCHED_PURE_RR;
+	tsk->time_slice = 10;
+	INIT_LIST_HEAD(&tsk->run_list);
+}
+
+static void setup_test_sched(void)
+{
+	reset_all_state_for_test();
+	rr_init();
+	INIT_LIST_HEAD(&init_task.run_list);
+}
+
+/** TASK_INTERRUPTIBLE なプロセスは schedule() 後にランキューに戻らないことを確かめる
+ * 検証対象: kernel/sched/core.c schedule() の TASK_INTERRUPTIBLE チェック
+ * 検証項目: __state == TASK_INTERRUPTIBLE のタスクは schedule() 呼び出し後に
+ *           ランキューに再登録されない
+ */
+static void test_schedule_does_not_reenqueue_interruptible(void)
+{
+	struct task_struct tsk;
+	struct task_struct *saved_current;
+
+	init_test_task_for_sched(&tsk);
+	tsk.__state = TASK_INTERRUPTIBLE;
+
+	/* current を差し替え，schedule() に prev として認識させる */
+	saved_current = current;
+	current = &tsk;
+	rr_enqueue(&tsk);
+	KFS_ASSERT_TRUE(!list_empty(&tsk.run_list)); /* エンキュー済み */
+
+	/* 実際に schedule() を呼ぶ.
+	 * キューに tsk しかいないため rr_pick_next() は NULL を返し
+	 * __switch_to() は呼ばれない. */
+	schedule();
+
+	current = saved_current;
+
+	/* TASK_INTERRUPTIBLE なので再エンキューされていない */
+	KFS_ASSERT_TRUE(list_empty(&tsk.run_list));
+	printk("test_schedule_does_not_reenqueue_interruptible: OK\n");
+}
+
+/** TASK_RUNNING なプロセスは schedule() 後もランキューに残ることを確かめる
+ * 検証対象: kernel/sched/core.c schedule() の TASK_RUNNING パス
+ * 検証項目: __state == TASK_RUNNING のタスクは schedule() 呼び出し後も
+ *           ランキューに残っている
+ */
+static void test_schedule_reenqueues_running(void)
+{
+	struct task_struct tsk;
+	struct task_struct *saved_current;
+
+	init_test_task_for_sched(&tsk);
+	tsk.__state = TASK_RUNNING;
+
+	/* current を差し替え，schedule() に prev として認識させる */
+	saved_current = current;
+	current = &tsk;
+	rr_enqueue(&tsk);
+
+	/* 実際に schedule() を呼ぶ.
+	 * tsk は再エンキューされるが next == prev となるため
+	 * __switch_to() は呼ばれない. */
+	schedule();
+
+	current = saved_current;
+
+	/* TASK_RUNNING なので再エンキューされている */
+	KFS_ASSERT_TRUE(!list_empty(&tsk.run_list));
+	printk("test_schedule_reenqueues_running: OK\n");
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_init_task_initialization, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_list_operations, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_task_state_constants, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_does_not_reenqueue_interruptible, setup_test_sched, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_reenqueues_running, setup_test_sched, teardown_test),
 };
 
 int register_unit_tests_sched_core(struct kfs_test_case **out)
