@@ -120,18 +120,21 @@ struct task_struct *find_task_by_pid(pid_t pid)
 }
 
 /** スケジューラを初期化する
- * @brief RR サブスケジューラを初期化し，init_task をランキューに登録する．
- *        init/main.c の kernel_main() から呼び出す（Phase 4 コミットで追加）．
+ * @brief RR サブスケジューラを初期化する．
+ *        init_task は RR キューに入れない（cpu_idle_loop() のフォールバック先として扱う）．
+ *        init/main.c の start_kernel() から呼び出す．
  */
 void sched_init(void)
 {
-	/* rr_init() でキューをクリアする前に run_list を空に戻す。
-	 * こうしないと rr_enqueue の二重登録防止チェック
-	 * (!list_empty(&run_list)) が誤動作し、init_task が
-	 * キューに再登録されなくなる（複数回呼び出し時の冪等性保証）。 */
 	INIT_LIST_HEAD(&init_task.run_list);
 	rr_init();
-	rr_enqueue(&init_task);
+	/* init_task は RR キューに登録しない。
+	 * schedule() が rr_pick_next()==NULL のとき init_task へフォールバックする。
+	 * thread.sp は cpu_idle_loop() 内で最初に __switch_to が走った瞬間に
+	 * 自動保存されるため、ここでは 0 のままにしておく。
+	 * 0 の間は fallback を無効化することでテスト環境での誤スイッチを防ぐ。 */
+	init_task.thread.sp = 0;
+	current = &init_task;
 }
 
 /** プロセスを起床させる
@@ -154,13 +157,27 @@ void scheduler_tick(void)
 	rr_task_tick(current);
 }
 
+/** アイドルループ
+ * @brief init_task のメイン関数．
+ *        実行可能なタスクがないとき CPU を hlt で休止し，
+ *        タイマー割り込みで目覚めたら schedule() でランキューを回す．
+ * @note この関数から戻ることはない．
+ */
+__attribute__((noreturn)) void cpu_idle_loop(void)
+{
+	while (1)
+	{
+		__asm__ volatile("hlt"); /* タイマー割り込みを待つ */
+		schedule();				 /* 起きたら他タスクへスイッチ */
+	}
+	__builtin_unreachable();
+}
+
 /** スケジューラ本体（コンテキストスイッチ）
  * @brief RR ランキューから次のタスクを選択し current ポインタを更新する．
  *        自発的に呼ばれた場合（do_wait等）は current をランキュー末尾に回して他タスクを先頭に立てる。
- * @return 1=コンテキストスイッチ実施, 0=スイッチなし（runnableなnextが存在しない）
- * @note hlt は呼び出し元の責任とする。
- *       do_wait() は schedule() が 0 を返したとき hlt でタイマー割り込みを待つ。
- *       shell_run() のメインループも同様。
+ * @return 1=コンテキストスイッチ実施, 0=スイッチなし（init_task から呼ばれた等）
+ * @note hlt は cpu_idle_loop() 内のみで行う。
  */
 int schedule(void)
 {
@@ -183,15 +200,28 @@ int schedule(void)
 
 	next = rr_pick_next();
 
-	/* ランキューが空，または自分以外に runnable なタスクがない */
+	/* RR キューが空、または prev 以外に runnable なタスクがない
+	 * → init_task（cpu_idle_loop）へフォールバック */
 	if (!next || next == prev)
 	{
-		return 0; /* スイッチなし */
+		/* すでに init_task が動いている → スイッチ不要 */
+		if (prev == &init_task)
+		{
+			return 0; /* init_task.thread.sp == 0 は cpu_idle_loop() がまだ起動していない
+					   * （テスト環境・起動直後）ことを意味する。スイッチしない。 */
+		}
+		if (!init_task.thread.sp)
+		{
+			return 0;
+		}
+		current = &init_task;
+		__switch_to(prev, &init_task);
+		return 0;
 	}
 
 	/* next->thread.sp == 0 は copy_thread() が未呼び出しで
 	 * カーネルスタックフレームが未設定であることを意味する。
-	 * （do_fork() を経ずに作られたタスク，初回スイッチ前の init_task 等）
+	 * （do_fork() を経ずに作られたタスク等）
 	 * ESP=0 で __switch_to するとトリプルフォールトするためスキップする。 */
 	if (!next->thread.sp)
 	{

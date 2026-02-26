@@ -53,6 +53,9 @@ void reset_all_state_for_test(void)
 	INIT_LIST_HEAD(&init_task.run_list);
 	/* init_task の状態を起動直後に戻す */
 	init_task.__state = TASK_RUNNING;
+	/* thread.sp=0 にして「cpu_idle_loop がまだ動いていない」状態にする。
+	 * schedule() の init_task フォールバックはこれが 0 の間は無効になる。 */
+	init_task.thread.sp = 0;
 	init_task.pid = 0;
 	init_task.parent = &init_task;
 	current = &init_task;
