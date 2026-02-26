@@ -115,7 +115,8 @@ iso-uefi: kernel ./grub-uefi.cfg
 
 unit: unit-bios
 
-unit-bios: iso-bios run
+unit-bios: iso-bios
+	$(MAKE) run
 
 else
 
