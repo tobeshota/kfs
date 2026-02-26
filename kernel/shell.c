@@ -624,9 +624,8 @@ __attribute__((weak)) void shell_run(void)
 {
 	shell_init();
 
-	/* メインループ: 割り込みでキーボード入力を処理
-	 * hltでCPUを休止し、割り込みで起きる */
-	for (;;)
+	/* メインループ: 割り込みでキーボード入力を処理 */
+	while (1)
 	{
 		/** シリアルポート入力を確認
 		 * @note シリアルI/Oはデバッグ用途のためIRQラインではなくポーリング方式を用いる
@@ -638,8 +637,8 @@ __attribute__((weak)) void shell_run(void)
 			shell_keyboard_handler((char)c);
 		}
 
-		/* CPUを休止して割り込みを待つ */
-		__asm__ __volatile__("hlt");
+		/* CPU を他タスクへ譲る（hlt は cpu_idle_loop() で行う） */
+		schedule();
 	}
 }
 
