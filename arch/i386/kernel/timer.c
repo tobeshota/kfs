@@ -1,6 +1,7 @@
 #include <asm-i386/io.h>
 #include <asm-i386/ptrace.h>
 #include <kfs/irq.h>
+#include <kfs/psg.h>
 #include <kfs/sched.h>
 #include <kfs/timer.h>
 
@@ -20,6 +21,8 @@ static int timer_interrupt(int irq, struct pt_regs *regs)
 	scheduler_tick();
 	/* 満了済みタイマーを実行 */
 	run_local_timers();
+	/* PSG TDM ディスパッチ */
+	psg_tick();
 	return IRQ_HANDLED;
 }
 

@@ -7,6 +7,7 @@
 #include <kfs/multiboot.h>
 #include <kfs/pcspkr.h>
 #include <kfs/printk.h>
+#include <kfs/psg.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
@@ -29,6 +30,7 @@ void start_kernel(void)
 {
 	serial_init();
 	pcspkr_init();
+	psg_init();
 	terminal_initialize();
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK));
 
