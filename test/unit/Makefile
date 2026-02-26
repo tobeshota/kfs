@@ -121,16 +121,16 @@ else
 
 # --- Wrapper: run the same targets inside Docker ---
 kernel: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make kernel'
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) kernel'
 
 iso-bios: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make iso-bios'
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) iso-bios'
 
 iso-uefi: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make iso-uefi'
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) iso-uefi'
 
 unit: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make unit'
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) unit'
 
 endif
 
