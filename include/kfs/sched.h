@@ -191,7 +191,7 @@ int schedule(void); /* 1=context switched, 0=no switch */
 void scheduler_tick(void);
 void wake_up_process(struct task_struct *tsk);
 void sched_init(void);
-__attribute__((noreturn)) void cpu_idle_loop(void);
+void cpu_idle_loop(void) __attribute__((weak));
 pid_t kernel_thread(void (*fn)(void));
 
 /* コンテキストスイッチ（arch/i386/kernel/entry.S で実装） */

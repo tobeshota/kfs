@@ -15,6 +15,13 @@ void shell_run(void)
 	return;
 }
 
+/* cpu_idle_loop()をオーバーライド（weak symbolのため） */
+void cpu_idle_loop(void)
+{
+	/* テスト環境では即座に戻る（無限ループ・hlt に入らない） */
+	return;
+}
+
 /* Serial I/O overrides provided by shared stub (serial_io_stub.c) */
 
 static uint16_t term_stub[80 * 25];

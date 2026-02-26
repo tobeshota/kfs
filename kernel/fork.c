@@ -265,37 +265,31 @@ void __init fork_init(void)
 }
 
 /** 指定した関数をカーネル空間のプロセスとして実行する
- * @brief do_fork() と異なりスタックを独立ページとして確保し、
- *        PF_KTHREAD を明示的に設定する。
+ * @brief copy_thread_with_fn() が fork_frame.ebx = fn を設定することで
+ *        ret_from_fork がカーネルスレッドパス（call *%%ebx）へ分岐する。
  * @param fn 新プロセスで実行するカーネル関数
  * @return 子PID（成功）、負数（失敗）
  */
 pid_t kernel_thread(void (*fn)(void))
 {
-	unsigned long *stack;
-	pid_t pid;
+	extern void copy_thread_with_fn(struct task_struct * p, void (*fn)(void));
 	struct task_struct *p;
 
-	/* カーネルスレッドごとに独立したスタックを確保する。
-	 * dup_task_struct() と同様に alloc_pages() で PAGE 境界保証を得る。 */
-	stack = (unsigned long *)alloc_pages(GFP_KERNEL, 0);
-	if (!stack)
+	p = copy_process(current);
+	if (!p)
 	{
-		return -ENOMEM;
+		return -EAGAIN;
 	}
 
-	pid = do_fork((unsigned long)fn, (unsigned long)stack + THREAD_SIZE);
-	if (pid < 0)
-	{
-		return pid;
-	}
+	/* fork_frame.ebx = fn を設定
+	 * これにより，ret_from_fork がカーネルスレッドパスを選択する */
+	copy_thread_with_fn(p, fn);
 
 	/* PF_KTHREAD を明示的に設定する */
-	p = find_task_by_pid(pid);
-	if (p)
-	{
-		p->flags |= PF_KTHREAD;
-	}
+	p->flags |= PF_KTHREAD;
 
-	return pid;
+	/* RR ランキューに登録してスケジューリング可能にする */
+	rr_enqueue(p);
+
+	return p->pid;
 }

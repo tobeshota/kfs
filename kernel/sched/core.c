@@ -163,7 +163,7 @@ void scheduler_tick(void)
  *        タイマー割り込みで目覚めたら schedule() でランキューを回す．
  * @note この関数から戻ることはない．
  */
-__attribute__((noreturn)) void cpu_idle_loop(void)
+__attribute__((weak, noreturn)) void cpu_idle_loop(void)
 {
 	while (1)
 	{
