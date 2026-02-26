@@ -99,15 +99,15 @@ else
 
 # --- Wrapper: run the same targets inside Docker ---
 kernel: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make kernel'
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) kernel'
 
 iso: iso-bios
 
 iso-bios: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso-bios'
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) iso-bios'
 
 iso-uefi: ensure-image
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make iso-uefi'
+	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) iso-uefi'
 
 endif
 
