@@ -209,11 +209,30 @@ static void cmd_beep(const char *args)
 	pcspkr_stop();
 }
 
+/** sleep コマンド用 ring-3 エントリポイント
+ * @note msleep() は int $0x80 経由の ring-3 ラッパーなので，
+ *       ring-3 コンテキストから呼ぶ必要がある
+ */
+static unsigned int g_sleep_ms; /* cmd_sleep → sleep_ring3_main へのパラメータ渡し用 */
+
+static void sleep_ring3_main(void)
+{
+	msleep(g_sleep_ms);
+	exit(0);
+}
+
 /** sleep コマンド: 指定秒数だけ CPU を手放して待機する
  * 用法: sleep <秒>
+ * @note ring-3 の msleep() 経路（int $0x80 → sys_msleep → schedule_timeout）が
+ *       正しく機能することを確かめるため，子プロセスを fork して msleep() を呼ばせる．
+ *       子が TASK_INTERRUPTIBLE でスリープ中はランキューが空になり
+ *       do_wait() 内の schedule() が 0 を返して -EAGAIN になるため，
+ *       親は hlt でタイマー割り込みを待ちながらリトライする．
  */
 static void cmd_sleep(const char *args)
 {
+	static unsigned long ustack[256];
+
 	while (*args == ' ')
 	{
 		args++;
@@ -229,7 +248,10 @@ static void cmd_sleep(const char *args)
 		printk("sleep: invalid duration\n");
 		return;
 	}
-	msleep((unsigned int)secs * 1000);
+	g_sleep_ms = (unsigned int)secs * 1000;
+	/* ring-3 へ降りて msleep() を呼ばせ，終了を待つ */
+	do_fork((unsigned long)sleep_ring3_main, (unsigned long)(ustack + 256));
+	do_wait(NULL);
 }
 
 /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
@@ -441,7 +463,7 @@ static void execute_command(const char *cmd)
 	/* jiffies コマンド: 現在の jiffies 値を表示する（デバッグ・テスト用） */
 	if (strcmp(cmd, "jiffies") == 0)
 	{
-		printk("%u\n", jiffies);
+		printk("jiffies=%u\n", jiffies);
 		return;
 	}
 
