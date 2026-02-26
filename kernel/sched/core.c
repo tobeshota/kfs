@@ -182,15 +182,19 @@ int schedule(void)
 	if (!next || next == prev)
 	{
 		/* runnable なタスクが自分（init_task）だけ。
-		 * アイドルタスクとして hlt でタイマー割り込みを待つ。
-		 * 割り込み後に呼び出し元がリトライすれば，起床した
-		 * タスクが rr_pick_next() で選ばれるようになる。 */
-		__asm__ volatile("hlt");
+		 * thread.sp != 0 のときは実カーネルスタックフレームが確立されているので
+		 * hlt でタイマー割り込みを待つ（アイドル動作）。
+		 * thread.sp == 0 は do_fork()/copy_thread() がまだ呼ばれていないタスク
+		 * （ユニットテスト内の手動初期化タスク等）なので hlt せず即リターン。 */
+		if (prev->thread.sp)
+		{
+			__asm__ volatile("hlt");
+		}
 		return 0; /* スイッチなし */
 	}
 
-	/* thread.sp == 0 のタスクは __switch_to 未経験（ユニットテスト初期化前等）
-	 * のため切り替えると ESP=0 でトリプルフォルトする。スキップする。 */
+	/* thread.sp == 0 のタスクは do_fork()/copy_thread() が未呼び出しでカーネルスタックフレームが未設定。
+	 * ESP=0 で __switch_to するとトリプルフォールするためスキップする。 */
 	if (!next->thread.sp)
 	{
 		return 0; /* スイッチなし */
