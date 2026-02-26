@@ -83,7 +83,7 @@ long schedule_timeout(long timeout)
 	current->__state = TASK_INTERRUPTIBLE;
 	schedule();
 
-	del_timer(&timer);           /* 早起きした場合のクリーンアップ */
+	del_timer(&timer); /* 早起きした場合のクリーンアップ */
 	current->__state = TASK_RUNNING;
 	return expire - (long)jiffies; /* 残り tick（負なら超過） */
 }
