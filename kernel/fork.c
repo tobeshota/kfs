@@ -263,3 +263,39 @@ void __init fork_init(void)
 	/* task_struct用スラブキャッシュを作成 */
 	task_struct_cachep = kmem_cache_create("task_struct", sizeof(struct task_struct));
 }
+
+/** 指定した関数をカーネル空間のプロセスとして実行する
+ * @brief do_fork() と異なりスタックを独立ページとして確保し、
+ *        PF_KTHREAD を明示的に設定する。
+ * @param fn 新プロセスで実行するカーネル関数
+ * @return 子PID（成功）、負数（失敗）
+ */
+pid_t kernel_thread(void (*fn)(void))
+{
+	unsigned long *stack;
+	pid_t pid;
+	struct task_struct *p;
+
+	/* カーネルスレッドごとに独立したスタックを確保する。
+	 * dup_task_struct() と同様に alloc_pages() で PAGE 境界保証を得る。 */
+	stack = (unsigned long *)alloc_pages(GFP_KERNEL, 0);
+	if (!stack)
+	{
+		return -ENOMEM;
+	}
+
+	pid = do_fork((unsigned long)fn, (unsigned long)stack + THREAD_SIZE);
+	if (pid < 0)
+	{
+		return pid;
+	}
+
+	/* PF_KTHREAD を明示的に設定する */
+	p = find_task_by_pid(pid);
+	if (p)
+	{
+		p->flags |= PF_KTHREAD;
+	}
+
+	return pid;
+}
