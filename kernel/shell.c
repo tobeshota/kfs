@@ -12,6 +12,7 @@
 #include <kfs/shell.h>
 #include <kfs/stdint.h>
 #include <kfs/string.h>
+#include <kfs/timer.h>
 #include <kfs/unistd.h>
 #include <kfs/wait.h>
 
@@ -206,6 +207,29 @@ static void cmd_beep(const char *args)
 	for (volatile uint32_t i = 0; i < 500000000UL; i++)
 		;
 	pcspkr_stop();
+}
+
+/** sleep コマンド: 指定秒数だけ CPU を手放して待機する
+ * 用法: sleep <秒>
+ */
+static void cmd_sleep(const char *args)
+{
+	while (*args == ' ')
+	{
+		args++;
+	}
+	if (*args == '\0')
+	{
+		printk("Usage: sleep <seconds>\n");
+		return;
+	}
+	int secs = atoi(args);
+	if (secs <= 0)
+	{
+		printk("sleep: invalid duration\n");
+		return;
+	}
+	msleep((unsigned int)secs * 1000);
 }
 
 /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
@@ -404,6 +428,20 @@ static void execute_command(const char *cmd)
 	if (strncmp(cmd, "beep", 4) == 0 && (cmd[4] == ' ' || cmd[4] == '\0'))
 	{
 		cmd_beep(cmd + 4);
+		return;
+	}
+
+	/* sleep コマンド: 指定秒数だけ CPU を手放して待機する */
+	if (strncmp(cmd, "sleep", 5) == 0 && (cmd[5] == ' ' || cmd[5] == '\0'))
+	{
+		cmd_sleep(cmd + 5);
+		return;
+	}
+
+	/* jiffies コマンド: 現在の jiffies 値を表示する（デバッグ・テスト用） */
+	if (strcmp(cmd, "jiffies") == 0)
+	{
+		printk("%u\n", jiffies);
 		return;
 	}
 
