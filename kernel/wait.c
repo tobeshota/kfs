@@ -56,12 +56,9 @@ pid_t do_wait(int *wstatus)
 		}
 
 		/* ゾンビ子がまだいない: 子プロセスが実行できるよう CPU を譲る.
-		 * schedule() が0を返した（runnable な子が存在しない）
-		 * 場合は -EAGAIN を返して呼び出し元に判断を委ねる。 */
-		if (!schedule())
-		{
-			return -EAGAIN;
-		}
+		 * schedule() が 0 を返した場合（runnable な子がおらず init_task のみ）は
+		 * schedule() 内部で hlt 済みなので，そのままリトライする。 */
+		schedule();
 	}
 }
 

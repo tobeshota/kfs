@@ -181,6 +181,11 @@ int schedule(void)
 	next = rr_pick_next();
 	if (!next || next == prev)
 	{
+		/* runnable なタスクが自分（init_task）だけ。
+		 * アイドルタスクとして hlt でタイマー割り込みを待つ。
+		 * 割り込み後に呼び出し元がリトライすれば，起床した
+		 * タスクが rr_pick_next() で選ばれるようになる。 */
+		__asm__ volatile("hlt");
 		return 0; /* スイッチなし */
 	}
 
