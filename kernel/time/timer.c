@@ -1,4 +1,5 @@
 #include <kfs/list.h>
+#include <kfs/sched.h>
 #include <kfs/timer.h>
 
 /** グローバルタイマーキュー
@@ -52,6 +53,39 @@ void del_timer(struct timer_list *timer)
 	__asm__ volatile("cli");
 	list_del_init(&timer->entry);
 	__asm__ volatile("sti");
+}
+
+/** タイマー満了時に呼ばれ、スリープ中のプロセスを起こすコールバック
+ * @param t 満了したタイマー（data フィールドに task_struct * が入っている）
+ */
+static void process_timeout(struct timer_list *t)
+{
+	struct task_struct *task = (struct task_struct *)t->data;
+
+	wake_up_process(task);
+}
+
+/** 指定 tick 後に現在プロセスを起こすスリープ
+ * @param timeout スリープ tick 数（HZ=1000 なら ms と等しい）
+ * @return 残り tick 数（0 なら正確に満了、負なら超過）
+ */
+long schedule_timeout(long timeout)
+{
+	struct timer_list timer;
+	long expire;
+
+	expire = (long)jiffies + timeout;
+	timer_setup(&timer, process_timeout);
+	timer.expires = (uint32_t)expire;
+	timer.data = (void *)current; /* process_timeout() に渡すプロセス */
+	add_timer(&timer);
+
+	current->__state = TASK_INTERRUPTIBLE;
+	schedule();
+
+	del_timer(&timer);           /* 早起きした場合のクリーンアップ */
+	current->__state = TASK_RUNNING;
+	return expire - (long)jiffies; /* 残り tick（負なら超過） */
 }
 
 /** 満了済みタイマーを実行する
