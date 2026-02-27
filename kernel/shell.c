@@ -4,8 +4,8 @@
 #include <kfs/keyboard.h>
 #include <kfs/neofetch.h>
 #include <kfs/panic.h>
-#include <kfs/pcspkr.h>
 #include <kfs/printk.h>
+#include <kfs/psg.h>
 #include <kfs/reboot.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
@@ -183,6 +183,12 @@ static void cmd_sched(void)
  *   beep 494      494 Hz    B4（シ）
  *   beep 523      523 Hz    C5（高いド）
  */
+static void beep_ring3_main(void)
+{
+	msleep(1000);
+	exit(0);
+}
+
 static void cmd_beep(const char *args)
 {
 	while (*args == ' ')
@@ -197,16 +203,40 @@ static void cmd_beep(const char *args)
 	int freq = atoi(args);
 	if (freq <= 0)
 	{
-		pcspkr_stop();
+		psg_stop(0);
 		printk("beep: stopped\n");
 		return;
 	}
+	static unsigned long ustack[256];
+
 	printk("beep: %d Hz\n", freq);
-	pcspkr_tone((uint32_t)freq);
-	/* 約1秒のスピンウェイト（Phase B で jiffies ベースに置き換える） */
-	for (volatile uint32_t i = 0; i < 500000000UL; i++)
-		;
-	pcspkr_stop();
+	psg_note(0, (uint32_t)freq);
+	do_fork((unsigned long)beep_ring3_main, (unsigned long)(ustack + 256));
+	do_wait(NULL);
+	psg_stop(0);
+}
+
+static void chord_ring3_main(void)
+{
+	msleep(2000);
+	exit(0);
+}
+
+/* chord コマンド: A4+E4+C4 の疑似和音を 2 秒間鳴らす（TDM デモ） */
+static void cmd_chord(void)
+{
+	static unsigned long ustack[256];
+
+	psg_note(0, 440); /* A4 */
+	psg_note(1, 330); /* E4 */
+	psg_note(2, 262); /* C4 */
+	printk("chord: A4+E4+C4 (2s)\n");
+	/* ring-3 の msleep() で 2 秒待機し，終了後に ring-0 でチャンネルを止める */
+	do_fork((unsigned long)chord_ring3_main, (unsigned long)(ustack + 256));
+	do_wait(NULL);
+	psg_stop(0);
+	psg_stop(1);
+	psg_stop(2);
 }
 
 /** sleep コマンド用 ring-3 エントリポイント
@@ -450,6 +480,13 @@ static void execute_command(const char *cmd)
 	if (strncmp(cmd, "beep", 4) == 0 && (cmd[4] == ' ' || cmd[4] == '\0'))
 	{
 		cmd_beep(cmd + 4);
+		return;
+	}
+
+	/* chord コマンド: A4+E4+C4 の疑似和音を 2 秒間鳴らす */
+	if (strcmp(cmd, "chord") == 0)
+	{
+		cmd_chord();
 		return;
 	}
 
