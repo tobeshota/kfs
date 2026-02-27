@@ -9,6 +9,7 @@ log/
 *.iso
 Image
 testImage
+Documentation/html/
 Documentation/**/*.pdf
 Documentation/**/*.rst
 Documentation/**/*.md
