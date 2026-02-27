@@ -1,6 +1,7 @@
 #include <kfs/console.h>
 #include <kfs/errno.h>
 #include <kfs/printk.h>
+#include <kfs/psg.h>
 #include <kfs/serial.h>
 #include <kfs/signal.h>
 #include <kfs/stddef.h>
@@ -185,6 +186,25 @@ static long do_sys_msleep(long arg1, long arg2, long arg3, long arg4, long arg5)
 	return sys_msleep((uint32_t)arg1);
 }
 
+static long do_sys_psg_note(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	do_psg_note((int)arg1, (uint32_t)arg2);
+	return 0;
+}
+
+static long do_sys_psg_stop(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	do_psg_stop((int)arg1);
+	return 0;
+}
+
 static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_exit] = (syscall_fn_t)do_sys_exit,
 	[__NR_fork] = do_sys_fork,
@@ -196,6 +216,8 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_sched_setscheduler] = do_sys_sched_setscheduler,
 	[__NR_sched_getscheduler] = do_sys_sched_getscheduler,
 	[__NR_msleep] = do_sys_msleep,
+	[__NR_psg_note] = do_sys_psg_note,
+	[__NR_psg_stop] = do_sys_psg_stop,
 };
 
 /** システムコールディスパッチャ

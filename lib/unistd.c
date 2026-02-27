@@ -86,3 +86,19 @@ sighandler_t signal(int sig, sighandler_t handler)
 	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_signal), "b"(sig), "c"(handler) : "memory");
 	return (sighandler_t)ret;
 }
+
+/* PSG チャンネルで音を鳴らす（ch=0,1,2: 矩形波, ch=3: ノイズ） */
+int psg_note(int ch, unsigned int freq_hz)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_psg_note), "b"((long)ch), "c"((long)freq_hz) : "memory");
+	return (int)ret;
+}
+
+/* PSG チャンネルを停止する */
+int psg_stop(int ch)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_psg_stop), "b"((long)ch) : "memory");
+	return (int)ret;
+}

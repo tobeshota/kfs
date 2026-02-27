@@ -203,17 +203,17 @@ static void cmd_beep(const char *args)
 	int freq = atoi(args);
 	if (freq <= 0)
 	{
-		psg_stop(0);
+		do_psg_stop(0);
 		printk("beep: stopped\n");
 		return;
 	}
 	static unsigned long ustack[256];
 
 	printk("beep: %d Hz\n", freq);
-	psg_note(0, (uint32_t)freq);
+	do_psg_note(0, (uint32_t)freq);
 	do_fork((unsigned long)beep_ring3_main, (unsigned long)(ustack + 256));
 	do_wait(NULL);
-	psg_stop(0);
+	do_psg_stop(0);
 }
 
 static void chord_ring3_main(void)
@@ -227,16 +227,16 @@ static void cmd_chord(void)
 {
 	static unsigned long ustack[256];
 
-	psg_note(0, 440); /* A4 */
-	psg_note(1, 330); /* E4 */
-	psg_note(2, 262); /* C4 */
+	do_psg_note(0, 440); /* A4 */
+	do_psg_note(1, 330); /* E4 */
+	do_psg_note(2, 262); /* C4 */
 	printk("chord: A4+E4+C4 (2s)\n");
 	/* ring-3 の msleep() で 2 秒待機し，終了後に ring-0 でチャンネルを止める */
 	do_fork((unsigned long)chord_ring3_main, (unsigned long)(ustack + 256));
 	do_wait(NULL);
-	psg_stop(0);
-	psg_stop(1);
-	psg_stop(2);
+	do_psg_stop(0);
+	do_psg_stop(1);
+	do_psg_stop(2);
 }
 
 /** sleep コマンド用 ring-3 エントリポイント
