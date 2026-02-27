@@ -86,7 +86,7 @@ run_kernel_capture() {
 		# 3. Docker 経由: /work に REPO_ROOT をマウントしているため、
 		#    ホスト絶対パス -> /work への変換が必要。
 		local docker_bin="${DOCKER:-docker}"
-		local image="${IMAGE:-${ISA}-compile-toolchain}"
+		local image="${IMAGE:-kfs-${ISA}-toolchain}"
 		if command -v "$docker_bin" >/dev/null 2>&1; then
 			local container_root="/work"
 			# 例: /home/runner/work/kfs/kfs/test/integration/_artifacts/foo.log.tmp

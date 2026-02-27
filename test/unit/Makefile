@@ -2,7 +2,7 @@ include ../../.env
 export
 
 # ===== Docker image settings =====
-IMAGE          ?= $(ISA)-compile-toolchain
+IMAGE          ?= kfs-$(ISA)-toolchain
 DOCKER         ?= docker
 ISA	           ?= i386
 ROOT_DIR       := $(shell cd ../.. && pwd)
