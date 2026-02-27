@@ -50,7 +50,7 @@ all: unit
 
 # ===== Ensure Docker image (local build only) =====
 ensure-image:
-	@set -e; \
+	@ set -e; \
 	if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
 		echo "Building local image from arch/$(ISA)/compile.dockerfile..."; \
 		$(DOCKER) build --platform $(DOCKER_PLATFORM) -f ../../arch/$(ISA)/compile.dockerfile -t $(IMAGE) .; \
@@ -66,13 +66,13 @@ $(KERNEL): $(OBJS) ../../arch/$(ISA)/boot/linker.ld
 
 # Compile rules (inside container)
 $(BUILD_DIR)/%.o: ../../%.S
-	@mkdir -p $(dir $@)
+	@ mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # For C files, check if instrumented version exists in build/coverage when COVERAGE_BUILD=1
 $(BUILD_DIR)/%.o: ../../%.c
-	@mkdir -p $(dir $@) $(dir $(BUILD_DIR)/$*.d)
-	@SRC_FILE="$<"; \
+	@ mkdir -p $(dir $@) $(dir $(BUILD_DIR)/$*.d)
+	@ SRC_FILE="$<"; \
 	if [ "$(COVERAGE_BUILD)" = "1" ] && [ -f "build/coverage/$*.c" ]; then \
 		echo "Using instrumented: build/coverage/$*.c"; \
 		SRC_FILE="build/coverage/$*.c"; \
@@ -81,12 +81,12 @@ $(BUILD_DIR)/%.o: ../../%.c
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c "$$SRC_FILE" -o $@
 
 $(BUILD_DIR)/%.o: ./%.S
-	@mkdir -p $(dir $@)
+	@ mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Coverage support files
 $(BUILD_DIR)/coverage/%.o: ./coverage/%.c
-	@mkdir -p $(dir $@)
+	@ mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 -include $(DEPS)
@@ -113,7 +113,7 @@ unit-bios: iso-bios
 else
 
 define ensure_image
-	@if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
+	@ if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
 		echo "Building Docker image from arch/$(ISA)/compile.dockerfile..."; \
 		$(DOCKER) build --platform $(DOCKER_PLATFORM) -f ../../arch/$(ISA)/compile.dockerfile -t $(IMAGE) .; \
 	fi
@@ -122,19 +122,19 @@ endef
 
 $(KERNEL): $(SRCS_C) $(SRCS_S) $(BOOTSTRAP) $(COVERAGE_C) ../../arch/$(ISA)/boot/linker.ld
 	$(call ensure_image)
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) kernel'
+	@ $(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) kernel'
 
 kernel: $(KERNEL)
 
 $(ISO_BIOS): $(KERNEL) ./grub-bios.cfg
 	$(call ensure_image)
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) iso-bios'
+	@ $(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) iso-bios'
 
 iso-bios: $(ISO_BIOS)
 
 $(ISO_UEFI): $(KERNEL) ./grub-uefi.cfg
 	$(call ensure_image)
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) iso-uefi'
+	@ $(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make -j$(shell nproc) iso-uefi'
 
 iso-uefi: $(ISO_UEFI)
 
@@ -142,24 +142,24 @@ iso-uefi: $(ISO_UEFI)
 # $(ISO_BIOS) がファイルターゲットのためソース変更がなければ Docker ビルドはスキップされる
 unit: $(ISO_BIOS)
 	$(call ensure_image)
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make run'
+	@ $(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make run'
 
 endif
 
 clean:
-	@rm -rf isodir-bios isodir-uefi build $(LOGDIR) $(REPORT_DIR)
+	@ rm -rf isodir-bios isodir-uefi build $(LOGDIR) $(REPORT_DIR)
 
 fclean: clean
-	@rm -f $(KERNEL) $(ISO_BIOS) $(ISO_UEFI)
+	@ rm -f $(KERNEL) $(ISO_BIOS) $(ISO_UEFI)
 
 re: fclean all
 
 # Log / report directories (needed by run-iso-bios on both host and container)
 $(LOGDIR):
-	@mkdir -p $(LOGDIR)
+	@ mkdir -p $(LOGDIR)
 
 $(REPORT_DIR):
-	@mkdir -p $(REPORT_DIR)
+	@ mkdir -p $(REPORT_DIR)
 
 # ===== Run with QEMU (prefer host, fallback to container) =====
 run: run-iso-bios
@@ -181,19 +181,19 @@ run-iso-bios: $(ISO_BIOS) | $(LOGDIR) $(REPORT_DIR)
 
 # Now builds with instrumented sources from build/coverage without modifying production code
 coverage: fclean coverage-instrument
-	@echo "Building and running tests with coverage (using instrumented sources from build/coverage)..."
-	@$(MAKE) unit COVERAGE_BUILD=1
-	@echo "Generating coverage summary report..."
-	@./coverage/generate_coverage_summary.sh
-	@echo ""
-	@echo "Generating diff-style coverage report..."
-	@./coverage/generate_diff_report.sh
-	@echo ""
-	@tail -n +$$(grep -n "^=== Summary ===" coverage/log/summary.txt | cut -d: -f1) coverage/log/summary.txt
+	@ echo "Building and running tests with coverage (using instrumented sources from build/coverage)..."
+	@ $(MAKE) unit COVERAGE_BUILD=1
+	@ echo "Generating coverage summary report..."
+	@ ./coverage/generate_coverage_summary.sh
+	@ echo ""
+	@ echo "Generating diff-style coverage report..."
+	@ ./coverage/generate_diff_report.sh
+	@ echo ""
+	@ tail -n +$$(grep -n "^=== Summary ===" coverage/log/summary.txt | cut -d: -f1) coverage/log/summary.txt
 
 # Instrument production code before building for coverage
 coverage-instrument:
-	@echo "Instrumenting production code..."
-	@python3 coverage/insert_coverage_func.py ../../ build/coverage/ coverage/log/coverage_manifest.txt
+	@ echo "Instrumenting production code..."
+	@ python3 coverage/insert_coverage_func.py ../../ build/coverage/ coverage/log/coverage_manifest.txt
 
 .PHONY: all run run-iso-bios clean fclean re ensure-image unit test coverage coverage-instrument
