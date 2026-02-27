@@ -1,4 +1,6 @@
 #include <kfs/pid.h>	 /* pid_t */
+#include <kfs/sched.h>	 /* uid_t */
+#include <kfs/signal.h>	 /* sighandler_t */
 #include <kfs/syscall.h> /* __NR_fork, __NR_exit, __NR_wait */
 
 /**
@@ -59,4 +61,28 @@ int msleep(unsigned int ms)
 	long ret;
 	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_msleep), "b"((long)ms) : "memory");
 	return (int)ret;
+}
+
+/* 現在のプロセスの UID を返す */
+uid_t getuid(void)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_getuid) : "memory");
+	return (uid_t)ret;
+}
+
+/* 指定プロセスにシグナルを送る */
+int kill(pid_t pid, int sig)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_kill), "b"(pid), "c"(sig) : "memory");
+	return (int)ret;
+}
+
+/* シグナルハンドラを登録する */
+sighandler_t signal(int sig, sighandler_t handler)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_signal), "b"(sig), "c"(handler) : "memory");
+	return (sighandler_t)ret;
 }
