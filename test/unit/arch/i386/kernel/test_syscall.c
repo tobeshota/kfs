@@ -168,12 +168,12 @@ KFS_TEST(test_do_syscall_large_negative)
 /**
  * NR_syscalls定数の検証
  * 検証対象: NR_syscalls
- * 検証項目: NR_syscallsが158であること（__NR_sched_getscheduler + 1）
+ * 検証項目: NR_syscallsが161であること（__NR_psg_stop + 1）
  * 目的: syscall.hの定義とsyscall.cの整合性を確認
  */
 KFS_TEST(test_nr_syscalls_value)
 {
-	KFS_ASSERT_EQ(159, NR_syscalls);
+	KFS_ASSERT_EQ(161, NR_syscalls);
 }
 
 /**
@@ -293,6 +293,61 @@ KFS_TEST(test_int80_kill_sig0)
 	KFS_ASSERT_TRUE(result != -ENOSYS);
 }
 
+/**
+ * write fd=1 (stdout) のパス
+ * 検証対象: do_syscall(__NR_write)
+ * 検証項目: fd=1 に 1 文字書き込むと 1 が返ること（buf/countパスと stdout パス）
+ */
+KFS_TEST(test_do_syscall_write_stdout)
+{
+	long result = do_syscall(__NR_write, 1, (long)"x", 1, 0, 0);
+	KFS_ASSERT_EQ(1, result);
+}
+
+/**
+ * write fd=4 (serial) のパス
+ * 検証対象: do_syscall(__NR_write)
+ * 検証項目: fd=4 に 1 文字書き込むと 1 が返ること（serial パス）
+ */
+KFS_TEST(test_do_syscall_write_serial)
+{
+	long result = do_syscall(__NR_write, 4, (long)"x", 1, 0, 0);
+	KFS_ASSERT_EQ(1, result);
+}
+
+/**
+ * write buf=NULL → 早期リターン 0
+ * 検証対象: do_syscall(__NR_write)
+ * 検証項目: buf=NULL のとき 0 が返ること
+ */
+KFS_TEST(test_do_syscall_write_null_buf)
+{
+	long result = do_syscall(__NR_write, 1, 0, 1, 0, 0);
+	KFS_ASSERT_EQ(0, result);
+}
+
+/**
+ * sched_setscheduler syscall テスト
+ * 検証対象: do_syscall(__NR_sched_setscheduler)
+ * 検証項目: -ENOSYS を返さないこと（登録確認）
+ */
+KFS_TEST(test_do_syscall_sched_setscheduler)
+{
+	long result = do_syscall(__NR_sched_setscheduler, 0, 0, 0, 0, 0);
+	KFS_ASSERT_TRUE(result != -ENOSYS);
+}
+
+/**
+ * sched_getscheduler syscall テスト
+ * 検証対象: do_syscall(__NR_sched_getscheduler)
+ * 検証項目: -ENOSYS を返さないこと
+ */
+KFS_TEST(test_do_syscall_sched_getscheduler)
+{
+	long result = do_syscall(__NR_sched_getscheduler, 0, 0, 0, 0, 0);
+	KFS_ASSERT_TRUE(result != -ENOSYS);
+}
+
 static struct kfs_test_case cases[] = {
 	/* do_syscall境界チェックテスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_negative_nr, setup_test, teardown_test),
@@ -318,6 +373,13 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_int80_wait_no_children, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_int80_signal_sigusr1_ign, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_int80_kill_sig0, setup_test, teardown_test),
+	/* write パステスト */
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_stdout, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_serial, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_null_buf, setup_test, teardown_test),
+	/* sched syscall テスト */
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_sched_setscheduler, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_sched_getscheduler, setup_test, teardown_test),
 };
 
 int register_unit_tests_syscall(struct kfs_test_case **out)

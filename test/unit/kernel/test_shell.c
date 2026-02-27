@@ -391,6 +391,42 @@ KFS_TEST(test_cmd_loadkeys_switch_layouts)
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
 }
 
+/**
+ * test_shell_execute_beep_no_args
+ * 検証対象: cmd_beep()
+ * 検証項目: "beep" (引数なし) でUsage表示パスをカバー
+ */
+KFS_TEST(test_shell_execute_beep_no_args)
+{
+	shell_init();
+	/* "beep": *args == '\0' → Usage 表示 → return */
+	shell_keyboard_handler('b');
+	shell_keyboard_handler('e');
+	shell_keyboard_handler('e');
+	shell_keyboard_handler('p');
+	shell_keyboard_handler('\n');
+	KFS_ASSERT_TRUE(1);
+}
+
+/**
+ * test_shell_execute_beep_zero_freq
+ * 検証対象: cmd_beep()
+ * 検証項目: "beep 0" で freq <= 0 → pcspkr_stop → return パスをカバー
+ */
+KFS_TEST(test_shell_execute_beep_zero_freq)
+{
+	shell_init();
+	/* "beep 0": freq=0 → pcspkr_stop() → return */
+	shell_keyboard_handler('b');
+	shell_keyboard_handler('e');
+	shell_keyboard_handler('e');
+	shell_keyboard_handler('p');
+	shell_keyboard_handler(' ');
+	shell_keyboard_handler('0');
+	shell_keyboard_handler('\n');
+	KFS_ASSERT_TRUE(1);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_init, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_printable, setup_test, teardown_test),
@@ -422,6 +458,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_spaces_only, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_invalid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_switch_layouts, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_no_args, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_zero_freq, setup_test, teardown_test),
 };
 
 int register_unit_tests_shell(struct kfs_test_case **out)

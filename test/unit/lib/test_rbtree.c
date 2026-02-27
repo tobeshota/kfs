@@ -160,6 +160,79 @@ static void test_rb_parent_operations(void)
 	printk("rb_parent operations test passed\n");
 }
 
+/** 3ノードツリーで rb_next() が正しい次ノードを返すか確かめる
+ *        root_node
+ *       /          \
+ *  left_node    right_node
+ *
+ * rb_next(left_node)  → root_node
+ * rb_next(root_node)  → right_node
+ * rb_next(right_node) → NULL
+ */
+static void test_rb_next(void)
+{
+	struct rb_node *result;
+	struct rb_node root_node, left_node, right_node;
+
+	/* NULLの場合 */
+	result = rb_next(NULL);
+	KFS_ASSERT_TRUE(result == NULL);
+
+	/* 単独ノード（親なし、右の子なし）→ NULL */
+	root_node.__rb_parent_color = 0;
+	root_node.rb_left = NULL;
+	root_node.rb_right = NULL;
+	result = rb_next(&root_node);
+	KFS_ASSERT_TRUE(result == NULL);
+
+	/* 3ノードツリーを構築 */
+	root_node.__rb_parent_color = 0; /* ルート: 親なし */
+	root_node.rb_left = &left_node;
+	root_node.rb_right = &right_node;
+
+	left_node.__rb_parent_color = (unsigned long)&root_node; /* 親=root */
+	left_node.rb_left = NULL;
+	left_node.rb_right = NULL;
+
+	right_node.__rb_parent_color = (unsigned long)&root_node; /* 親=root */
+	right_node.rb_left = NULL;
+	right_node.rb_right = NULL;
+
+	/* 左の子の次は親 */
+	result = rb_next(&left_node);
+	KFS_ASSERT_TRUE(result == &root_node);
+
+	/* 右の子がある場合、右の部分木の最小値 */
+	result = rb_next(&root_node);
+	KFS_ASSERT_TRUE(result == &right_node);
+
+	/* ツリーの最大値の次は NULL */
+	result = rb_next(&right_node);
+	KFS_ASSERT_TRUE(result == NULL);
+
+	printk("rb_next test passed\n");
+}
+
+/* rb_insert_color() がノードを黒に設定するか確かめる */
+static void test_rb_insert_color(void)
+{
+	struct rb_root root = RB_ROOT;
+	struct rb_node node;
+
+	node.__rb_parent_color = 0;
+	node.rb_left = NULL;
+	node.rb_right = NULL;
+
+	/* 赤ノードを挿入 → 黒になる（現在の簡易実装） */
+	rb_set_color(&node, RB_RED);
+	KFS_ASSERT_TRUE(rb_is_red(&node));
+
+	rb_insert_color(&node, &root);
+	KFS_ASSERT_TRUE(rb_is_black(&node));
+
+	printk("rb_insert_color test passed\n");
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_rb_node_structure, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_rb_root_initialization, setup_test, teardown_test),
@@ -167,6 +240,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_rb_color_operations, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_rb_first, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_rb_parent_operations, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_next, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_insert_color, setup_test, teardown_test),
 };
 
 int register_unit_tests_rbtree(struct kfs_test_case **out)
