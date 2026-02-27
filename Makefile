@@ -55,7 +55,7 @@ all: iso-bios
 
 # ===== Ensure Docker image (local build only) =====
 ensure-image:
-	@set -e; \
+	@ set -e; \
 	if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
 		echo "Building local image from arch/$(ISA)/compile.dockerfile..."; \
 		$(DOCKER) build --platform $(DOCKER_PLATFORM) -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) .; \
@@ -71,11 +71,11 @@ $(KERNEL): $(KERNEL_OBJS) arch/$(ISA)/boot/linker.ld
 
 # Compile rules (inside container)
 $(BUILD_DIR)/%.o: %.S
-	@mkdir -p $(dir $@)
+	@ mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: %.c
-	@mkdir -p $(dir $@) $(dir $(BUILD_DIR)/$*.d)
+	@ mkdir -p $(dir $@) $(dir $(BUILD_DIR)/$*.d)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 -include $(KERNEL_DEPS)
@@ -99,7 +99,7 @@ iso-uefi: kernel grub-uefi.cfg
 else
 
 define ensure_image
-	@if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
+	@ if ! $(DOCKER) image inspect $(IMAGE) >/dev/null 2>&1; then \
 		echo "Building Docker image from arch/$(ISA)/compile.dockerfile..."; \
 		$(DOCKER) build --platform $(DOCKER_PLATFORM) -f arch/$(ISA)/compile.dockerfile -t $(IMAGE) .; \
 	fi
@@ -108,7 +108,7 @@ endef
 
 $(KERNEL): $(KERNEL_SRCS_C) $(KERNEL_SRCS_S) $(KERNEL_SRCS_H) arch/$(ISA)/boot/linker.ld
 	$(call ensure_image)
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) kernel'
+	@ $(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) kernel'
 
 kernel: $(KERNEL)
 
@@ -116,13 +116,13 @@ iso: iso-bios
 
 $(ISO_BIOS): $(KERNEL) grub-bios.cfg
 	$(call ensure_image)
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) iso-bios'
+	@ $(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) iso-bios'
 
 iso-bios: $(ISO_BIOS)
 
 $(ISO_UEFI): $(KERNEL) grub-uefi.cfg
 	$(call ensure_image)
-	@$(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) iso-uefi'
+	@ $(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 make -j$(shell nproc) iso-uefi'
 
 iso-uefi: $(ISO_UEFI)
 
@@ -178,6 +178,6 @@ fmt:
 		&& shfmt -w $(TEST_SRCS_SH)'
 
 doc:
-	make doc -C Documentation/
+	@ make doc -C Documentation/
 
 .PHONY: all iso run run-iso-bios run-kernel run-iso-uefi clean fclean re ensure-image test unit integration coverage fmt doc

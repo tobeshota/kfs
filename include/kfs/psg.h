@@ -19,8 +19,8 @@ struct psg_channel
 };
 
 void psg_init(void);
-void psg_note(int ch, uint32_t freq_hz);
-void psg_stop(int ch);
+void do_psg_note(int ch, uint32_t freq_hz);
+void do_psg_stop(int ch);
 void psg_tick(void);
 
 #endif /* _KFS_PSG_H */
