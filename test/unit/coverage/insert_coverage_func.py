@@ -258,8 +258,10 @@ def is_function_brace(brace_idx, lines):
             if first_word in control_keywords:
                 return False
 
-            # struct/union/enumをチェック
-            if any(kw in prev_line for kw in ['struct', 'union', 'enum']):
+            # struct/union/enumをチェック（先頭キーワードのみ）
+            # 例: "struct Foo" → 型定義なので関数でない
+            # 例: "void foo(struct Bar *)" → struct は引数型なので関数として認識
+            if first_word in ['struct', 'union', 'enum']:
                 return False
 
             # おそらく関数！
