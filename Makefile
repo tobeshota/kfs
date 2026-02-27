@@ -16,7 +16,8 @@ else
 endif
 
 # ===== Docker image settings =====
-IMAGE ?= $(ISA)-compile-toolchain
+IMAGE     ?= kfs-$(ISA)-toolchain
+FMT_IMAGE ?= kfs-fmt
 DOCKER ?= docker
 ISA	?= i386
 PWD := $(shell pwd)
@@ -133,6 +134,7 @@ clean:
 
 fclean: clean
 	@ rm -f $(KERNEL) $(ISO_BIOS) $(ISO_UEFI)
+	@ make fclean -C Documentation/
 	@ make fclean -C test/
 
 re: fclean all
@@ -170,12 +172,12 @@ coverage:
 	@ make coverage -C test/
 
 fmt:
-	@ docker run -v ./:/work -w /work ubuntu:24.04 bash -c \
-		'export DEBIAN_FRONTEND=noninteractive \
-		&& apt-get update \
-		&& apt-get upgrade -y \
-		&& apt-get install -y clang-format shfmt \
-		&& clang-format -i -style="{BasedOnStyle: Microsoft, IndentWidth: 4, TabWidth: 4, UseTab: Always, InsertBraces: true}" $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H) \
+	@ docker build --quiet -f fmt.dockerfile -t $(FMT_IMAGE) .
+	@ docker run --rm -v "$(PWD)":/work -w /work $(FMT_IMAGE) bash -c \
+		'clang-format -i -style="{BasedOnStyle: Microsoft, IndentWidth: 4, TabWidth: 4, UseTab: Always, InsertBraces: true}" $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H) \
 		&& shfmt -w $(TEST_SRCS_SH)'
 
-.PHONY: all iso run run-iso-bios run-kernel run-iso-uefi clean fclean re ensure-image test unit integration coverage fmt
+doc:
+	make doc -C Documentation/
+
+.PHONY: all iso run run-iso-bios run-kernel run-iso-uefi clean fclean re ensure-image test unit integration coverage fmt doc
