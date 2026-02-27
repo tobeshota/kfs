@@ -26,7 +26,7 @@ static long sys_ni_syscall(long arg1, long arg2, long arg3, long arg4, long arg5
 }
 
 /* sys_sched_setscheduler(pid, policy, priority) のラッパー */
-static long do_sched_setscheduler(long arg1, long arg2, long arg3, long arg4, long arg5)
+static long do_sys_sched_setscheduler(long arg1, long arg2, long arg3, long arg4, long arg5)
 {
 	(void)arg4;
 	(void)arg5;
@@ -34,7 +34,7 @@ static long do_sched_setscheduler(long arg1, long arg2, long arg3, long arg4, lo
 }
 
 /* sys_sched_getscheduler(pid) のラッパー */
-static long do_sched_getscheduler(long arg1, long arg2, long arg3, long arg4, long arg5)
+static long do_sys_sched_getscheduler(long arg1, long arg2, long arg3, long arg4, long arg5)
 {
 	(void)arg2;
 	(void)arg3;
@@ -104,11 +104,6 @@ static long do_sys_fork(long arg1, long arg2, long arg3, long arg4, long arg5)
 	(void)arg4;
 	(void)arg5;
 	return (long)do_fork(0, 0);
-}
-
-int sys_fork(void)
-{
-	return (int)do_fork(0, 0);
 }
 
 /** exit() システムコール
@@ -198,8 +193,8 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_getuid] = do_sys_getuid,
 	[__NR_kill] = do_sys_kill,
 	[__NR_signal] = do_sys_signal,
-	[__NR_sched_setscheduler] = do_sched_setscheduler,
-	[__NR_sched_getscheduler] = do_sched_getscheduler,
+	[__NR_sched_setscheduler] = do_sys_sched_setscheduler,
+	[__NR_sched_getscheduler] = do_sys_sched_getscheduler,
 	[__NR_msleep] = do_sys_msleep,
 };
 

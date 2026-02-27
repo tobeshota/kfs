@@ -60,9 +60,9 @@ static void teardown_test(void)
 	current->pending.signal = 0;
 
 	/* シグナルハンドラをデフォルトにリセット */
-	signal(SIGINT, SIG_DFL);
-	signal(SIGTERM, SIG_DFL);
-	signal(SIGUSR1, SIG_DFL);
+	sys_signal(SIGINT, SIG_DFL);
+	sys_signal(SIGTERM, SIG_DFL);
+	sys_signal(SIGUSR1, SIG_DFL);
 }
 
 /* テスト用シグナルハンドラ */
@@ -80,50 +80,50 @@ static void counting_handler(int sig)
 	handler_count++;
 }
 
-/* signal()で有効なシグナルにハンドラを登録できることをテスト */
+/* sys_signal()で有効なシグナルにハンドラを登録できることをテスト */
 KFS_TEST(test_signal_register_handler)
 {
 	sighandler_t old;
 
 	/* SIGINTにハンドラを登録 */
-	old = signal(SIGINT, test_handler);
+	old = sys_signal(SIGINT, test_handler);
 	/* 初期状態はSIG_DFL */
 	KFS_ASSERT_EQ((long)SIG_DFL, (long)old);
 
 	/* 再度登録すると以前のハンドラが返る */
-	old = signal(SIGINT, SIG_IGN);
+	old = sys_signal(SIGINT, SIG_IGN);
 	KFS_ASSERT_EQ((long)test_handler, (long)old);
 }
 
-/* signal()で無効なシグナル番号を拒否することをテスト */
+/* sys_signal()で無効なシグナル番号を拒否することをテスト */
 KFS_TEST(test_signal_invalid_signum)
 {
 	sighandler_t result;
 
 	/* シグナル番号0は無効 */
-	result = signal(0, test_handler);
+	result = sys_signal(0, test_handler);
 	KFS_ASSERT_EQ((long)SIG_ERR, (long)result);
 
 	/* 負のシグナル番号は無効 */
-	result = signal(-1, test_handler);
+	result = sys_signal(-1, test_handler);
 	KFS_ASSERT_EQ((long)SIG_ERR, (long)result);
 
 	/* 範囲外のシグナル番号は無効 */
-	result = signal(_NSIG, test_handler);
+	result = sys_signal(_NSIG, test_handler);
 	KFS_ASSERT_EQ((long)SIG_ERR, (long)result);
 }
 
-/* signal()でSIGKILLのハンドラ変更を拒否することをテスト */
+/* sys_signal()でSIGKILLのハンドラ変更を拒否することをテスト */
 KFS_TEST(test_signal_sigkill_immutable)
 {
 	sighandler_t result;
 
 	/* SIGKILLはハンドラ変更不可 */
-	result = signal(SIGKILL, test_handler);
+	result = sys_signal(SIGKILL, test_handler);
 	KFS_ASSERT_EQ((long)SIG_ERR, (long)result);
 
 	/* SIG_IGNも設定不可 */
-	result = signal(SIGKILL, SIG_IGN);
+	result = sys_signal(SIGKILL, SIG_IGN);
 	KFS_ASSERT_EQ((long)SIG_ERR, (long)result);
 }
 
@@ -162,7 +162,7 @@ KFS_TEST(test_raise_invalid_signal)
 KFS_TEST(test_do_signal_calls_handler)
 {
 	/* ハンドラを登録 */
-	signal(SIGINT, test_handler);
+	sys_signal(SIGINT, test_handler);
 
 	/* シグナルを発生 */
 	raise(SIGINT);
@@ -185,7 +185,7 @@ KFS_TEST(test_do_signal_calls_handler)
 KFS_TEST(test_do_signal_ignores_sig_ign)
 {
 	/* SIG_IGNを設定 */
-	signal(SIGTERM, SIG_IGN);
+	sys_signal(SIGTERM, SIG_IGN);
 
 	/* シグナルを発生 */
 	raise(SIGTERM);
@@ -202,7 +202,7 @@ KFS_TEST(test_do_signal_ignores_sig_ign)
 KFS_TEST(test_do_signal_handles_sig_dfl)
 {
 	/* デフォルトハンドラのまま */
-	signal(SIGUSR1, SIG_DFL);
+	sys_signal(SIGUSR1, SIG_DFL);
 
 	/* シグナルを発生 */
 	raise(SIGUSR1);
@@ -221,9 +221,9 @@ KFS_TEST(test_do_signal_multiple_signals)
 	handler_count = 0;
 
 	/* 複数のシグナルにハンドラを登録 */
-	signal(SIGINT, counting_handler);
-	signal(SIGTERM, counting_handler);
-	signal(SIGUSR1, counting_handler);
+	sys_signal(SIGINT, counting_handler);
+	sys_signal(SIGTERM, counting_handler);
+	sys_signal(SIGUSR1, counting_handler);
 
 	/* 複数のシグナルを発生 */
 	raise(SIGINT);
@@ -249,7 +249,7 @@ KFS_TEST(test_signal_pending_reports_correctly)
 	KFS_ASSERT_EQ(1, signal_pending());
 
 	/* 処理すると保留なし */
-	signal(SIGINT, SIG_IGN);
+	sys_signal(SIGINT, SIG_IGN);
 	do_signal();
 	KFS_ASSERT_EQ(0, signal_pending());
 }

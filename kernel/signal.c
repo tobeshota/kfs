@@ -17,36 +17,6 @@ static int valid_signal(int sig)
 	return sig > 0 && sig < _NSIG;
 }
 
-/** シグナルハンドラを登録する
- * @param sig シグナル番号
- * @param handler 登録するハンドラ関数
- * @return 以前のハンドラ，エラー時はSIG_ERR
- */
-sighandler_t signal(int sig, sighandler_t handler)
-{
-	sighandler_t old_handler;
-
-	/* シグナル番号の有効性を検証 */
-	if (!valid_signal(sig))
-	{
-		return SIG_ERR;
-	}
-
-	/* SIGKILLはハンドラ変更不可（強制終了を保証するため） */
-	if (sig == SIGKILL)
-	{
-		return SIG_ERR;
-	}
-
-	/* 以前のハンドラを帰り値として保存する */
-	old_handler = current->sig_actions[sig].sa_handler;
-
-	/* 新しいハンドラを設定する */
-	current->sig_actions[sig].sa_handler = handler;
-
-	return old_handler;
-}
-
 /** 現在のプロセスにシグナルを発生させる
  * @brief send_signal(sig, current) のラッパー（POSIX互換名）
  * @param sig 発生させるシグナル番号
@@ -170,6 +140,25 @@ int sys_kill(pid_t pid, int sig)
  */
 sighandler_t sys_signal(int sig, sighandler_t handler)
 {
-	/* signal()と同一の処理（currentに対して動作する） */
-	return signal(sig, handler);
+	sighandler_t old_handler;
+
+	/* シグナル番号の有効性を検証 */
+	if (!valid_signal(sig))
+	{
+		return SIG_ERR;
+	}
+
+	/* SIGKILLはハンドラ変更不可（強制終了を保証するため） */
+	if (sig == SIGKILL)
+	{
+		return SIG_ERR;
+	}
+
+	/* 以前のハンドラを帰り値として保存する */
+	old_handler = current->sig_actions[sig].sa_handler;
+
+	/* 新しいハンドラを設定する */
+	current->sig_actions[sig].sa_handler = handler;
+
+	return old_handler;
 }

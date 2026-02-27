@@ -9,7 +9,7 @@ coverage:
 	@ make coverage -C unit/
 
 integration:
-	@echo "integration test" && \
+	@ echo "integration test" && \
 	bash -eu ./integration/integration_test.sh
 
 clean:
@@ -17,7 +17,6 @@ clean:
 
 fclean:
 	@ make fclean -C unit/
-
-	rm -rf $(BUILD_DIR) $(UNIT_BIN) $(COVERAGE_DIR)
+	@ rm -rf $(BUILD_DIR) $(UNIT_BIN) $(COVERAGE_DIR)
 
 .PHONY: all test unit coverage integration clean fclean

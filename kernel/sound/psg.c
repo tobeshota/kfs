@@ -72,7 +72,7 @@ void psg_init(void)
 }
 
 /* 指定チャンネルで発音を開始する */
-void psg_note(int ch, uint32_t freq_hz)
+void do_psg_note(int ch, uint32_t freq_hz)
 {
 	if (ch < 0 || ch >= PSG_CH_COUNT)
 	{
@@ -91,9 +91,9 @@ void psg_note(int ch, uint32_t freq_hz)
 }
 
 /* 指定チャンネルを停止する */
-void psg_stop(int ch)
+void do_psg_stop(int ch)
 {
-	psg_note(ch, 0);
+	do_psg_note(ch, 0);
 }
 
 /** TDM ディスパッチャ

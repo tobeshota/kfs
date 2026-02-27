@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="Documentation/images/kfs_qemu.gif" width="420">
+  <img src="Documentation/images/kfs_qemu.gif">
 </p>
 
-**kfs stands for _Kernel From Scratch💻_**
+**kfs stands for _Kernel From Scratch_ 💻**  
 **The goal is to accompany _processes_ from their birth to their volatilization.**
 
 ---
 
-# Technical Specifications
+# Specification
 
 ### Target Architecture
 - ISA: i386
@@ -37,7 +37,7 @@ Virtual Address Space          Physical RAM
 - Paging: [4KB pages allocation](mm/page_alloc.c#L239), [page direcotry](include/asm-i386/pgtable.h#L33), [page table](include/asm-i386/pgtable.h#L28)
 
 ### Interrupt and Exception Handling
-- IDT: [256 entries](include/asm-i386/desc.h#L63) for exceptions and interrupts
+- IDT: [256 entries](include/asm-i386/desc.h#L63) for interrupts and exceptions
 - IRQ Controller: [Intel 8259A PIC](arch/i386/kernel/i8259.c#L120)
 
 ### Device Drivers
@@ -48,7 +48,7 @@ Virtual Address Space          Physical RAM
 ### Testing
 - Unit Tests: [Custom framework](test/unit/unit_test_framework.h) with assertion macros
 - Integration Tests: [QEMU-based](test/integration/integration_test.sh) serial port output validation
-- Coverage: [Automated instrumentation](test/unit/coverage/coverage.h#L42) with [`COVERAGE_LINE()`](test/unit/coverage/coverage.h#L42) macro injection
+- Coverage: Automated instrumentation with [`COVERAGE_LINE()`](test/unit/coverage/coverage.h#L42) macro injection
 
 # Usage
 

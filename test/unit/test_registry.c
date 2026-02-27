@@ -2,7 +2,6 @@
 
 // 各テストファイルで提供される register_* 関数
 int register_unit_tests_terminal_scroll(struct kfs_test_case **out);
-int register_unit_tests_start_kernel(struct kfs_test_case **out);
 int register_unit_tests_string(struct kfs_test_case **out);
 int register_unit_tests_page_alloc(struct kfs_test_case **out);
 int register_unit_tests_shell(struct kfs_test_case **out);
@@ -31,6 +30,7 @@ int register_unit_tests_rr(struct kfs_test_case **out);
 int register_unit_tests_process(struct kfs_test_case **out);
 int register_unit_tests_pcspkr(struct kfs_test_case **out);
 int register_unit_tests_timer_queue(struct kfs_test_case **out);
+int register_unit_tests_psg(struct kfs_test_case **out);
 
 #define KFS_MAX_TESTS 512
 
@@ -45,8 +45,6 @@ int register_unit_tests(struct kfs_test_case **out)
 	{
 		struct kfs_test_case *cases_term_scroll = 0;
 		int count_term_scroll = register_unit_tests_terminal_scroll(&cases_term_scroll);
-		struct kfs_test_case *cases_kernel = 0;
-		int count_kernel = register_unit_tests_start_kernel(&cases_kernel);
 		struct kfs_test_case *cases_printk = 0;
 		int count_printk = register_unit_tests_printk(&cases_printk);
 		struct kfs_test_case *cases_keyboard = 0;
@@ -103,16 +101,14 @@ int register_unit_tests(struct kfs_test_case **out)
 		int count_pcspkr = register_unit_tests_pcspkr(&cases_pcspkr);
 		struct kfs_test_case *cases_timer_queue = 0;
 		int count_timer_queue = register_unit_tests_timer_queue(&cases_timer_queue);
+		struct kfs_test_case *cases_psg = 0;
+		int count_psg = register_unit_tests_psg(&cases_psg);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
 		for (int i = 0; i < count_term_scroll && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_term_scroll[i];
-		}
-		for (int i = 0; i < count_kernel && idx < KFS_MAX_TESTS; i++)
-		{
-			merged[idx++] = cases_kernel[i];
 		}
 		for (int i = 0; i < count_printk && idx < KFS_MAX_TESTS; i++)
 		{
@@ -225,6 +221,10 @@ int register_unit_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_timer_queue && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_timer_queue[i];
+		}
+		for (int i = 0; i < count_psg && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_psg[i];
 		}
 		all_cases = merged;
 		all_count = idx;
