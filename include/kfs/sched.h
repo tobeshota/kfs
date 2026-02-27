@@ -210,9 +210,6 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next);
 void fork_init(void);
 pid_t do_fork(unsigned long user_eip, unsigned long user_esp);
 
-/* fork システムコールヘルパー（arch/i386/kernel/syscall.c で実装） */
-int sys_fork(void);
-
 /* exec_fn（kernel/exec.c で実装） */
 void __attribute__((noreturn)) exec_fn(void (*fn)(void *), void *arg);
 
