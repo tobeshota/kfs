@@ -12,9 +12,11 @@
 #define __NR_sched_setscheduler 156 /* Linux i386 互換番号 */
 #define __NR_sched_getscheduler 157 /* Linux i386 互換番号 */
 #define __NR_msleep 158
+#define __NR_psg_note 159
+#define __NR_psg_stop 160
 
 /* サポートするシステムコールの数 */
-#define NR_syscalls 159
+#define NR_syscalls 161
 
 /* システムコールのエントリポイント(entry.Sで定義) */
 extern void system_call(void);
