@@ -64,9 +64,10 @@ __attribute__((noreturn)) void do_exit(int code)
 		struct list_head *pos, *tmp;
 		struct task_struct *reaper;
 
-		/* PID 1 (kernel_init) が孤児を引き取る。まだ存在しなければ init_task に fallback */
+		/* PID 1 (kernel_init) が孤児を引き取る．
+		 * 存在しない場合，またはテスト環境で PID 1 が終了したタスク自身の場合は init_task に fallback */
 		reaper = find_task_by_pid(1);
-		if (!reaper)
+		if (!reaper || reaper == tsk)
 		{
 			reaper = &init_task;
 		}
