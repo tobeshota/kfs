@@ -166,7 +166,7 @@ static void cmd_sched(void)
 
 	/* ring-0 → ring-3 へ降りてスケジューリングループを実行し、終了を待つ */
 	do_fork((unsigned long)sched_ring3_main, (unsigned long)(ustack + 256));
-	do_wait(NULL);
+	do_wait(NULL, 0);
 }
 
 /** beep コマンド: 指定周波数の矩形波を 1 秒間鳴らす
@@ -212,7 +212,7 @@ static void cmd_beep(const char *args)
 	printk("beep: %d Hz\n", freq);
 	do_psg_note(0, (uint32_t)freq);
 	do_fork((unsigned long)beep_ring3_main, (unsigned long)(ustack + 256));
-	do_wait(NULL);
+	do_wait(NULL, 0);
 	do_psg_stop(0);
 }
 
@@ -220,6 +220,55 @@ static void chord_ring3_main(void)
 {
 	msleep(2000);
 	exit(0);
+}
+
+
+/*
+ * furusato の二重起動ガード．
+ * バックグラウンドの演奏プロセス（子B）が動いている間は 1 に設定され，
+ * 演奏終了時に 0 へ戻る．これにより同じ furusato_stack に
+ * 別インスタンスが乗り上げてスタックを破壊するのを防ぐ．
+ */
+static int furusato_playing = 0;
+
+/*
+ * furusato_ring3 のスタック．
+ * グローバルに置くことで furusato_playing フラグによる二重起動禁止と
+ * 対応関係が明示的になる．
+ */
+static unsigned long furusato_stack[256];
+
+static void furusato_ring3(void)
+{
+	extern void furusato_main(void *); /* kernel/furusato.c */
+
+	/* 孫を作ったあと自身は終了して孤児にさせてinit_taskに引き取らせる．
+	 * こうすれば孫の終了を待つ必要がない（バックグランド再生ができる）．
+	 */
+	pid_t pid = fork();
+	if (pid == 0)
+	{
+		furusato_playing = 0;
+		exec_fn(furusato_main, NULL);
+	}
+	wait(NULL); /* 孫の終了を待たないとき，音が鳴り続けることはない */
+	exit(0);
+}
+
+static void cmd_furusato(void)
+{
+	if (furusato_playing)
+	{
+		printk("furusato: already playing\n");
+		return;
+	}
+	furusato_playing = 1;
+	printk("furusato: playing Furusato (public domain) on PSG ch0+ch1...\n");
+	/* 子を ring-3 で起動 */
+	do_fork((unsigned long)furusato_ring3,
+			(unsigned long)(furusato_stack + 256));
+	/* 子A は fork()+exit() だけなのでほぼ即座に終わる */
+	do_wait(NULL, 0);
 }
 
 /* chord コマンド: A4+E4+C4 の疑似和音を 2 秒間鳴らす（TDM デモ） */
@@ -233,7 +282,7 @@ static void cmd_chord(void)
 	printk("chord: A4+E4+C4 (2s)\n");
 	/* ring-3 の msleep() で 2 秒待機し，終了後に ring-0 でチャンネルを止める */
 	do_fork((unsigned long)chord_ring3_main, (unsigned long)(ustack + 256));
-	do_wait(NULL);
+	do_wait(NULL, 0);
 	do_psg_stop(0);
 	do_psg_stop(1);
 	do_psg_stop(2);
@@ -281,7 +330,7 @@ static void cmd_sleep(const char *args)
 	g_sleep_ms = (unsigned int)secs * 1000;
 	/* ring-3 へ降りて msleep() を呼ばせ，終了を待つ */
 	do_fork((unsigned long)sleep_ring3_main, (unsigned long)(ustack + 256));
-	do_wait(NULL);
+	do_wait(NULL, 0);
 }
 
 /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
@@ -480,6 +529,13 @@ static void execute_command(const char *cmd)
 	if (strncmp(cmd, "beep", 4) == 0 && (cmd[4] == ' ' || cmd[4] == '\0'))
 	{
 		cmd_beep(cmd + 4);
+		return;
+	}
+
+	/* furusato コマンド: ふるさと (PD) をバックグラウンド再生 */
+	if (strcmp(cmd, "furusato") == 0)
+	{
+		cmd_furusato();
 		return;
 	}
 

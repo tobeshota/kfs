@@ -4,6 +4,7 @@
 #include <kfs/printk.h>
 #include <kfs/rr.h>
 #include <kfs/sched.h>
+#include <kfs/wait.h>
 
 /** idle/swapperプロセス (PID=0)
  * @details すべてのプロセスの祖先．静的に定義され，カーネル起動時に実行される最初のプロセス．
@@ -161,13 +162,17 @@ void scheduler_tick(void)
  * @brief init_task のメイン関数．
  *        実行可能なタスクがないとき CPU を hlt で休止し，
  *        タイマー割り込みで目覚めたら schedule() でランキューを回す．
- * @note この関数から戻ることはない．
+ *        欲湬のバックグラウンドプロセスが EXIT_ZOMBIE になったら reap する。
+ * @note この関数から戻ることはない。
  */
 __attribute__((weak, noreturn)) void cpu_idle_loop(void)
 {
 	while (1)
 	{
 		__asm__ volatile("hlt"); /* タイマー割り込みを待つ */
+		/* 子プロセス（バックグラウンド起動した furusato 等）の
+		 * ゾンビをブロックせずに回収する。評価する子がいなければ即座に返る。 */
+		do_wait(NULL, WNOHANG);
 		schedule();				 /* 起きたら他タスクへスイッチ */
 	}
 	__builtin_unreachable();

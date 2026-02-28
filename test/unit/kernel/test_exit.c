@@ -7,7 +7,7 @@
 #include <kfs/slab.h>
 
 /* テスト対象関数（kernel/exit.c） */
-extern void do_exit(int code);
+extern __attribute__((noreturn)) void do_exit(int code);
 extern void release_task(struct task_struct *p);
 extern void sys_exit(int error_code);
 

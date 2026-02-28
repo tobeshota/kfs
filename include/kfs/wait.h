@@ -12,7 +12,10 @@
 /* 終了シグナル番号を取り出す */
 #define WTERMSIG(status) ((status) & 0x7f)
 
-pid_t do_wait(int *wstatus);
+/* wait options */
+#define WNOHANG 1 /* ゾンビ子がいなくても即返り */
+
+pid_t do_wait(int *wstatus, int options);
 pid_t sys_wait(int *wstatus);
 
 #endif /* _KFS_WAIT_H */

@@ -13,12 +13,14 @@ extern void release_task(struct task_struct *p);
 /** 子プロセスの終了を待ち，終了した子プロセスを揮発させる
  * @brief ゾンビプロセスとなった子プロセスを探し揮発させる．
  * @param wstatus 終了ステータスを書き込むポインタ（NULLで無視）
+ * @param options WNOHANG を渡すとゾンビ子がいなくても即返り（0 = ブロック）
  * @return 回収した子プロセスのPID
- *         -ECHILD: 子プロセスが存在しない
- * @note 子がまだゾンビでない場合は schedule() で CPU を譲り，
- *       schedule() 内部で hlt してタイマー割り込みを待てる．
+ *         0       : WNOHANG 指定時，子はいるがまだゾンビでない
+ *         -ECHILD : 子プロセスが存在しない
+ * @note WNOHANG なし（options==0）の場合，ゾンビ子が現れるまで
+ *       schedule() で CPU を譲り続ける．
  */
-pid_t do_wait(int *wstatus)
+pid_t do_wait(int *wstatus, int options)
 {
 	struct task_struct *tsk = current;
 	struct list_head *pos, *tmp;
@@ -55,6 +57,12 @@ pid_t do_wait(int *wstatus)
 			}
 		}
 
+		/* WNOHANG: ゾンビ子がいなければ即返り */
+		if (options & WNOHANG)
+		{
+			return 0;
+		}
+
 		/* ゾンビ子がまだいない: 子プロセスが実行できるよう CPU を譲る。
 		 * init_task が cpu_idle_loop() で hlt するため呼び出し元は hlt 不要。 */
 		schedule();
@@ -68,5 +76,5 @@ pid_t do_wait(int *wstatus)
  */
 pid_t sys_wait(int *wstatus)
 {
-	return do_wait(wstatus);
+	return do_wait(wstatus, 0);
 }

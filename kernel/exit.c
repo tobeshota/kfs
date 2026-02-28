@@ -15,8 +15,10 @@ extern struct list_head task_list;
  * @param code 終了コード（親プロセスに返される値）
  * @note Linux 6.18 kernel/exit.c do_exit()相当
  * @note この関数は返ってこない（スケジューラに制御を渡す）
+ * @note noreturn: schedule() が返ってきた場合もループして再スケジュールを要求し続ける。
+ *       これにより exit() syscall が iret で ring-3 に戻ることを防ぐ。
  */
-void do_exit(int code)
+__attribute__((noreturn)) void do_exit(int code)
 {
 	struct task_struct *tsk = current;
 
@@ -66,7 +68,14 @@ void do_exit(int code)
 	/* TASK_DEADに変更（スケジューラがrunqueueから除外する） */
 	tsk->__state = TASK_DEAD;
 	rr_dequeue(tsk); /* ランキューから除外して再スケジュールされないようにする */
+
+	/* TASK_DEAD かつ run queue 外なので schedule() からは二度と戻らない。
+	 * 万一 schedule() が返ってきた場合は __builtin_unreachable() でコンパイラに到達不能を伝え、
+	 * その前に panic() でカーネルを停止する安全装置を置く。 */
 	schedule();
+	extern void panic(const char *fmt, ...);
+	panic("do_exit: schedule() returned after TASK_DEAD (pid=%d)\n", tsk->pid);
+	__builtin_unreachable();
 }
 
 /** プロセスを揮発させる

@@ -9,11 +9,11 @@
 #include <kfs/wait.h>
 
 /* テスト対象関数（kernel/wait.c） */
-extern pid_t do_wait(int *wstatus);
+extern pid_t do_wait(int *wstatus, int options);
 extern pid_t sys_wait(int *wstatus);
 
 /* 依存関数（kernel/exit.c） */
-extern void do_exit(int code);
+extern __attribute__((noreturn)) void do_exit(int code);
 extern void release_task(struct task_struct *p);
 extern void sys_exit(int error_code);
 
@@ -93,7 +93,7 @@ KFS_TEST(test_do_wait_zombie_child)
 
 	/* 親として wait */
 	current = parent;
-	ret = do_wait(&status);
+	ret = do_wait(&status, 0);
 
 	/* 子の PID が返ること */
 	KFS_ASSERT_EQ((int)ret, (int)child_pid);
@@ -122,7 +122,7 @@ KFS_TEST(test_do_wait_null_wstatus)
 
 	/* wstatus = NULL でも segfault しないこと */
 	current = parent;
-	ret = do_wait(NULL);
+	ret = do_wait(NULL, 0);
 
 	KFS_ASSERT_EQ((int)ret, (int)child_pid);
 
@@ -197,7 +197,7 @@ KFS_TEST(test_do_wait_parent_mm_survives)
 
 	/* 親が wait で子を揺発 */
 	current = parent;
-	KFS_ASSERT_EQ((int)do_wait(&status), (int)child_pid);
+	KFS_ASSERT_EQ((int)do_wait(&status, 0), (int)child_pid);
 
 	/* 子を揺発しても親のmmとpgdは安全に残っていること */
 	KFS_ASSERT_TRUE(parent->mm == parent_mm);
