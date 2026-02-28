@@ -42,23 +42,42 @@ __attribute__((noreturn)) void do_exit(int code)
 		tsk->mm = NULL;
 	}
 
-	/* 子プロセスの親をinit_task（PID=0）に変更 */
+	/* 親プロセスがすでに死んでいる（EXIT_ZOMBIE / EXIT_DEAD）場合、
+	 * PID 1 (kernel_init) に養子として引き渡す。
+	 * 親が先に exit() して自分より前にゾンビになっていると、
+	 * 親の do_wait() は二度と呼ばれないためゾンビが永久に残る。 */
+	if (tsk->parent && (tsk->parent->exit_state == EXIT_ZOMBIE || tsk->parent->exit_state == EXIT_DEAD))
+	{
+		struct task_struct *reaper = find_task_by_pid(1);
+		if (!reaper)
+		{
+			reaper = &init_task;
+		}
+		list_del(&tsk->sibling);
+		list_add_tail(&tsk->sibling, &reaper->children);
+		tsk->parent = reaper;
+	}
+
+	/* 子プロセスの親を child_reaper（PID 1、なければ init_task）に変更 */
 	if (!list_empty(&tsk->children))
 	{
 		struct list_head *pos, *tmp;
+		struct task_struct *reaper;
+
+		/* PID 1 (kernel_init) が孤児を引き取る。まだ存在しなければ init_task に fallback */
+		reaper = find_task_by_pid(1);
+		if (!reaper)
+		{
+			reaper = &init_task;
+		}
 
 		list_for_each_safe(pos, tmp, &tsk->children)
 		{
 			struct task_struct *child = list_entry(pos, struct task_struct, sibling);
 
-			/* 子プロセスの親をinit_taskに変更 */
-			child->parent = &init_task;
-
-			/* 元の親の子リストから削除 */
+			child->parent = reaper;
 			list_del(&child->sibling);
-
-			/* init_taskの子リストに追加 */
-			list_add_tail(&child->sibling, &init_task.children);
+			list_add_tail(&child->sibling, &reaper->children);
 		}
 	}
 
@@ -70,11 +89,8 @@ __attribute__((noreturn)) void do_exit(int code)
 	rr_dequeue(tsk); /* ランキューから除外して再スケジュールされないようにする */
 
 	/* TASK_DEAD かつ run queue 外なので schedule() からは二度と戻らない。
-	 * 万一 schedule() が返ってきた場合は __builtin_unreachable() でコンパイラに到達不能を伝え、
-	 * その前に panic() でカーネルを停止する安全装置を置く。 */
+	 * __builtin_unreachable() でコンパイラに noreturn を伝える。 */
 	schedule();
-	extern void panic(const char *fmt, ...);
-	panic("do_exit: schedule() returned after TASK_DEAD (pid=%d)\n", tsk->pid);
 	__builtin_unreachable();
 }
 

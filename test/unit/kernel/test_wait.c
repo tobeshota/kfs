@@ -67,7 +67,7 @@ KFS_TEST(test_do_wait_no_children)
 	INIT_LIST_HEAD(&init_task.children);
 	current = &init_task;
 
-	ret = do_wait(&status);
+	ret = do_wait(&status, 0);
 
 	KFS_ASSERT_EQ((int)ret, -ECHILD);
 	printk("do_wait no children test passed\n");
