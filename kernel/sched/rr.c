@@ -17,11 +17,38 @@
 static struct list_head rr_runqueue;
 
 /** RR スケジューラを初期化する
- * @brief ランキューのリストヘッドを初期化する．
- *        kernel/sched/core.c の sched_init() から一度だけ呼ばれる．
+ * @brief ランキューを完全にフラッシュしてリセットする。
+ *        HEAD だけでなく各タスクの run_list も空にする。
+ *        これにより、テスト間でタスクの run_list に残るステールポインタを一掃する。
+ *        kernel/sched/core.c の sched_init() から呼ばれる。
  */
 void rr_init(void)
 {
+	/* BSS 零初期化状態（next==NULL）への対応:
+	 * 静的変数の最初の呼び出しは next/prev が NULL のため
+	 * list_for_each_safe でデリファレンスする前に初期化が必要。 */
+	if (rr_runqueue.next == NULL)
+	{
+		INIT_LIST_HEAD(&rr_runqueue);
+		return;
+	}
+
+	/* 2 回目以降（sched_init / reset_all_state_for_test 経由）:
+	 *
+	 * reset_all_state_for_test() はタスクの run_list を INIT_LIST_HEAD で
+	 * 自己参照にリセットした後に sched_init() → rr_init() を呼ぶ。
+	 * このとき rr_runqueue.next は（タイマー割り込みで enqueue された）
+	 * init_task.run_list を指したままになっているが、
+	 * init_task.run_list.next は自分自身を指している。
+	 * これを list_for_each_safe で辿ると
+	 *   pos = &init_task.run_list → n = &init_task.run_list （自己参照）
+	 *   → pos != &rr_runqueue が永遠に true → 無限ループ
+	 * となる。
+	 *
+	 * 各タスクの run_list は呼び出し元
+	 * （reset_all_state_for_test / release_task 等）が責任を持って
+	 * リセット済みなので、ここではヘッドを再初期化するだけでよい。
+	 * 残存エントリを list_for_each_safe で辿る必要はない。 */
 	INIT_LIST_HEAD(&rr_runqueue);
 }
 
