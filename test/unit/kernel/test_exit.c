@@ -1,13 +1,28 @@
 #include "../test_reset.h"
 #include "unit_test_framework.h"
 #include <kfs/gfp.h>
+#include <kfs/list.h>
 #include <kfs/mm.h>
 #include <kfs/pid.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
+#include <kfs/wait.h>
+
+/**
+ * test_exit.c — do_exit / sys_exit / release_task の単体テスト
+ *
+ * 【テスト方針】
+ * do_exit() は noreturn であり、呼び出し後に状態を確認することはできない。
+ * そのため、本番環境と同様に kernel_thread() + do_wait() を使い、
+ * 親プロセス（init_task）の視点から observable な動作を検証する。
+ *
+ * kernel_thread(fn) はカーネル関数を ring-0 で実行するカーネルスレッドを作成する
+ * （copy_thread_with_fn → fork_frame.ebx=fn → ret_from_fork が call *%%ebx）。
+ * do_fork(user_eip, user_esp) は ring-3 iret 経由で起動するため、カーネル関数を
+ * 渡すと ring-3 のまま sys_exit/schedule 等を呼び出して ESP が崩壊するので使えない。
+ */
 
 /* テスト対象関数（kernel/exit.c） */
-extern __attribute__((noreturn)) void do_exit(int code);
 extern void release_task(struct task_struct *p);
 extern void sys_exit(int error_code);
 
@@ -16,292 +31,207 @@ extern struct task_struct *current;
 extern struct task_struct init_task;
 extern struct list_head task_list;
 
-/* 初期化関数（kernel/fork.c） */
+/* 初期化関数 */
 extern void fork_init(void);
-extern struct task_struct *copy_process(struct task_struct *orig);
-
-/* 初期化関数（PIDとスラブアロケータ） */
+extern pid_t kernel_thread(void (*fn)(void));
+extern pid_t do_wait(int *wstatus, int options);
 extern void pid_init(void);
 extern void init_idle_task(void);
 
-/** テスト専用：init_taskとtask_listを強制的にリセット
- * @note 各単体テスト前にグローバル状態をクリーンアップするために使用
- */
-static void reset_init_task_for_test(void)
-{
-	/* task_listをクリア */
-	INIT_LIST_HEAD(&task_list);
-
-	/* init_taskのリストをリセット */
-	INIT_LIST_HEAD(&init_task.children);
-	INIT_LIST_HEAD(&init_task.sibling);
-	INIT_LIST_HEAD(&init_task.tasks);
-
-	/* init_taskを再初期化 */
-	init_task.__state = TASK_RUNNING;
-	init_task.pid = 0;
-	init_task.parent = &init_task;
-
-	/* currentをリセット */
-	current = &init_task;
-}
-
-/* 全テストで共通のセットアップ関数 */
+/* 全テストで共通のセットアップ */
 static void setup_test(void)
 {
 	reset_all_state_for_test();
-
-	/* スラブアロケータ初期化 */
 	kmem_cache_init();
-
-	/* PID管理初期化 */
 	pid_init();
-
-	/* init_taskとtask_listを強制リセット */
-	reset_init_task_for_test();
-
-	/* init_task初期化 */
 	init_idle_task();
-
-	/* fork初期化 */
 	fork_init();
 }
 
-/* 全テストで共通のクリーンアップ関数 */
 static void teardown_test(void)
 {
-	/* 必要なら後処理（現在は空） */
 }
 
-/** do_exit()の基本動作テスト */
+/* ---- 子プロセス用ヘルパー関数 ---- */
+
+static void fn_exit_42(void)
+{
+	sys_exit(42);
+}
+
+static void fn_exit_0(void)
+{
+	sys_exit(0);
+}
+
+static void fn_exit_255(void)
+{
+	sys_exit(255);
+}
+
+/* mm テスト用: init_task.mm をコピーした状態で exit する */
+static void fn_exit_with_mm(void)
+{
+	sys_exit(0);
+}
+
+/* reparent テスト用: 孫を kernel_thread で起動してすぐ自分は exit */
+static void fn_parent_reparent(void)
+{
+	kernel_thread(fn_exit_0);
+	sys_exit(0);
+}
+
+/**
+ * test_do_exit_basic:
+ * 子が sys_exit(42) で終了し、do_wait が正しい PID を返すこと。
+ * wstatus に POSIX 形式（42 << 8）の終了コードが格納されること。
+ */
 KFS_TEST(test_do_exit_basic)
 {
-	struct task_struct *parent = &init_task;
-	struct task_struct *child;
+	int wstatus = 0;
+	pid_t child_pid, waited_pid;
 
-	/* 親の子リストを初期化 */
-	INIT_LIST_HEAD(&parent->children);
+	child_pid = kernel_thread(fn_exit_42);
+	KFS_ASSERT_TRUE(child_pid > 0);
 
-	/* 子プロセスを作成 */
-	child = copy_process(parent);
-	KFS_ASSERT_TRUE(child != NULL);
-	KFS_ASSERT_EQ(child->__state, TASK_RUNNING);
-
-	/* currentを子プロセスに設定 */
-	current = child;
-
-	/* 終了処理を実行 */
-	do_exit(42);
-
-	/* __stateがTASK_DEAD、exit_stateがEXIT_ZOMBIEになること */
-	KFS_ASSERT_EQ(child->__state, TASK_DEAD);
-	KFS_ASSERT_EQ(child->exit_state, EXIT_ZOMBIE);
-
-	/* 終了コードが設定されること */
-	KFS_ASSERT_EQ(child->exit_code, 42);
-
-	/* PF_EXITINGフラグが立つこと */
-	KFS_ASSERT_TRUE(child->flags & PF_EXITING);
-
-	/* mm_structが解放されること */
-	KFS_ASSERT_TRUE(child->mm == NULL);
-
-	/* currentをinit_taskに戻す */
-	current = &init_task;
+	waited_pid = do_wait(&wstatus, 0);
+	KFS_ASSERT_EQ((int)waited_pid, (int)child_pid);
+	KFS_ASSERT_EQ(wstatus, 42 << 8);
 
 	printk("do_exit basic test passed\n");
 }
 
-/** do_exit()によるメモリ解放のテスト */
-KFS_TEST(test_do_exit_mm_cleanup)
+/**
+ * test_do_exit_exit_code_zero:
+ * 終了コード 0 が正しく wstatus に返ること。
+ */
+KFS_TEST(test_do_exit_exit_code_zero)
 {
-	struct task_struct parent = init_task;
-	struct task_struct *child;
-	struct mm_struct *parent_mm;
+	int wstatus = -1;
+	pid_t child_pid;
 
-	/* 親のmm_structをヒープに割り当て */
-	parent_mm = kmalloc(sizeof(*parent_mm));
-	KFS_ASSERT_TRUE(parent_mm != NULL);
-	parent_mm->mm_count.counter = 1;
-	parent_mm->brk = 0x08048000;
-	parent_mm->start_stack = 0x08049000;
-	parent.mm = parent_mm;
+	child_pid = kernel_thread(fn_exit_0);
+	KFS_ASSERT_TRUE(child_pid > 0);
 
-	/* 子プロセスを作成（mm_structがコピーされる） */
-	child = copy_process(&parent);
-	KFS_ASSERT_TRUE(child != NULL);
-	KFS_ASSERT_TRUE(child->mm != NULL);
-	KFS_ASSERT_TRUE(child->mm != parent.mm); /* 別のインスタンス */
+	pid_t waited = do_wait(&wstatus, 0);
+	KFS_ASSERT_EQ((int)waited, (int)child_pid);
+	KFS_ASSERT_EQ(wstatus, 0);
 
-	/* currentを子プロセスに設定 */
-	current = child;
-
-	/* 終了処理を実行 */
-	do_exit(0);
-
-	/* mm_structが解放されること */
-	KFS_ASSERT_TRUE(child->mm == NULL);
-
-	/* 親のmm_structをクリーンアップ */
-	kfree(parent_mm);
-
-	/* currentをinit_taskに戻す */
-	current = &init_task;
-
-	printk("do_exit mm cleanup test passed\n");
+	printk("do_exit exit code zero test passed\n");
 }
 
-/** do_exit()による子プロセスの再親化テスト */
-KFS_TEST(test_do_exit_reparent_children)
-{
-	struct task_struct *parent;
-	struct task_struct *child;
-	struct task_struct *grandchild;
-
-	/* 親プロセス作成 */
-	INIT_LIST_HEAD(&init_task.children);
-	parent = copy_process(&init_task);
-	KFS_ASSERT_TRUE(parent != NULL);
-
-	/* 子プロセス作成 */
-	INIT_LIST_HEAD(&parent->children);
-	child = copy_process(parent);
-	KFS_ASSERT_TRUE(child != NULL);
-	KFS_ASSERT_TRUE(child->parent == parent);
-
-	/* 孫プロセス作成 */
-	INIT_LIST_HEAD(&child->children);
-	grandchild = copy_process(child);
-	KFS_ASSERT_TRUE(grandchild != NULL);
-	KFS_ASSERT_TRUE(grandchild->parent == child);
-
-	/* 子プロセスが終了 */
-	current = child;
-	do_exit(0);
-
-	/* 孫プロセスの親がinit_taskに変更されること */
-	KFS_ASSERT_TRUE(grandchild->parent == &init_task);
-
-	/* 孫プロセスがinit_taskの子リストに含まれること */
-	KFS_ASSERT_TRUE(!list_empty(&init_task.children));
-
-	/* currentをinit_taskに戻す */
-	current = &init_task;
-
-	printk("do_exit reparent children test passed\n");
-}
-
-/** do_exit()がpgdありのmm_structを正しく解放することをテスト */
-KFS_TEST(test_do_exit_frees_pgd)
-{
-	struct task_struct *parent;
-	struct task_struct *child;
-	struct mm_struct *parent_mm;
-	pgd_t *parent_pgd;
-
-	/* 親のmm_structを割り当て */
-	parent_mm = kmalloc(sizeof(*parent_mm));
-	KFS_ASSERT_TRUE(parent_mm != NULL);
-
-	/* 親のpgdを割り当て */
-	parent_pgd = (pgd_t *)alloc_pages(GFP_KERNEL | GFP_ZERO, 0);
-	KFS_ASSERT_TRUE(parent_pgd != NULL);
-	parent_mm->pgd = parent_pgd;
-	parent_mm->mm_count.counter = 1;
-	parent_mm->brk = 0;
-	parent_mm->start_stack = 0;
-
-	/* 親のinit_taskコピーにmm_structをセット */
-	parent = &init_task;
-	parent->mm = parent_mm;
-
-	/* 子プロセスを作成（pgdが独立コピーされる） */
-	child = copy_process(parent);
-	KFS_ASSERT_TRUE(child != NULL);
-	KFS_ASSERT_TRUE(child->mm != NULL);
-	KFS_ASSERT_TRUE(child->mm->pgd != NULL);
-	KFS_ASSERT_TRUE(child->mm->pgd != parent_pgd); /* 独立したpgd */
-
-	/* 子プロセスを終了（pgdが解放される） */
-	current = child;
-	do_exit(0);
-
-	/* mm_structが解放されていること */
-	KFS_ASSERT_TRUE(child->mm == NULL);
-
-	/* 親のmm_structはそのままであること */
-	KFS_ASSERT_TRUE(parent->mm == parent_mm);
-
-	/* クリーンアップ */
-	parent->mm = NULL;
-	kfree(parent_mm);
-	current = &init_task;
-
-	printk("do_exit frees pgd test passed\n");
-}
-
-/** release_task()の基本テスト */
-KFS_TEST(test_release_task_basic)
-{
-	struct task_struct *task;
-
-	/* タスク作成 */
-	task = copy_process(&init_task);
-	KFS_ASSERT_TRUE(task != NULL);
-
-	/* グローバルリストに含まれることを確認 */
-	KFS_ASSERT_TRUE(!list_empty(&task_list));
-
-	/* 終了処理 */
-	current = task;
-	do_exit(0);
-
-	/* release_task()でクリーンアップ */
-	release_task(task);
-
-	/* グローバルリストから削除されること（ここでは検証困難なのでクラッシュしないことを確認） */
-
-	/* currentをinit_taskに戻す */
-	current = &init_task;
-
-	printk("release_task basic test passed\n");
-}
-
-/** sys_exit()のテスト */
+/**
+ * test_sys_exit:
+ * sys_exit(255) が終了コードを POSIX 形式（(255 & 0xff) << 8）で格納すること。
+ */
 KFS_TEST(test_sys_exit)
 {
-	struct task_struct *child;
+	int wstatus = 0;
+	pid_t child_pid;
 
-	/* 子プロセス作成 */
-	child = copy_process(&init_task);
-	KFS_ASSERT_TRUE(child != NULL);
+	child_pid = kernel_thread(fn_exit_255);
+	KFS_ASSERT_TRUE(child_pid > 0);
 
-	/* currentを子プロセスに設定 */
-	current = child;
-
-	/* sys_exit()を呼び出し */
-	sys_exit(42);
-
-	/* 終了コードがPOSIX形式で設定されること（上位8ビット） */
-	KFS_ASSERT_EQ(child->exit_code, 42 << 8);
-
-	/* __stateがTASK_DEAD、exit_stateがEXIT_ZOMBIEになること */
-	KFS_ASSERT_EQ(child->__state, TASK_DEAD);
-	KFS_ASSERT_EQ(child->exit_state, EXIT_ZOMBIE);
-
-	/* currentをinit_taskに戻す */
-	current = &init_task;
+	pid_t waited = do_wait(&wstatus, 0);
+	KFS_ASSERT_EQ((int)waited, (int)child_pid);
+	KFS_ASSERT_EQ(wstatus, (255 & 0xff) << 8);
 
 	printk("sys_exit test passed\n");
 }
 
+/**
+ * test_do_exit_mm_free:
+ * mm を持つ子プロセスが exit しても release_task がクラッシュしないこと。
+ * （do_exit 内で mm が解放済みのため、release_task が二重解放しないことを確認）
+ */
+KFS_TEST(test_do_exit_mm_free)
+{
+	static struct mm_struct test_mm;
+	pid_t child_pid;
+
+	/* init_task に mm を設定 → copy_process で子に複製される */
+	test_mm.mm_count.counter = 1;
+	test_mm.pgd = NULL;
+	test_mm.brk = 0x08048000;
+	test_mm.start_stack = 0x08049000;
+	init_task.mm = &test_mm;
+
+	child_pid = kernel_thread(fn_exit_with_mm);
+	init_task.mm = NULL; /* 親の mm を元に戻す */
+	KFS_ASSERT_TRUE(child_pid > 0);
+
+	/* クラッシュせずに子を回収できること */
+	pid_t waited = do_wait(NULL, 0);
+	KFS_ASSERT_EQ((int)waited, (int)child_pid);
+
+	printk("do_exit mm free test passed\n");
+}
+
+/**
+ * test_release_task_basic:
+ * do_wait 後に子が task_list から除去されていること（release_task の動作確認）。
+ */
+KFS_TEST(test_release_task_basic)
+{
+	pid_t child_pid;
+	struct list_head *pos;
+	int count;
+
+	child_pid = kernel_thread(fn_exit_0);
+	KFS_ASSERT_TRUE(child_pid > 0);
+	KFS_ASSERT_TRUE(!list_empty(&task_list)); /* kernel_thread 後はタスクリストにある */
+
+	do_wait(NULL, 0); /* 内部で release_task が呼ばれる */
+
+	/* init_task のみが残ること */
+	count = 0;
+	list_for_each(pos, &task_list) count++;
+	KFS_ASSERT_EQ(count, 1);
+
+	printk("release_task basic test passed\n");
+}
+
+/**
+ * test_do_exit_reparent_children:
+ * 親が exit したとき、孫が init_task の子リストに移動すること。
+ *
+ * シナリオ:
+ *   init_task
+ *     └─ parent (fn_parent_reparent)
+ *           └─ grandchild (fn_exit_0)
+ *
+ * parent が exit すると grandchild は init_task に reparent される。
+ * init_task は parent を do_wait で回収後、grandchild も回収できる。
+ */
+KFS_TEST(test_do_exit_reparent_children)
+{
+	pid_t parent_pid, waited;
+
+	parent_pid = kernel_thread(fn_parent_reparent);
+	KFS_ASSERT_TRUE(parent_pid > 0);
+
+	/* parent を回収（parent の do_exit 内で grandchild が init_task に reparent） */
+	waited = do_wait(NULL, 0);
+	KFS_ASSERT_EQ((int)waited, (int)parent_pid);
+
+	/* grandchild が init_task の children に残っているはず */
+	KFS_ASSERT_TRUE(!list_empty(&init_task.children));
+
+	/* grandchild も回収できること */
+	do_wait(NULL, 0);
+	KFS_ASSERT_TRUE(list_empty(&init_task.children));
+
+	printk("do_exit reparent children test passed\n");
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_basic, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_mm_cleanup, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_frees_pgd, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_reparent_children, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_release_task_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_exit_code_zero, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_exit, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_mm_free, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_release_task_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_exit_reparent_children, setup_test, teardown_test),
 };
 
 int register_unit_tests_exit(struct kfs_test_case **out)
