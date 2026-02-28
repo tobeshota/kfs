@@ -222,53 +222,34 @@ static void chord_ring3_main(void)
 	exit(0);
 }
 
+static unsigned long daiku_stack[256];
 
-/*
- * furusato の二重起動ガード．
- * バックグラウンドの演奏プロセス（子B）が動いている間は 1 に設定され，
- * 演奏終了時に 0 へ戻る．これにより同じ furusato_stack に
- * 別インスタンスが乗り上げてスタックを破壊するのを防ぐ．
+/** daiku の ring-3 ランチャー
+ * fork() で孫プロセスを生成して daiku_main を exec_fn() で実行させ，
+ * 自身はすぐに exit() する（double-fork パターン）。
+ * 孫プロセスは exit.c の reparent ロジックにより PID1 に引き取られ，
+ * バックグラウンドで daiku_main が走り続ける。
  */
-static int furusato_playing = 0;
-
-/*
- * furusato_ring3 のスタック．
- * グローバルに置くことで furusato_playing フラグによる二重起動禁止と
- * 対応関係が明示的になる．
- */
-static unsigned long furusato_stack[256];
-
-static void furusato_ring3(void)
+static void daiku_ring3(void)
 {
-	extern void furusato_main(void *); /* kernel/furusato.c */
+	extern void daiku_main(void *); /* kernel/daiku.c */
 
-	/* 孫を作ったあと自身は終了して孤児にさせてinit_taskに引き取らせる．
-	 * こうすれば孫の終了を待つ必要がない（バックグランド再生ができる）．
-	 */
 	pid_t pid = fork();
 	if (pid == 0)
 	{
-		furusato_playing = 0;
-		exec_fn(furusato_main, NULL);
+		/* 孫プロセス: daiku_main を実行（終了まで戻らない） */
+		exec_fn(daiku_main, NULL);
 	}
-	wait(NULL); /* 孫の終了を待たないとき，音が鳴り続けることはない */
+	/* 子プロセス: 孫の終了をwait()で待たず終了する．これによりバックグラウンド再生が実現できる．
+	 * なお，孫は孤児プロセスとなるためPID1 に引き取られる */
 	exit(0);
 }
 
-static void cmd_furusato(void)
+static void cmd_daiku(void)
 {
-	if (furusato_playing)
-	{
-		printk("furusato: already playing\n");
-		return;
-	}
-	furusato_playing = 1;
-	printk("furusato: playing Furusato (public domain) on PSG ch0+ch1...\n");
-	/* 子を ring-3 で起動 */
-	do_fork((unsigned long)furusato_ring3,
-			(unsigned long)(furusato_stack + 256));
-	/* 子A は fork()+exit() だけなのでほぼ即座に終わる */
-	do_wait(NULL, 0);
+	printk("daiku: playing Ode to Joy (Beethoven 9th, public domain) on PSG ch0+ch1...\n");
+	do_fork((unsigned long)daiku_ring3, (unsigned long)(daiku_stack + 256));
+	do_wait(NULL, 0); /* ランチャー（子）の終了を待つ。孫は PID1 が回収 */
 }
 
 /* chord コマンド: A4+E4+C4 の疑似和音を 2 秒間鳴らす（TDM デモ） */
@@ -532,10 +513,10 @@ static void execute_command(const char *cmd)
 		return;
 	}
 
-	/* furusato コマンド: ふるさと (PD) をバックグラウンド再生 */
-	if (strcmp(cmd, "furusato") == 0)
+	/* daiku コマンド: よろこびの歌 (PD) をバックグラウンド再生 */
+	if (strcmp(cmd, "daiku") == 0)
 	{
-		cmd_furusato();
+		cmd_daiku();
 		return;
 	}
 
