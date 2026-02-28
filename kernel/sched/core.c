@@ -168,8 +168,11 @@ __attribute__((weak, noreturn)) void cpu_idle_loop(void)
 {
 	while (1)
 	{
-		__asm__ volatile("hlt"); /* タイマー割り込みを待つ */
-		schedule(); /* 起きたら他タスクへスイッチ */
+		/* タイマー割り込みを待つ */
+		__asm__ volatile("hlt");
+
+		/* 起きたら他タスクへスイッチ */
+		schedule();
 	}
 	__builtin_unreachable();
 }
