@@ -9,6 +9,6 @@ doc:
 	@ echo "\nDocument: $(INDEX_HTML_PATH)\n"
 
 fclean:
-	$(RM) html/
+	@ $(RM) html/
 
 .PHONY:	doc fclean
