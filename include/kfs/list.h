@@ -173,6 +173,13 @@ static inline int list_empty(const struct list_head *head)
 	for (pos = list_entry((head)->next, typeof(*pos), member); &pos->member != (head);                                 \
 		 pos = list_entry(pos->member.next, typeof(*pos), member))
 
+/** リストの各ノードに対してループ処理を行う
+ * @param pos 現在のノードポインタ（struct list_head *）
+ * @param head リストヘッド
+ * @note ループ内での要素削除は不可。削除が必要な場合は list_for_each_safe を使うこと
+ */
+#define list_for_each(pos, head) for (pos = (head)->next; pos != (head); pos = pos->next)
+
 /** リストの各要素に対して安全にループ処理を行う（要素削除可能）
  * @param pos 現在のノードポインタ
  * @param n 次のノード一時保存用ポインタ

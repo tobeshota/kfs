@@ -7,12 +7,14 @@
 #include <kfs/multiboot.h>
 #include <kfs/pcspkr.h>
 #include <kfs/printk.h>
+#include <kfs/psg.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
 #include <kfs/slab.h>
 #include <kfs/timer.h>
 #include <kfs/vmalloc.h>
+#include <kfs/wait.h>
 
 /** Multiboot情報構造体へのポインタ（boot.Sで設定）
  * @note このポインタ自体は.boot.dataセクション（物理アドレス）にあり，
@@ -25,10 +27,30 @@ extern uint32_t multiboot_magic; /* boot.S で保存したブートローダー�
 /* ページアロケータの初期化（mm/page_alloc.c） */
 extern void page_alloc_init(unsigned long mbi_ptr, uint32_t magic);
 
+/** PID 1: init プロセス
+ * shell を子プロセス（PID 2）として起動し、
+ * 孤児プロセス（音楽バックグラウンド再生等）を wait() で回収し続ける。
+ * Linux の PID 1 / init に相当する。
+ */
+static void kernel_init(void)
+{
+	/* PID 2: シェルを起動 */
+	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK));
+	kernel_thread(shell_run);
+
+	/* 孤児プロセス（バックグラウンド再生等）を回収するループ
+	 * do_wait() はEXIT_ZOMBIEの孤児が現れるまでブロックし、回収後にまたブロックする。 */
+	while (1)
+	{
+		do_wait(NULL, 0);
+	}
+}
+
 void start_kernel(void)
 {
 	serial_init();
 	pcspkr_init();
+	psg_init();
 	terminal_initialize();
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK));
 
@@ -81,12 +103,8 @@ void start_kernel(void)
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
 	printk("Alt+F1..F4 switch consoles; keyboard echo ready.\n");
 
-	/* シェルを起動（無限ループに入る）
-	 * テスト環境ではshell_run()がオーバーライドされてすぐに戻る */
-	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK));
-
-	/* シェルをカーネルスレッド（PID=1）として起動する */
-	kernel_thread(shell_run);
+	/* PID 1 の init プロセスを起動する（シェルの展開と孤児回収を担当） */
+	kernel_thread(kernel_init);
 
 	/* init_task はここから cpu_idle_loop() でアイドル待機する。
 	 * この呼び出しから戻ることはない。 */

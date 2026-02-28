@@ -9,5 +9,7 @@ void __attribute__((noreturn)) exit(int status);
 pid_t wait(int *wstatus);
 int write(int fd, const void *buf, unsigned int count);
 int msleep(unsigned int ms);
+int psg_note(int ch, unsigned int freq_hz);
+int psg_stop(int ch);
 
 #endif /* _KFS_UNISTD_H */

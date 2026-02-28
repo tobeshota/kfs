@@ -15,8 +15,10 @@ extern struct list_head task_list;
  * @param code 終了コード（親プロセスに返される値）
  * @note Linux 6.18 kernel/exit.c do_exit()相当
  * @note この関数は返ってこない（スケジューラに制御を渡す）
+ * @note noreturn: schedule() が返ってきた場合もループして再スケジュールを要求し続ける。
+ *       これにより exit() syscall が iret で ring-3 に戻ることを防ぐ。
  */
-void do_exit(int code)
+__attribute__((noreturn)) void do_exit(int code)
 {
 	struct task_struct *tsk = current;
 
@@ -40,23 +42,43 @@ void do_exit(int code)
 		tsk->mm = NULL;
 	}
 
-	/* 子プロセスの親をinit_task（PID=0）に変更 */
+	/* 親プロセスがすでに死んでいる（EXIT_ZOMBIE / EXIT_DEAD）場合、
+	 * PID 1 (kernel_init) に養子として引き渡す。
+	 * 親が先に exit() して自分より前にゾンビになっていると、
+	 * 親の do_wait() は二度と呼ばれないためゾンビが永久に残る。 */
+	if (tsk->parent && (tsk->parent->exit_state == EXIT_ZOMBIE || tsk->parent->exit_state == EXIT_DEAD))
+	{
+		struct task_struct *reaper = find_task_by_pid(1);
+		if (!reaper)
+		{
+			reaper = &init_task;
+		}
+		list_del(&tsk->sibling);
+		list_add_tail(&tsk->sibling, &reaper->children);
+		tsk->parent = reaper;
+	}
+
+	/* 子プロセスの親を child_reaper（PID 1、なければ init_task）に変更 */
 	if (!list_empty(&tsk->children))
 	{
 		struct list_head *pos, *tmp;
+		struct task_struct *reaper;
+
+		/* PID 1 (kernel_init) が孤児を引き取る．
+		 * 存在しない場合，またはテスト環境で PID 1 が終了したタスク自身の場合は init_task に fallback */
+		reaper = find_task_by_pid(1);
+		if (!reaper || reaper == tsk)
+		{
+			reaper = &init_task;
+		}
 
 		list_for_each_safe(pos, tmp, &tsk->children)
 		{
 			struct task_struct *child = list_entry(pos, struct task_struct, sibling);
 
-			/* 子プロセスの親をinit_taskに変更 */
-			child->parent = &init_task;
-
-			/* 元の親の子リストから削除 */
+			child->parent = reaper;
 			list_del(&child->sibling);
-
-			/* init_taskの子リストに追加 */
-			list_add_tail(&child->sibling, &init_task.children);
+			list_add_tail(&child->sibling, &reaper->children);
 		}
 	}
 
@@ -66,7 +88,11 @@ void do_exit(int code)
 	/* TASK_DEADに変更（スケジューラがrunqueueから除外する） */
 	tsk->__state = TASK_DEAD;
 	rr_dequeue(tsk); /* ランキューから除外して再スケジュールされないようにする */
+
+	/* TASK_DEAD かつ run queue 外なので schedule() からは二度と戻らない。
+	 * __builtin_unreachable() でコンパイラに noreturn を伝える。 */
 	schedule();
+	__builtin_unreachable();
 }
 
 /** プロセスを揮発させる

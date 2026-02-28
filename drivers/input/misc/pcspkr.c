@@ -41,6 +41,11 @@ void pcspkr_init(void)
 /** 指定した周波数の矩形波をスピーカーから出力する
  * @param freq_hz 出力周波数 [Hz]．
  *        0 を渡すと pcspkr_stop() と同じ動作。
+ * @warning PSG が有効な場合（psg_init() 呼び出し後）は直接呼んでも音は鳴らない．
+ *          psg_tick() が毎 IRQ0 tick に全 PSG チャンネルを確認し，
+ *          全チャンネルが inactive であれば即座に pcspkr_stop() を呼ぶため，
+ *          この関数で鳴らした音が次の tick で止められてしまう．
+ *          代わりに psg_note() で PSG チャンネルを active にして音を鳴らすこと．
  */
 void pcspkr_tone(uint32_t freq_hz)
 {
@@ -75,6 +80,9 @@ void pcspkr_tone(uint32_t freq_hz)
 /** PC スピーカーを停止する
  * @brief port 0x61 の bit0 (Gate) と bit1 (Speaker) を落とす。
  *        Channel 2 のカウンタ設定はそのまま保持される。
+ * @warning PSG が有効な場合，この関数を直接呼ぶと発音中チャンネルの音も
+ *          強制停止される．チャンネル単位で止めたい場合は psg_stop() を使うこと．
+ *          この関数は psg_tick() から全チャンネル inactive 時のみ呼ばれる．
  */
 void pcspkr_stop(void)
 {

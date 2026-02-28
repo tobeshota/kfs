@@ -15,7 +15,7 @@
  * }
  * else
  * {
- *     do_wait(NULL);
+ *     do_wait(NULL, 0);
  * }
  */
 void __attribute__((noreturn)) exec_fn(void (*fn)(void *), void *arg)

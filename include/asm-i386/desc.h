@@ -59,7 +59,7 @@ struct idt_entry
  */
 #define IDT_GATE_INTERRUPT 0x8E /* P=1, DPL=0, 32-bit Interrupt Gate */
 #define IDT_GATE_TRAP 0x8F		/* P=1, DPL=0, 32-bit Trap Gate */
-#define IDT_GATE_USER 0xEE		/* P=1, DPL=3, 32-bit Interrupt Gate (ユーザーから呼び出し可) */
+#define IDT_GATE_USER 0xEF /* P=1, DPL=3, 32-bit Trap Gate (ユーザーから呼び出し可, IF を変更しない) */
 
 /* IDTエントリ数（i386: 256エントリ） */
 #define IDT_ENTRIES 256

@@ -4,8 +4,8 @@
 #include <kfs/keyboard.h>
 #include <kfs/neofetch.h>
 #include <kfs/panic.h>
-#include <kfs/pcspkr.h>
 #include <kfs/printk.h>
+#include <kfs/psg.h>
 #include <kfs/reboot.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
@@ -166,7 +166,7 @@ static void cmd_sched(void)
 
 	/* ring-0 → ring-3 へ降りてスケジューリングループを実行し、終了を待つ */
 	do_fork((unsigned long)sched_ring3_main, (unsigned long)(ustack + 256));
-	do_wait(NULL);
+	do_wait(NULL, 0);
 }
 
 /** beep コマンド: 指定周波数の矩形波を 1 秒間鳴らす
@@ -183,6 +183,12 @@ static void cmd_sched(void)
  *   beep 494      494 Hz    B4（シ）
  *   beep 523      523 Hz    C5（高いド）
  */
+static void beep_ring3_main(void)
+{
+	msleep(1000);
+	exit(0);
+}
+
 static void cmd_beep(const char *args)
 {
 	while (*args == ' ')
@@ -197,16 +203,70 @@ static void cmd_beep(const char *args)
 	int freq = atoi(args);
 	if (freq <= 0)
 	{
-		pcspkr_stop();
+		do_psg_stop(0);
 		printk("beep: stopped\n");
 		return;
 	}
+	static unsigned long ustack[256];
+
 	printk("beep: %d Hz\n", freq);
-	pcspkr_tone((uint32_t)freq);
-	/* 約1秒のスピンウェイト（Phase B で jiffies ベースに置き換える） */
-	for (volatile uint32_t i = 0; i < 500000000UL; i++)
-		;
-	pcspkr_stop();
+	do_psg_note(0, (uint32_t)freq);
+	do_fork((unsigned long)beep_ring3_main, (unsigned long)(ustack + 256));
+	do_wait(NULL, 0);
+	do_psg_stop(0);
+}
+
+static void chord_ring3_main(void)
+{
+	msleep(2000);
+	exit(0);
+}
+
+static unsigned long daiku_stack[256];
+
+/** daiku の ring-3 ランチャー
+ * fork() で孫プロセスを生成して daiku_main を exec_fn() で実行させ，
+ * 自身はすぐに exit() する（double-fork パターン）。
+ * 孫プロセスは exit.c の reparent ロジックにより PID1 に引き取られ，
+ * バックグラウンドで daiku_main が走り続ける。
+ */
+static void daiku_ring3(void)
+{
+	extern void daiku_main(void *); /* kernel/daiku.c */
+
+	pid_t pid = fork();
+	if (pid == 0)
+	{
+		/* 孫プロセス: daiku_main を実行（終了まで戻らない） */
+		exec_fn(daiku_main, NULL);
+	}
+	/* 子プロセス: 孫の終了をwait()で待たず終了する．これによりバックグラウンド再生が実現できる．
+	 * なお，孫は孤児プロセスとなるためPID1 に引き取られる */
+	exit(0);
+}
+
+static void cmd_daiku(void)
+{
+	printk("daiku: playing Ode to Joy (Beethoven 9th, public domain) on PSG ch0+ch1...\n");
+	do_fork((unsigned long)daiku_ring3, (unsigned long)(daiku_stack + 256));
+	do_wait(NULL, 0); /* ランチャー（子）の終了を待つ。孫は PID1 が回収 */
+}
+
+/* chord コマンド: A4+E4+C4 の疑似和音を 2 秒間鳴らす（TDM デモ） */
+static void cmd_chord(void)
+{
+	static unsigned long ustack[256];
+
+	do_psg_note(0, 440); /* A4 */
+	do_psg_note(1, 330); /* E4 */
+	do_psg_note(2, 262); /* C4 */
+	printk("chord: A4+E4+C4 (2s)\n");
+	/* ring-3 の msleep() で 2 秒待機し，終了後に ring-0 でチャンネルを止める */
+	do_fork((unsigned long)chord_ring3_main, (unsigned long)(ustack + 256));
+	do_wait(NULL, 0);
+	do_psg_stop(0);
+	do_psg_stop(1);
+	do_psg_stop(2);
 }
 
 /** sleep コマンド用 ring-3 エントリポイント
@@ -251,7 +311,7 @@ static void cmd_sleep(const char *args)
 	g_sleep_ms = (unsigned int)secs * 1000;
 	/* ring-3 へ降りて msleep() を呼ばせ，終了を待つ */
 	do_fork((unsigned long)sleep_ring3_main, (unsigned long)(ustack + 256));
-	do_wait(NULL);
+	do_wait(NULL, 0);
 }
 
 /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
@@ -450,6 +510,20 @@ static void execute_command(const char *cmd)
 	if (strncmp(cmd, "beep", 4) == 0 && (cmd[4] == ' ' || cmd[4] == '\0'))
 	{
 		cmd_beep(cmd + 4);
+		return;
+	}
+
+	/* daiku コマンド: よろこびの歌 (PD) をバックグラウンド再生 */
+	if (strcmp(cmd, "daiku") == 0)
+	{
+		cmd_daiku();
+		return;
+	}
+
+	/* chord コマンド: A4+E4+C4 の疑似和音を 2 秒間鳴らす */
+	if (strcmp(cmd, "chord") == 0)
+	{
+		cmd_chord();
 		return;
 	}
 

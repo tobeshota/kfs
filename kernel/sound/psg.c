@@ -26,9 +26,25 @@
 
 #include <kfs/pcspkr.h>
 #include <kfs/psg.h>
-#include <kfs/timer.h>
 
-static struct psg_channel psg_state[PSG_CH_COUNT];
+static volatile struct psg_channel psg_state[PSG_CH_COUNT];
+
+/** TDM ローター: 次に試すチャンネル番号 */
+static volatile int psg_rotor = 0;
+
+/** 現在 PC スピーカーで発音中のチャンネル番号 */
+static volatile int psg_current_ch = 0;
+
+/** 現チャンネルの残り発音 tick 数
+ * @note 0 になったら次のアクティブチャンネルへ切り替える
+ */
+static volatile int psg_slot_remaining = 0;
+
+/** 各チャンネルの連続発音時間 [tick = ms]
+ * @note 最低音 G3=196Hz の周期は 5.1ms なので 4 周期 = 20ms 必要。
+ *       2ch 使用時の切り替え周期 = 40ms (25Hz) で聴覚統合閾値(約 20Hz)を超える。
+ */
+#define PSG_SLOT_TICKS 20
 
 /** 16bit Galois LFSR の状態
  * @note 初期値は任意の非ゼロ値．
@@ -83,10 +99,20 @@ void do_psg_note(int ch, uint32_t freq_hz)
 	if (freq_hz != 0)
 	{
 		psg_state[ch].active = 1;
+		/* 現在このチャンネルがスロット中なら周波数を即時反映 */
+		if (ch == psg_current_ch && psg_slot_remaining > 0)
+		{
+			pcspkr_tone(freq_hz);
+		}
 	}
 	else
 	{
 		psg_state[ch].active = 0;
+		/* 現在このチャンネルがスロット中なら即座にスロットを終了させる */
+		if (ch == psg_current_ch)
+		{
+			psg_slot_remaining = 0;
+		}
 	}
 }
 
@@ -98,52 +124,53 @@ void do_psg_stop(int ch)
 
 /** TDM ディスパッチャ
  * @brief 各チャンネルの状態に応じて PC スピーカーに周波数を出力する．
- * @note IRQ0 ハンドラから毎 tick 呼ばれる
- * @note jiffies はこの関数が呼ばれる前に
- *       timer_interrupt() でインクリメントされている．
- * @details TDM（時分割多重）の仕組み
- * 時間軸:
- *   | ch0 | ch1 | ch2 | nz | ch0 | ch1 | ch2 | nz | ...
- *   ← 1ms →← 1ms →← 1ms →← 1ms →
- * PC スピーカーには常に「どれか 1 チャンネル」の周波数が出力される．
- * 4チャンネルを 4ms で 1 周するため、各チャンネルの実効出力は 250Hz ペースで更新．
- * 人間の耳は 20ms 程度の応答時間があるため、4 チャンネルが同時に聞こえるように感じる．
+ * @note IRQ0 ハンドラから毎 tick (1ms) 呼ばれる
+ * @details 各チャンネルを PSG_SLOT_TICKS ms 連続発音してから次へ切り替える。
+ *
+ *  旧実装（1ms スロット, ch0+ch1 有効）:
+ *    [ch0=1ms][ch1=1ms][ch0=1ms]... → 切り替え周期 2ms = 500Hz → ぴこぴこ
+ *
+ *  新実装（20ms スロット, ch0+ch1 有効）:
+ *    [ch0=20ms][ch1=20ms][ch0=20ms]... → 切り替え周期 40ms = 25Hz
+ *    G3(196Hz) は 20ms で約 4 周期 → 音程として認識可能
  */
 void psg_tick(void)
 {
-	int ch;
-	int any_active;
+	int tried;
 
-	ch = (int)(jiffies % PSG_CH_COUNT);
-
-	/* すべてのチャンネルが停止しているか確認し，
-	 * そうである場合はPCスピーカーを停止させる */
-	if (!psg_state[ch].active)
+	/* 現チャンネルの残り時間があれば i8254 は継続発音中 → 何もしない */
+	if (psg_slot_remaining > 0)
 	{
-		any_active = 0;
-		for (int i = 0; i < PSG_CH_COUNT; i++)
-		{
-			if (psg_state[i].active)
-			{
-				any_active = 1;
-				break;
-			}
-		}
-		if (!any_active)
-		{
-			pcspkr_stop();
-		}
+		psg_slot_remaining--;
 		return;
 	}
 
-	/* このチャンネルが発音中である場合，
-	 * PC スピーカーに周波数を出力する */
-	if (psg_state[ch].noise)
+	/* スロット切れ: 次のアクティブチャンネルを探す */
+	tried = 0;
+	while (tried < PSG_CH_COUNT)
 	{
-		pcspkr_tone(noise_lfsr_next());
+		int ch = psg_rotor;
+		psg_rotor = (psg_rotor + 1) % PSG_CH_COUNT;
+		tried++;
+
+		if (!psg_state[ch].active)
+		{
+			continue;
+		}
+
+		if (psg_state[ch].noise)
+		{
+			pcspkr_tone(noise_lfsr_next());
+		}
+		else
+		{
+			pcspkr_tone(psg_state[ch].freq);
+		}
+		psg_current_ch = ch;
+		psg_slot_remaining = PSG_SLOT_TICKS - 1;
+		return;
 	}
-	else
-	{
-		pcspkr_tone(psg_state[ch].freq);
-	}
+
+	/* アクティブなチャンネルが 1 つもない → スピーカー停止 */
+	pcspkr_stop();
 }

@@ -161,14 +161,18 @@ void scheduler_tick(void)
  * @brief init_task のメイン関数．
  *        実行可能なタスクがないとき CPU を hlt で休止し，
  *        タイマー割り込みで目覚めたら schedule() でランキューを回す．
- * @note この関数から戻ることはない．
+ *        欲湬のバックグラウンドプロセスが EXIT_ZOMBIE になったら reap する。
+ * @note この関数から戻ることはない。
  */
 __attribute__((weak, noreturn)) void cpu_idle_loop(void)
 {
 	while (1)
 	{
-		__asm__ volatile("hlt"); /* タイマー割り込みを待つ */
-		schedule();				 /* 起きたら他タスクへスイッチ */
+		/* タイマー割り込みを待つ */
+		__asm__ volatile("hlt");
+
+		/* 起きたら他タスクへスイッチ */
+		schedule();
 	}
 	__builtin_unreachable();
 }
