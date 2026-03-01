@@ -231,6 +231,9 @@ system_call:
 	 */
 	movl 44(%esp), %eax
 
+	/* sys_sigreturn のために pt_regs ポインタをグローバルに保存（シングル CPU なのでスレッドセーフ） */
+	movl %esp, g_current_regs
+
 	/** pt_regs->ediをdo_syscallの第5引数に設定する
 	 * @brief pt_regs->edi(現在のESPレジスタが指すアドレス(pt_regs->ebx)から16バイト先の値)を
 	 *        スタックに積む

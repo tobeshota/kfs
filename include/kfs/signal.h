@@ -1,7 +1,16 @@
 #ifndef _SIGNAL_H_
 #define _SIGNAL_H_
 
+#include <asm-i386/ptrace.h>
 #include <kfs/pid.h>
+
+/* シグナルフレーム（ユーザスタックに積まれるシグナル配信用フレーム） */
+struct sigframe
+{
+	unsigned long pretcode;	   /* ハンドラの return 先 → sigreturn()（lib/unistd.c） */
+	int sig;				   /* シグナル番号（handler の第1引数） */
+	struct pt_regs saved_regs; /* sys_sigreturn で復元するレジスタ一式 */
+};
 
 /** シグナルの登録・発生・実行の流れ
  * @details
@@ -63,9 +72,11 @@ struct task_struct;
 sighandler_t signal(int sig, sighandler_t handler);
 int raise(int sig);
 void do_signal(void);
+void do_signal_with_regs(struct pt_regs *regs);
 int signal_pending(void);
 int send_signal(int sig, struct task_struct *p);
 int sys_kill(pid_t pid, int sig);
 sighandler_t sys_signal(int sig, sighandler_t handler);
+int sys_sigreturn(void);
 
 #endif /* _SIGNAL_H_ */

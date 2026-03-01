@@ -1,8 +1,14 @@
+#include <asm-i386/ptrace.h>
 #include <kfs/errno.h>
 #include <kfs/pid.h>
 #include <kfs/sched.h>
 #include <kfs/signal.h>
 #include <kfs/stddef.h>
+
+/** entry.S が sys_sigreturn のために保存する ring-0 の pt_regs ポインタ
+ * @note シングル CPU なのでグローバルで安全
+ */
+struct pt_regs *g_current_regs;
 
 /** 現在実行中プロセス（kernel/sched/core.cで定義） */
 extern struct task_struct *current;
@@ -27,10 +33,40 @@ int raise(int sig)
 	return send_signal(sig, current);
 }
 
-/** 保留中シグナルを処理する
- * @brief カーネル内部で呼び出され，登録済みハンドラを実行する
+/** ring-3 ハンドラが return した後に実行されるトランポリン
+ * @brief lib/unistd.c の同名関数。int $0x80 で sys_sigreturn を呼び元のコンテキストへ復帰する
+ * @note  カーネルコードは PAGE_USER でマップされているため ring-3 から直接呼び出し可能
  */
-void do_signal(void)
+extern void sigreturn(void);
+
+/** ユーザスタックにシグナルフレームを構築する
+ * @param regs    例外ハンドラから渡された pt_regs（iret でユーザ空間へ復帰する）
+ * @param sig     配信するシグナル番号
+ * @param handler ユーザ登録ハンドラ
+ */
+static void setup_sigframe(struct pt_regs *regs, int sig, sighandler_t handler)
+{
+	struct sigframe *frame;
+	unsigned long user_esp;
+
+	user_esp = regs->esp;
+	user_esp -= sizeof(struct sigframe);
+	user_esp &= ~3UL; /* 4バイトアライン */
+	frame = (struct sigframe *)user_esp;
+
+	frame->pretcode = (unsigned long)sigreturn; /* return 先 */
+	frame->sig = sig;							/* handler の引数 */
+	frame->saved_regs = *regs;					/* 復帰用コンテキスト */
+
+	/* iret でハンドラへジャンプするよう pt_regs を書き換える */
+	regs->esp = user_esp;
+	regs->eip = (unsigned long)handler;
+}
+
+/** 保留中シグナルを処理する（pt_regs あり版）
+ * @param regs  例外/syscall ハンドラの pt_regs。NULL の場合は ring-0 から直接呼び出す（テスト用）
+ */
+void do_signal_with_regs(struct pt_regs *regs)
 {
 	int sig;
 	sighandler_t handler;
@@ -52,31 +88,68 @@ void do_signal(void)
 
 		/* 保留ビットをクリア（処理済みにする） */
 		current->pending.signal &= ~(1UL << sig);
-
 		handler = current->sig_actions[sig].sa_handler;
 
-		/* SIG_IGNなら無視 */
+		/* SIG_IGN なら無視 */
 		if (handler == SIG_IGN)
 		{
 			continue;
 		}
 
-		/* SIG_DFLならデフォルト動作 */
+		/* SIG_DFL ならデフォルト動作 */
 		if (handler == SIG_DFL)
 		{
 			/* SIGKILL/SIGSEGV/SIGILL/SIGTERM/SIGFPE/SIGBUS など終了系はプロセスを終了 */
 			if (sig == SIGKILL || sig == SIGSEGV || sig == SIGILL || sig == SIGTERM || sig == SIGFPE || sig == SIGBUS)
 			{
 				extern __attribute__((noreturn)) void do_exit(int code);
-				/* 終了コードにシグナル番号を使う（POSIX慣習） */
+				/* 終了コードにシグナル番号を使う（POSIX 慣習） */
 				do_exit(sig);
 			}
 			continue;
 		}
 
-		/* ユーザー定義ハンドラを呼び出す */
-		handler(sig);
+		/* ユーザ定義ハンドラ */
+		if (regs != (struct pt_regs *)0)
+		{
+			/* ring-3 実行: ユーザスタックに sigframe を構築して iret でハンドラへ */
+			setup_sigframe(regs, sig, handler);
+			return; /* 1回の例外で 1 シグナルのみ処理 */
+		}
+		else
+		{
+			/* フォールバック: ring-0 から直接呼び出し（テスト用 / do_signal() 互換） */
+			handler(sig);
+		}
 	}
+}
+
+/** 保留中シグナルを処理する（カーネル内部 / テスト用）
+ * @brief do_signal_with_regs(NULL) のラッパ — ring-0 から直接ハンドラを呼ぶ
+ */
+void do_signal(void)
+{
+	do_signal_with_regs((struct pt_regs *)0);
+}
+
+/** sys_sigreturn: シグナルハンドラ実行後に元のコンテキストへ復帰する
+ * @brief sigreturn() から int $0x80 で呼ばれる（lib/unistd.c）
+ * @note  g_current_regs は entry.S が syscall 入り口で保存した ring-0 の pt_regs ポインタ
+ *
+ * 呼び出し時のスタックレイアウト（ring-3 esp 時）:
+ *   esp+0 : frame->sig  (ハンドラ return 後に ret がポップした後）
+ *   esp+4 : frame->saved_regs
+ */
+int sys_sigreturn(void)
+{
+	struct pt_regs *kstack = g_current_regs;
+	/* ハンドラ return 後の ring-3 esp は frameの pretcode を ret でポップした後なので
+	 * esp → [sig, saved_regs, ...]。saved_regs は esp + sizeof(int) にある。 */
+	struct pt_regs *saved = (struct pt_regs *)((unsigned long)kstack->esp + sizeof(int));
+
+	*kstack = *saved;
+	/* entry.S が戻り値を pt_regs->eax に書こうとするので saved->eax を返す */
+	return (int)saved->eax;
 }
 
 /** シグナルが保留中かどうかを確認する

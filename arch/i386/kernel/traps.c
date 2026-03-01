@@ -118,7 +118,7 @@ void do_exception(struct pt_regs *regs)
 
 		printk("Sending %s to pid %d\n", (sig == SIGILL) ? "SIGILL" : "SIGSEGV", current->pid);
 		send_signal(sig, current);
-		do_signal();
+		do_signal_with_regs(regs);
 		return;
 	}
 
