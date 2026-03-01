@@ -5,6 +5,7 @@
 
 #include "../test_reset.h"
 #include "../unit_test_framework.h"
+#include <asm-i386/ptrace.h>
 #include <kfs/errno.h>
 #include <kfs/pid.h>
 #include <kfs/sched.h>
@@ -13,6 +14,10 @@
 /* current、init_task、task_list は kernel/sched/core.c で定義 */
 extern struct task_struct *current;
 extern struct task_struct init_task;
+extern struct list_head task_list;
+
+/* g_current_regs は kernel/signal.c で定義（sys_sigreturn てスト用） */
+extern struct pt_regs *g_current_regs;
 extern struct list_head task_list;
 extern void init_idle_task(void);
 
@@ -383,6 +388,79 @@ KFS_TEST(test_do_signal_sigill_calls_handler)
 	KFS_ASSERT_EQ(SIGILL, handler_received_sig);
 }
 
+/* do_signal_with_regs(NULL) は do_signal() と同じく ring-0 からハンドラを呼ぶことをテスト */
+KFS_TEST(test_do_signal_with_null_regs_calls_handler)
+{
+	sys_signal(SIGUSR1, test_handler);
+	send_signal(SIGUSR1, current);
+	do_signal_with_regs((struct pt_regs *)0);
+	KFS_ASSERT_EQ(1, handler_called);
+	KFS_ASSERT_EQ(SIGUSR1, handler_received_sig);
+}
+
+/* do_signal_with_regs(&regs) で regs->eip がハンドラアドレスに書き換わることをテスト */
+KFS_TEST(test_do_signal_with_regs_sets_eip_to_handler)
+{
+	struct pt_regs regs;
+	static unsigned long fake_ustack[128];
+
+	regs.eip = 0xC0001111;
+	regs.esp = (unsigned long)(fake_ustack + 128);
+	regs.eax = 0;
+	regs.cs = 0x1b; /* __USER_CS */
+
+	sys_signal(SIGUSR2, test_handler);
+	send_signal(SIGUSR2, current);
+	do_signal_with_regs(&regs);
+
+	KFS_ASSERT_EQ((unsigned long)test_handler, (unsigned long)regs.eip);
+	/* ring-3 経由なので ring-0 からは呼ばれない */
+	KFS_ASSERT_EQ(0, handler_called);
+}
+
+/* do_signal_with_regs(&regs) 後に regs->esp が sizeof(sigframe) 分以上下がることをテスト */
+KFS_TEST(test_do_signal_with_regs_lowers_esp)
+{
+	struct pt_regs regs;
+	static unsigned long fake_ustack[128];
+	unsigned long orig_esp;
+
+	orig_esp = (unsigned long)(fake_ustack + 128);
+	regs.eip = 0xC0001111;
+	regs.esp = orig_esp;
+	regs.eax = 0;
+	regs.cs = 0x1b;
+
+	sys_signal(SIGUSR1, test_handler);
+	send_signal(SIGUSR1, current);
+	do_signal_with_regs(&regs);
+
+	KFS_ASSERT_TRUE(regs.esp < orig_esp);
+	KFS_ASSERT_TRUE(orig_esp - regs.esp >= sizeof(struct sigframe));
+}
+
+/* sys_sigreturn が saved_regs のコンテキストを kstack に復元することをテスト */
+KFS_TEST(test_sys_sigreturn_restores_context)
+{
+	struct sigframe fake_frame;
+	struct pt_regs fake_kstack;
+
+	fake_frame.saved_regs.eip = 0xC0ABCDEF;
+	fake_frame.saved_regs.esp = 0xC0007777;
+	fake_frame.saved_regs.eax = 99;
+	fake_frame.saved_regs.eflags = 0x202;
+
+	/* ハンドラ return 後: esp は frame->sig を指す（ret が pretcode をポップした後） */
+	fake_kstack.esp = (unsigned long)&fake_frame.sig;
+	g_current_regs = &fake_kstack;
+
+	sys_sigreturn();
+
+	KFS_ASSERT_EQ(fake_frame.saved_regs.eip, fake_kstack.eip);
+	KFS_ASSERT_EQ(fake_frame.saved_regs.esp, fake_kstack.esp);
+	KFS_ASSERT_EQ((long)fake_frame.saved_regs.eax, (long)fake_kstack.eax);
+}
+
 /* テスト登録 */
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_signal_register_handler, setup_test, teardown_test),
@@ -405,7 +483,12 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_sigsegv_pending, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_sigill_pending, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_sigsegv_calls_handler, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_sigill_calls_handler, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_sigill_calls_handler, setup_test,
+								 teardown_test), /* Phase 13.5: sigreturn トランポリン */
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_with_null_regs_calls_handler, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_with_regs_sets_eip_to_handler, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_with_regs_lowers_esp, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_sigreturn_restores_context, setup_test, teardown_test),
 };
 
 int register_unit_tests_signal(struct kfs_test_case **out)

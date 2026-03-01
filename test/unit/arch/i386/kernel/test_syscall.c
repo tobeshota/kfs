@@ -168,12 +168,12 @@ KFS_TEST(test_do_syscall_large_negative)
 /**
  * NR_syscalls定数の検証
  * 検証対象: NR_syscalls
- * 検証項目: NR_syscallsが161であること（__NR_psg_stop + 1）
+ * 検証項目: NR_syscallsが162であること（__NR_psg_stop + 1）
  * 目的: syscall.hの定義とsyscall.cの整合性を確認
  */
 KFS_TEST(test_nr_syscalls_value)
 {
-	KFS_ASSERT_EQ(161, NR_syscalls);
+	KFS_ASSERT_EQ(162, NR_syscalls);
 }
 
 /**
