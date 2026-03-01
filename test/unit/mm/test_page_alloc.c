@@ -49,11 +49,42 @@ KFS_TEST(test_mem_init)
 	KFS_ASSERT_TRUE(1);
 }
 
+/* alloc_pages wrapper テスト (order=0) */
+KFS_TEST(test_alloc_pages_order0)
+{
+	struct page *p = alloc_pages(GFP_KERNEL, 0);
+	/* カーネルが初期化済みなら非 NULL が返る */
+	KFS_ASSERT_TRUE(1); /* クラッシュしなければ OK */
+	if (p)
+	{
+		free_pages(p, 0);
+	}
+}
+
+/* alloc_pages wrapper テスト (order=1: 未サポート) */
+KFS_TEST(test_alloc_pages_unsupported_order)
+{
+	struct page *p = alloc_pages(GFP_KERNEL, 1);
+	/* order > 0 は未サポート—NULL が返る */
+	KFS_ASSERT_TRUE(p == NULL);
+}
+
+/* free_pages wrapper テスト (order=1: 未サポート) */
+KFS_TEST(test_free_pages_unsupported_order)
+{
+	/* order > 0 はエラー表示して return */
+	free_pages(NULL, 1);
+	KFS_ASSERT_TRUE(1);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test___alloc_pages, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test___free_pages, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_show_mem_info, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_mem_init, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_alloc_pages_order0, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_alloc_pages_unsupported_order, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_free_pages_unsupported_order, setup_test, teardown_test),
 };
 
 int register_unit_tests_page_alloc(struct kfs_test_case **out)

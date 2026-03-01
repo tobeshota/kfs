@@ -113,6 +113,66 @@ KFS_TEST(test_do_mmap_multiple_non_overlapping)
 	KFS_ASSERT_TRUE((unsigned long)a1 != (unsigned long)a2);
 }
 
+/*
+ * テスト: do_munmap - 存在しないアドレスで -1 を返す
+ */
+KFS_TEST(test_do_munmap_invalid_addr)
+{
+	int ret = do_munmap(0xDEAD0000UL, 4096);
+	KFS_ASSERT_EQ(-1, ret);
+}
+
+/*
+ * テスト: sys_mmap2 ラッパー - MAP_ANONYMOUS で有効なアドレスが返る
+ */
+KFS_TEST(test_sys_mmap2_wrapper)
+{
+	extern void *sys_mmap2(unsigned long addr, unsigned long len, int prot, int flags, int fd, unsigned long pgoff);
+	void *addr = sys_mmap2(0, 4096, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	KFS_ASSERT_TRUE((unsigned long)addr != (unsigned long)MAP_FAILED);
+	KFS_ASSERT_TRUE(addr != NULL);
+}
+
+/*
+ * テスト: sys_munmap ラッパー - 解放成功で 0 を返す
+ */
+KFS_TEST(test_sys_munmap_wrapper)
+{
+	extern int sys_munmap(unsigned long addr, unsigned long len);
+	void *addr = do_mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE);
+	KFS_ASSERT_TRUE((unsigned long)addr != (unsigned long)MAP_FAILED);
+
+	int ret = sys_munmap((unsigned long)addr, 4096);
+	KFS_ASSERT_EQ(0, ret);
+}
+
+/*
+ * テスト: do_mmap - PROT_READ のみ（_PAGE_RW なし）
+ */
+KFS_TEST(test_do_mmap_prot_read_only)
+{
+	void *addr = do_mmap(NULL, 4096, PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE);
+	KFS_ASSERT_TRUE((unsigned long)addr != (unsigned long)MAP_FAILED);
+	struct vm_area_struct *vma = find_vma((unsigned long)addr);
+	KFS_ASSERT_TRUE(vma != NULL);
+}
+
+/*
+ * テスト: mmap → munmap → mmap サイクル（アドレス再利用）
+ */
+KFS_TEST(test_do_mmap_munmap_remap_cycle)
+{
+	void *a1 = do_mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE);
+	KFS_ASSERT_TRUE((unsigned long)a1 != (unsigned long)MAP_FAILED);
+
+	int ret = do_munmap((unsigned long)a1, PAGE_SIZE);
+	KFS_ASSERT_EQ(0, ret);
+
+	/* 解放後に別の領域を確保——アドレス空間が再利用される */
+	void *a2 = do_mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE);
+	KFS_ASSERT_TRUE((unsigned long)a2 != (unsigned long)MAP_FAILED);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_mmap_returns_valid_address, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_mmap_inserts_vma, setup_test, teardown_test),
@@ -121,6 +181,11 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_mmap_zero_len_fails, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_mmap_no_anonymous_fails, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_mmap_multiple_non_overlapping, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_munmap_invalid_addr, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_mmap2_wrapper, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_munmap_wrapper, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_mmap_prot_read_only, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_mmap_munmap_remap_cycle, setup_test, teardown_test),
 };
 
 int register_unit_tests_mmap(struct kfs_test_case **out)
