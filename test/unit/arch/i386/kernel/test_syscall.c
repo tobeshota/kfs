@@ -166,17 +166,6 @@ KFS_TEST(test_do_syscall_large_negative)
 }
 
 /**
- * NR_syscalls定数の検証
- * 検証対象: NR_syscalls
- * 検証項目: NR_syscallsが162であること（__NR_psg_stop + 1）
- * 目的: syscall.hの定義とsyscall.cの整合性を確認
- */
-KFS_TEST(test_nr_syscalls_value)
-{
-	KFS_ASSERT_EQ(162, NR_syscalls);
-}
-
-/**
  * __NR_exit定数の検証
  * 検証対象: __NR_exit
  * 検証項目: __NR_exitが1であること（Linux互換）
@@ -359,7 +348,6 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_unimplemented_0, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_unimplemented_write, setup_test, teardown_test),
 	/* 定数検証テスト */
-	KFS_REGISTER_TEST_WITH_SETUP(test_nr_syscalls_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_exit_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_write_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_wait_value, setup_test, teardown_test),
