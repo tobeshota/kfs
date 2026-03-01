@@ -106,6 +106,31 @@ int psg_stop(int ch)
 	return (int)ret;
 }
 
+/* mmap2 システムコールを呼び出す（MAP_ANONYMOUS のみサポート） */
+void *mmap(void *addr, unsigned long len, int prot, int flags, int fd, unsigned long pgoff)
+{
+	long ret;
+	/* pgoff は渡さない．
+	 * その理由は，i386 int $0x80 の第6引数は EBP だが GCC との衝突で
+	 * 拘束不可かつ， MAP_ANONYMOUS では仕様上無視される値のため．
+	 */
+	__asm__ __volatile__("int $0x80"
+						 : "=a"(ret)
+						 : "0"(__NR_mmap2), "b"((long)addr), "c"((long)len), "d"((long)prot), "S"((long)flags),
+						   "D"((long)fd)
+						 : "memory");
+	(void)pgoff;
+	return (void *)ret;
+}
+
+/* munmap システムコールを呼び出す */
+int munmap(void *addr, unsigned long len)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_munmap), "b"((long)addr), "c"((long)len) : "memory");
+	return (int)ret;
+}
+
 /* シグナルハンドラ return 後、元のコンテキストへ復帰する（sigframe の pretcode から呼ばれる）
  * @note entry.S の sys_sigreturn が g_current_regs からコンテキストを復元する
  */

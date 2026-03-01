@@ -1,5 +1,6 @@
 #include <kfs/console.h>
 #include <kfs/errno.h>
+#include <kfs/mman.h>
 #include <kfs/printk.h>
 #include <kfs/psg.h>
 #include <kfs/serial.h>
@@ -218,6 +219,23 @@ static long do_sys_sigreturn(long arg1, long arg2, long arg3, long arg4, long ar
 	return (long)sys_sigreturn();
 }
 
+/* mmap2(addr, len, prot, flags, fd) システムコール
+ * @note pgoff は MAP_ANONYMOUS では不要なため省略（syscall_fn_t は5引数）
+ */
+static long do_sys_mmap2(long addr, long len, long prot, long flags, long fd)
+{
+	return (long)sys_mmap2((unsigned long)addr, (unsigned long)len, (int)prot, (int)flags, (int)fd, 0);
+}
+
+/* munmap(addr, len) システムコール */
+static long do_sys_munmap(long addr, long len, long a3, long a4, long a5)
+{
+	(void)a3;
+	(void)a4;
+	(void)a5;
+	return (long)sys_munmap((unsigned long)addr, (unsigned long)len);
+}
+
 static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_exit] = (syscall_fn_t)do_sys_exit,
 	[__NR_fork] = do_sys_fork,
@@ -232,6 +250,8 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_psg_note] = do_sys_psg_note,
 	[__NR_psg_stop] = do_sys_psg_stop,
 	[__NR_sigreturn] = do_sys_sigreturn,
+	[__NR_munmap] = do_sys_munmap,
+	[__NR_mmap2] = do_sys_mmap2,
 };
 
 /** システムコールディスパッチャ
