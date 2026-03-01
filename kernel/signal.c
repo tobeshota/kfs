@@ -64,7 +64,13 @@ void do_signal(void)
 		/* SIG_DFLならデフォルト動作 */
 		if (handler == SIG_DFL)
 		{
-			/* シグナル送信対象(プロセス)を定義したとき，シグナルごとのデフォルト動作を実装する */
+			/* SIGKILL/SIGSEGV/SIGILL/SIGTERM/SIGFPE/SIGBUS など終了系はプロセスを終了 */
+			if (sig == SIGKILL || sig == SIGSEGV || sig == SIGILL || sig == SIGTERM || sig == SIGFPE || sig == SIGBUS)
+			{
+				extern __attribute__((noreturn)) void do_exit(int code);
+				/* 終了コードにシグナル番号を使う（POSIX慣習） */
+				do_exit(sig);
+			}
 			continue;
 		}
 

@@ -346,6 +346,43 @@ KFS_TEST(test_sys_signal_same_as_signal)
 	KFS_ASSERT_EQ(SIGINT, handler_received_sig);
 }
 
+/* ========== Phase 13: IDTとプロセス連携 ========== */
+
+/* send_signal(SIGSEGV) でプロセスの保留ビットが立つことをテスト */
+KFS_TEST(test_send_signal_sigsegv_pending)
+{
+	send_signal(SIGSEGV, current);
+	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGSEGV));
+}
+
+/* send_signal(SIGILL) でプロセスの保留ビットが立つことをテスト */
+KFS_TEST(test_send_signal_sigill_pending)
+{
+	send_signal(SIGILL, current);
+	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGILL));
+}
+
+/* SIGSEGV にユーザハンドラを登録すると do_signal() でハンドラが呼ばれることをテスト
+ * （例外ハンドラが send_signal(SIGSEGV) → do_signal() と呼ぶ想定） */
+KFS_TEST(test_do_signal_sigsegv_calls_handler)
+{
+	sys_signal(SIGSEGV, test_handler);
+	send_signal(SIGSEGV, current);
+	do_signal();
+	KFS_ASSERT_EQ(1, handler_called);
+	KFS_ASSERT_EQ(SIGSEGV, handler_received_sig);
+}
+
+/* SIGILL にユーザハンドラを登録すると do_signal() でハンドラが呼ばれることをテスト */
+KFS_TEST(test_do_signal_sigill_calls_handler)
+{
+	sys_signal(SIGILL, test_handler);
+	send_signal(SIGILL, current);
+	do_signal();
+	KFS_ASSERT_EQ(1, handler_called);
+	KFS_ASSERT_EQ(SIGILL, handler_received_sig);
+}
+
 /* テスト登録 */
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_signal_register_handler, setup_test, teardown_test),
@@ -364,6 +401,11 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_kill_valid_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_kill_invalid_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_signal_same_as_signal, setup_test, teardown_test),
+	/* Phase 13: IDT とプロセス連携 */
+	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_sigsegv_pending, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_sigill_pending, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_sigsegv_calls_handler, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_sigill_calls_handler, setup_test, teardown_test),
 };
 
 int register_unit_tests_signal(struct kfs_test_case **out)

@@ -1,6 +1,8 @@
 #ifndef _SIGNAL_H_
 #define _SIGNAL_H_
 
+#include <kfs/pid.h>
+
 /** シグナルの登録・発生・実行の流れ
  * @details
  * 1. sighandler_t signal(int sig, sighandler_t handler);
@@ -55,16 +57,13 @@ struct sigaction
 	unsigned long sa_flags;	 /* シグナルハンドラの動作を変更するためのフラグ */
 };
 
+/* 前方宣言（kfs/sched.h との循環 include を避けるため） */
+struct task_struct;
+
 sighandler_t signal(int sig, sighandler_t handler);
 int raise(int sig);
 void do_signal(void);
 int signal_pending(void);
-
-/* 特定プロセスへシグナルを送信する関数群 */
-struct task_struct; /* 前方宣言（task_struct の循環インクルードを避けるため） */
-
-#include <kfs/pid.h> /* pid_t */
-
 int send_signal(int sig, struct task_struct *p);
 int sys_kill(pid_t pid, int sig);
 sighandler_t sys_signal(int sig, sighandler_t handler);
