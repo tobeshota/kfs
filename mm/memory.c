@@ -25,9 +25,6 @@ struct vm_area_struct *vm_area_list = NULL;
 /* 次に割り当て可能な仮想アドレス */
 static unsigned long next_vm_addr = KERNEL_VM_START;
 
-/* ユーザ空間の次に割り当て可能な仮想アドレス（単調増加） */
-static unsigned long next_user_vm_addr = USER_VM_START;
-
 /**
  * 指定したアドレスを含む仮想メモリ領域を検索
  * Linux 2.6.11の find_vma() に相当
@@ -200,29 +197,60 @@ unsigned long get_unmapped_area(size_t len)
 
 /** ユーザ空間の仮想アドレスを割り当てる
  * @brief
- * 指定サイズのユーザ空間未使用仮想アドレス領域を確保する
- * 単調増加方式（munmap 後のアドレス再利用なし）
+ * 指定サイズのユーザ空間未使用仮想アドレス領域を確保する。
+ * VMA リストをスキャンして空き領域（ギャップ）を先頭から検索する方式。
+ * munmap で解放されたアドレスを再利用できるためアドレス空間の枯渇を防ぐ。
  *
  * @param len 必要なサイズ（バイト単位）
- * @return 使用可能なユーザ仮想アドレス
- *         見つからない場合は 0
+ * @return 使用可能なユーザ仮想アドレス、見つからない場合は 0
  */
 unsigned long get_unmapped_area_user(size_t len)
 {
+	struct vm_area_struct *vma;
 	unsigned long addr;
 
 	/* サイズをページ境界に切り上げ */
 	len = (len + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
-	if (next_user_vm_addr + len > USER_VM_END)
+	if (len == 0 || len > USER_VM_END - USER_VM_START)
 	{
-		printk(KERN_WARNING "get_unmapped_area_user: no space for %lu bytes\n", (unsigned long)len);
 		return 0;
 	}
 
-	addr = next_user_vm_addr;
-	next_user_vm_addr += len;
-	return addr;
+	/* ユーザ仮想アドレス範囲内の空き領域をギャップスキャンで探す */
+	addr = USER_VM_START;
+	for (vma = vma_list; vma != NULL; vma = vma->vm_next)
+	{
+		/* ユーザ範囲より下の VMA はスキップ */
+		if (vma->vm_end <= USER_VM_START)
+		{
+			continue;
+		}
+		/* ユーザ範囲を超えた VMA は探索終了 */
+		if (vma->vm_start >= USER_VM_END)
+		{
+			break;
+		}
+		/* addr から vma->vm_start の間に len 分の空きがあれば確保 */
+		if (vma->vm_start >= addr + len)
+		{
+			return addr;
+		}
+		/* 次の候補を現 VMA の終端に進める */
+		if (vma->vm_end > addr)
+		{
+			addr = vma->vm_end;
+		}
+	}
+
+	/* リスト末尾以降に空きがあるか確認 */
+	if (addr + len <= USER_VM_END)
+	{
+		return addr;
+	}
+
+	printk(KERN_WARNING "get_unmapped_area_user: no space for %lu bytes in user range\n", (unsigned long)len);
+	return 0;
 }
 
 /**
@@ -242,5 +270,4 @@ void vm_reset_for_test(void)
 
 	/* 次の割り当て位置を初期化 */
 	next_vm_addr = KERNEL_VM_START;
-	next_user_vm_addr = USER_VM_START;
 }

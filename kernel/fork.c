@@ -364,6 +364,34 @@ pid_t do_fork(unsigned long user_eip)
 			new_esp = (unsigned long)ustack + src_size;
 		}
 		childregs->esp = new_esp;
+
+		/* EBP チェーンも旧アドレス系 → 新アドレス系に変換する。
+		 * memcpy でスタック内容をコピーしても saved EBP は旧スタック範囲
+		 * (src_start ~ src_start+src_size) を指したままのため、
+		 * *pte = 0 で旧 PTE をクリアした後に孫が EBP 経由でアクセスすると
+		 * ページフォルトが発生する。スタックを walk して旧→新に変換する。 */
+		unsigned long ebp = childregs->ebp;
+		unsigned long delta = (unsigned long)ustack - src_start;
+		int depth = 0;
+		/* childregs->ebp が旧スタック内なら新アドレスに変換 */
+		if (ebp >= src_start && ebp < src_start + src_size)
+		{
+			childregs->ebp = ebp + delta;
+			ebp = childregs->ebp;
+			/* EBP チェーンを辿って全 saved EBP を変換 */
+			while (depth < 64)
+			{
+				unsigned long *saved_ebp_ptr = (unsigned long *)ebp;
+				unsigned long saved_ebp = *saved_ebp_ptr;
+				if (saved_ebp < src_start || saved_ebp >= src_start + src_size)
+				{
+					break;
+				}
+				*saved_ebp_ptr = saved_ebp + delta;
+				ebp = *saved_ebp_ptr;
+				depth++;
+			}
+		}
 	}
 
 	/* 子プロセスをRRランキューに登録してスケジューリング可能にする */

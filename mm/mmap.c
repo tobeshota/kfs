@@ -155,9 +155,6 @@ void *do_mmap(void *addr, unsigned long len, int prot, int flags)
  * @param addr  解放する領域の開始アドレス
  * @param len   解放サイズ（現実装では VMA 全体を解放）
  * @return 成功時 0、失敗時 -1
- *
- * @note ページテーブルエントリのクリア（TLB フラッシュ）は未実装のため、
- *       解放後もページテーブル上には古いエントリが残る。
  */
 int do_munmap(unsigned long addr, unsigned long len)
 {
@@ -178,6 +175,10 @@ int do_munmap(unsigned long addr, unsigned long len)
 	/*
 	 * ユーザ空間は線形マッピング外のため virt_to_phys() は使えない。
 	 * PTE を逆引きして物理アドレスを取得してから解放する。
+	 * PTE 自体も 0 クリアして TLB フラッシュすることで、
+	 * 解放済み物理ページへのダングリングマッピングを防ぐ。
+	 * （クリアしないと free_pages 後に再アロケートされた別プロセスの
+	 *   物理ページが旧 PTE 経由で読み書きされてしまう。）
 	 */
 	vma_size = vma->vm_end - vma->vm_start;
 	nr_pages = vma_size >> PAGE_SHIFT;
@@ -188,8 +189,11 @@ int do_munmap(unsigned long addr, unsigned long len)
 		if (pte && pte_present(*pte))
 		{
 			free_pages((struct page *)pte_page(*pte), 0);
+			*pte = 0; /* PTE クリア: ダングリングマッピングを防ぐ */
 		}
 	}
+	/* PTE を書き換えたので TLB を無効化する */
+	__flush_tlb();
 
 	/* VMA をリストから削除して構造体を解放 */
 	remove_vm_area(addr);
