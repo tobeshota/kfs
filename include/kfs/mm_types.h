@@ -32,6 +32,14 @@ struct mm_struct
 
 	unsigned long brk;		   /* ヒープ現在位置（sys_brk用） */
 	unsigned long start_stack; /* スタック開始アドレス（exec_fn用） */
+
+	/* BSS/data セクタ */
+	unsigned long start_code; /* .text セクション開始アドレス */
+	unsigned long end_code;	  /* .text セクション終端アドレス */
+	unsigned long start_data; /* .data セクション開始アドレス */
+	unsigned long end_data;	  /* .data セクション終端アドレス */
+	unsigned long start_bss;  /* .bss セクション開始アドレス */
+	unsigned long end_bss;	  /* .bss セクション終端アドレス */
 };
 
 #endif /* _KFS_MM_TYPES_H */

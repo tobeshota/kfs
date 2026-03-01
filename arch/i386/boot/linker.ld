@@ -145,7 +145,9 @@ SECTIONS
     /* .textセクション: 実行可能コード */
     .text ALIGN(4K) : AT(ADDR(.text) - 0xC0000000)
     {
+        __text_start = .;
         *(.text*)
+        __text_end = .;
     } :text
 
     /* .rodataセクション: 読み取り専用データ */
@@ -157,14 +159,18 @@ SECTIONS
     /* .dataセクション: 初期化済みデータ */
     .data ALIGN(4K) : AT(ADDR(.data) - 0xC0000000)
     {
+        __data_start = .;
         *(.data*)
+        __data_end = .;
     } :data
 
     /* .bssセクション: 未初期化データ */
     .bss ALIGN(4K) : AT(ADDR(.bss) - 0xC0000000)
     {
+        __bss_start = .;
         *(COMMON)
         *(.bss*)
+        __bss_end = .;
     } :data
 
     /* GCCが生成するデバッグ/メタ情報セクションを破棄
