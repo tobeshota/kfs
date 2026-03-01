@@ -3,8 +3,13 @@
 #include <kfs/irq.h>
 #include <kfs/panic.h>
 #include <kfs/printk.h>
+#include <kfs/sched.h>
+#include <kfs/signal.h>
 #include <kfs/string.h>
 #include <kfs/syscall.h>
+
+/** 現在実行中プロセス（kernel/sched/core.c で定義） */
+extern struct task_struct *current;
 
 /* ========== IDT管理 ========== */
 
@@ -91,14 +96,36 @@ void do_exception(struct pt_regs *regs)
 {
 	unsigned int trap_no = regs->orig_eax;
 	const char *name = get_exception_name(trap_no);
+	int user_mode = (regs->cs & 0x3) == 3; /* CPL=3 → ユーザ空間 */
 
-	printk("Exception %d: %s\n", trap_no, name);
+	printk("Exception %d: %s (%s)\n", trap_no, name, user_mode ? "user" : "kernel");
 	show_regs(regs);
 
-	/* Breakpoint(0x03)とOverflow(0x04)は継続可能 */
+	/* ユーザ空間の例外 → シグナルをプロセスに配信して続行 */
+	if (user_mode)
+	{
+		int sig;
+
+		/* Invalid Opcode → SIGILL、それ以外 → SIGSEGV */
+		if (trap_no == 6) /* #UD: Invalid Opcode */
+		{
+			sig = SIGILL;
+		}
+		else
+		{
+			sig = SIGSEGV;
+		}
+
+		printk("Sending %s to pid %d\n", (sig == SIGILL) ? "SIGILL" : "SIGSEGV", current->pid);
+		send_signal(sig, current);
+		do_signal();
+		return;
+	}
+
+	/* Breakpoint(0x03)とOverflow(0x04)はカーネル内でも継続可能 */
 	if (trap_no != 3 && trap_no != 4)
 	{
-		panic("Fatal exception %d: %s", trap_no, name);
+		panic("Fatal kernel exception %d: %s", trap_no, name);
 	}
 }
 
