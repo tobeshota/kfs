@@ -78,8 +78,8 @@ void daiku_main(void *arg)
 
 	for (int b = 0; b < N_BARS; b++)
 	{
-		/* ch1: 小節先頭でベースを発音（FULL 分持続） */
-		/* deadline_ms=4: 4ms以内にCPUを得られなければグリッチとして記録する */
+		/* ch1: 小節先頭でベースを発音（FULL 分持続）
+		 * deadline_ms=4: 4ms以内にCPUを得られなければグリッチとして記録する */
 		psg_note(1, score[b].bass_freq, 4U);
 		/* ch0: 小節内のメロディを順に鳴らす */
 		for (int n = 0; score[b].melody[n].ms != 0; n++)
