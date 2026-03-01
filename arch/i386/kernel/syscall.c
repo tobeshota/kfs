@@ -10,7 +10,7 @@
 #include <kfs/syscall.h>
 #include <kfs/wait.h>
 
-extern pid_t do_fork(unsigned long user_eip, unsigned long user_esp);
+extern pid_t do_fork(unsigned long user_eip);
 extern void sys_exit(int error_code);
 
 /**　未実装のシステムコール用のスタブ
@@ -105,7 +105,7 @@ static long do_sys_fork(long arg1, long arg2, long arg3, long arg4, long arg5)
 	(void)arg3;
 	(void)arg4;
 	(void)arg5;
-	return (long)do_fork(0, 0);
+	return (long)do_fork(0);
 }
 
 /** exit() システムコール
