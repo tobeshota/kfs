@@ -68,13 +68,18 @@ static pte_t *get_or_create_page_table(unsigned long vaddr)
 		return NULL;
 	}
 
-	pte_table = (pte_t *)page;
+	/*
+	 * alloc_pages() は物理アドレスを返す。
+	 * - memset / PTE 操作には仮想アドレス(__va)を使う
+	 * - PDE への登録には物理アドレスをそのまま使う
+	 */
+	pte_table_phys = (unsigned long)page;
+	pte_table = (pte_t *)__va(pte_table_phys);
 
 	/* ページテーブルを初期化（全エントリをクリア） */
 	memset(pte_table, 0, PAGE_SIZE);
 
 	/* ページディレクトリエントリを設定（カーネル用、物理アドレスを使用） */
-	pte_table_phys = __pa((unsigned long)pte_table);
 	set_pde(pde, pte_table_phys, _PAGE_KERNEL);
 
 	return pte_table;

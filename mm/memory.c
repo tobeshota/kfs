@@ -18,8 +18,15 @@ struct vm_area_struct *vm_area_list = NULL;
 #define KERNEL_VM_START 0xD0000000 /* 3.25GB */
 #define KERNEL_VM_END 0xFFFFFFFF   /* 4GB */
 
+/* ユーザ仮想メモリの範囲（0〜3GB のユーザ空間内） */
+#define USER_VM_START 0x40000000UL /* 1GB: ユーザ mmap 開始 */
+#define USER_VM_END 0xBFFF0000UL   /* ~3GB: ユーザ空間終端 */
+
 /* 次に割り当て可能な仮想アドレス */
 static unsigned long next_vm_addr = KERNEL_VM_START;
+
+/* ユーザ空間の次に割り当て可能な仮想アドレス（単調増加） */
+static unsigned long next_user_vm_addr = USER_VM_START;
 
 /**
  * 指定したアドレスを含む仮想メモリ領域を検索
@@ -140,7 +147,8 @@ void remove_vm_area(unsigned long addr)
 	}
 }
 
-/**
+/** カーネル空間の仮想アドレスを割り当てる
+ * @brief
  * 指定サイズの未使用仮想アドレス領域を見つける
  * First Fit方式で検索
  *
@@ -190,6 +198,33 @@ unsigned long get_unmapped_area(size_t len)
 	return 0;
 }
 
+/** ユーザ空間の仮想アドレスを割り当てる
+ * @brief
+ * 指定サイズのユーザ空間未使用仮想アドレス領域を確保する
+ * 単調増加方式（munmap 後のアドレス再利用なし）
+ *
+ * @param len 必要なサイズ（バイト単位）
+ * @return 使用可能なユーザ仮想アドレス
+ *         見つからない場合は 0
+ */
+unsigned long get_unmapped_area_user(size_t len)
+{
+	unsigned long addr;
+
+	/* サイズをページ境界に切り上げ */
+	len = (len + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+	if (next_user_vm_addr + len > USER_VM_END)
+	{
+		printk(KERN_WARNING "get_unmapped_area_user: no space for %lu bytes\n", (unsigned long)len);
+		return 0;
+	}
+
+	addr = next_user_vm_addr;
+	next_user_vm_addr += len;
+	return addr;
+}
+
 /**
  * テスト用: 仮想メモリ領域（VMA）を初期状態にリセット
  * @details
@@ -198,7 +233,7 @@ unsigned long get_unmapped_area(size_t len)
  *
  * リセット内容:
  * - vm_area_listをNULLに設定（全VMAを削除）
- * - 次に割り当て可能な仮想アドレスを初期位置に戻す
+ * - 次に割り当て可能な仮想アドレスを初期位置に戻す（カーネル・ユーザ両方）
  */
 void vm_reset_for_test(void)
 {
@@ -207,4 +242,5 @@ void vm_reset_for_test(void)
 
 	/* 次の割り当て位置を初期化 */
 	next_vm_addr = KERNEL_VM_START;
+	next_user_vm_addr = USER_VM_START;
 }
