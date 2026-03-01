@@ -204,6 +204,20 @@ static long do_sys_psg_stop(long arg1, long arg2, long arg3, long arg4, long arg
 	return 0;
 }
 
+/** sigreturn() システムコール
+ * @brief ring-3 シグナルハンドラが return した後、sigreturn()（lib/unistd.c）から呼ばれる
+ * @return 元のプロセスの eax 値（entry.S が pt_regs->eax に書く）
+ */
+static long do_sys_sigreturn(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_sigreturn();
+}
+
 static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_exit] = (syscall_fn_t)do_sys_exit,
 	[__NR_fork] = do_sys_fork,
@@ -217,6 +231,7 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_msleep] = do_sys_msleep,
 	[__NR_psg_note] = do_sys_psg_note,
 	[__NR_psg_stop] = do_sys_psg_stop,
+	[__NR_sigreturn] = do_sys_sigreturn,
 };
 
 /** システムコールディスパッチャ

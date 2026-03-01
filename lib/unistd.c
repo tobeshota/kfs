@@ -105,3 +105,11 @@ int psg_stop(int ch)
 	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_psg_stop), "b"((long)ch) : "memory");
 	return (int)ret;
 }
+
+/* シグナルハンドラ return 後、元のコンテキストへ復帰する（sigframe の pretcode から呼ばれる）
+ * @note entry.S の sys_sigreturn が g_current_regs からコンテキストを復元する
+ */
+void sigreturn(void)
+{
+	__asm__ __volatile__("int $0x80" : : "a"(__NR_sigreturn) : "memory");
+}
