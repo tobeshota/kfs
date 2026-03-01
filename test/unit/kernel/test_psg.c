@@ -46,9 +46,9 @@ KFS_TEST(test_psg_init_does_not_crash)
 KFS_TEST(test_do_psg_note_valid_channel)
 {
 	/* ch0〜ch2（矩形波チャンネル）で発音 */
-	do_psg_note(0, 440);
-	do_psg_note(1, 880);
-	do_psg_note(2, 220);
+	do_psg_note(0, 440, 0);
+	do_psg_note(1, 880, 0);
+	do_psg_note(2, 220, 0);
 	KFS_ASSERT_TRUE(1);
 }
 
@@ -59,7 +59,7 @@ KFS_TEST(test_do_psg_note_valid_channel)
  */
 KFS_TEST(test_do_psg_note_invalid_channel_negative)
 {
-	do_psg_note(-1, 440);
+	do_psg_note(-1, 440, 0);
 	KFS_ASSERT_TRUE(1);
 }
 
@@ -70,7 +70,7 @@ KFS_TEST(test_do_psg_note_invalid_channel_negative)
  */
 KFS_TEST(test_do_psg_note_invalid_channel_too_large)
 {
-	do_psg_note(PSG_CH_COUNT, 440);
+	do_psg_note(PSG_CH_COUNT, 440, 0);
 	KFS_ASSERT_TRUE(1);
 }
 
@@ -82,8 +82,8 @@ KFS_TEST(test_do_psg_note_invalid_channel_too_large)
 KFS_TEST(test_do_psg_note_freq_zero)
 {
 	/* まず発音してから freq=0 で停止 */
-	do_psg_note(0, 440);
-	do_psg_note(0, 0);
+	do_psg_note(0, 440, 0);
+	do_psg_note(0, 0, 0);
 	KFS_ASSERT_TRUE(1);
 }
 
@@ -98,7 +98,7 @@ KFS_TEST(test_do_psg_note_freq_zero)
  */
 KFS_TEST(test_do_psg_stop_valid_channel)
 {
-	do_psg_note(0, 440);
+	do_psg_note(0, 440, 0);
 	do_psg_stop(0);
 	KFS_ASSERT_TRUE(1);
 }
@@ -114,7 +114,7 @@ KFS_TEST(test_do_psg_stop_all_channels)
 
 	for (i = 0; i < PSG_CH_COUNT; i++)
 	{
-		do_psg_note(i, 440);
+		do_psg_note(i, 440, 0);
 	}
 	for (i = 0; i < PSG_CH_COUNT; i++)
 	{
@@ -154,7 +154,7 @@ KFS_TEST(test_psg_tick_all_inactive)
  */
 KFS_TEST(test_psg_tick_active_channel)
 {
-	do_psg_note(0, 440);
+	do_psg_note(0, 440, 0);
 	jiffies = 0; /* ch0 が選ばれる */
 	psg_tick();	 /* ch0 active → pcspkr_tone(440) */
 	KFS_ASSERT_TRUE(1);
@@ -168,7 +168,7 @@ KFS_TEST(test_psg_tick_active_channel)
 KFS_TEST(test_psg_tick_inactive_but_other_active)
 {
 	/* ch0 は inactive, ch1 は active */
-	do_psg_note(1, 880);
+	do_psg_note(1, 880, 0);
 	jiffies = 0; /* ch0 が選ばれるが inactive, ch1 は active → early return without stop */
 	psg_tick();
 	KFS_ASSERT_TRUE(1);
@@ -182,9 +182,9 @@ KFS_TEST(test_psg_tick_inactive_but_other_active)
 KFS_TEST(test_psg_tick_noise_channel)
 {
 	/* ch3 はデフォルトで noise=1 に設定済み（psg_init 後） */
-	do_psg_note(PSG_CH_COUNT - 1, 500); /* ch3 を active に */
-	jiffies = PSG_CH_COUNT - 1;			/* ch3 が選ばれる */
-	psg_tick();							/* noise_lfsr_next() を呼ぶ */
+	do_psg_note(PSG_CH_COUNT - 1, 500, 0); /* ch3 を active に */
+	jiffies = PSG_CH_COUNT - 1;			   /* ch3 が選ばれる */
+	psg_tick();							   /* noise_lfsr_next() を呼ぶ */
 	KFS_ASSERT_TRUE(1);
 }
 
@@ -198,7 +198,7 @@ KFS_TEST(test_psg_tick_noise_lfsr_multiple_steps)
 {
 	int i;
 
-	do_psg_note(PSG_CH_COUNT - 1, 500);
+	do_psg_note(PSG_CH_COUNT - 1, 500, 0);
 	/* LFSR を複数ステップ進めて XOR 分岐をカバーする */
 	for (i = 0; i < 16; i++)
 	{

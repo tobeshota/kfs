@@ -210,7 +210,7 @@ static void cmd_beep(const char *args)
 	static unsigned long ustack[256];
 
 	printk("beep: %d Hz\n", freq);
-	do_psg_note(0, (uint32_t)freq);
+	do_psg_note(0, (uint32_t)freq, 0);
 	do_fork((unsigned long)beep_ring3_main, (unsigned long)(ustack + 256));
 	do_wait(NULL, 0);
 	do_psg_stop(0);
@@ -257,9 +257,9 @@ static void cmd_chord(void)
 {
 	static unsigned long ustack[256];
 
-	do_psg_note(0, 440); /* A4 */
-	do_psg_note(1, 330); /* E4 */
-	do_psg_note(2, 262); /* C4 */
+	do_psg_note(0, 440, 0); /* A4 */
+	do_psg_note(1, 330, 0); /* E4 */
+	do_psg_note(2, 262, 0); /* C4 */
 	printk("chord: A4+E4+C4 (2s)\n");
 	/* ring-3 の msleep() で 2 秒待機し，終了後に ring-0 でチャンネルを止める */
 	do_fork((unsigned long)chord_ring3_main, (unsigned long)(ustack + 256));
@@ -517,6 +517,18 @@ static void execute_command(const char *cmd)
 	if (strcmp(cmd, "daiku") == 0)
 	{
 		cmd_daiku();
+		return;
+	}
+
+	/* glitch コマンド: PSG 音切れ統計を表示 / リセット */
+	if (strcmp(cmd, "glitch reset") == 0)
+	{
+		psg_glitch_reset();
+		return;
+	}
+	if (strcmp(cmd, "glitch") == 0)
+	{
+		psg_glitch_stat();
 		return;
 	}
 

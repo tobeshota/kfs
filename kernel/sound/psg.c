@@ -25,9 +25,15 @@
  */
 
 #include <kfs/pcspkr.h>
+#include <kfs/printk.h>
 #include <kfs/psg.h>
+#include <kfs/sched.h>
+#include <kfs/timer.h>
 
 static volatile struct psg_channel psg_state[PSG_CH_COUNT];
+
+/** 最後に do_psg_note() を呼んだプロセスの PID（sched_ext の audio_ops が参照） */
+static volatile uint32_t psg_caller_pid = 0;
 
 /** TDM ローター: 次に試すチャンネル番号 */
 static volatile int psg_rotor = 0;
@@ -88,17 +94,29 @@ void psg_init(void)
 }
 
 /* 指定チャンネルで発音を開始する */
-void do_psg_note(int ch, uint32_t freq_hz)
+void do_psg_note(int ch, uint32_t freq_hz, uint32_t deadline_ms)
 {
 	if (ch < 0 || ch >= PSG_CH_COUNT)
 	{
 		return;
 	}
 
+	/* 呼び出し元 PID を記録（sched_ext audio_ops が参照） */
+	psg_caller_pid = (uint32_t)current->pid;
+
+	/* 音切れ検出: 前回設定した deadline を過ぎていたら glitch とみなす */
+	if (psg_state[ch].deadline_tick != 0 && jiffies > psg_state[ch].deadline_tick)
+	{
+		psg_state[ch].glitch_count++;
+		psg_state[ch].glitch_delay += jiffies - psg_state[ch].deadline_tick;
+	}
+
 	psg_state[ch].freq = freq_hz;
 	if (freq_hz != 0)
 	{
 		psg_state[ch].active = 1;
+		/* 新しい deadline_tick を記録 */
+		psg_state[ch].deadline_tick = (deadline_ms != 0) ? (jiffies + deadline_ms) : 0;
 		/* 現在このチャンネルがスロット中なら周波数を即時反映 */
 		if (ch == psg_current_ch && psg_slot_remaining > 0)
 		{
@@ -108,7 +126,7 @@ void do_psg_note(int ch, uint32_t freq_hz)
 	else
 	{
 		psg_state[ch].active = 0;
-		/* 現在このチャンネルがスロット中なら即座にスロットを終了させる */
+		psg_state[ch].deadline_tick = 0;
 		if (ch == psg_current_ch)
 		{
 			psg_slot_remaining = 0;
@@ -119,7 +137,7 @@ void do_psg_note(int ch, uint32_t freq_hz)
 /* 指定チャンネルを停止する */
 void do_psg_stop(int ch)
 {
-	do_psg_note(ch, 0);
+	do_psg_note(ch, 0, 0);
 }
 
 /** TDM ディスパッチャ
@@ -173,4 +191,34 @@ void psg_tick(void)
 
 	/* アクティブなチャンネルが 1 つもない → スピーカー停止 */
 	pcspkr_stop();
+}
+
+/* 各チャンネルの音切れ統計を表示する */
+void psg_glitch_stat(void)
+{
+	static const char *ch_name[PSG_CH_COUNT] = {"melody", "bass", "harmony", "noise"};
+	printk("PSG glitch statistics:\n");
+	for (int i = 0; i < PSG_CH_COUNT; i++)
+	{
+		printk("  ch%d (%s): %u glitches, %u ms total delay\n", i, ch_name[i], psg_state[i].glitch_count,
+			   psg_state[i].glitch_delay);
+	}
+}
+
+/* 全チャンネルの音切れカウンタをリセットする */
+void psg_glitch_reset(void)
+{
+	for (int i = 0; i < PSG_CH_COUNT; i++)
+	{
+		psg_state[i].glitch_count = 0;
+		psg_state[i].glitch_delay = 0;
+		psg_state[i].deadline_tick = 0;
+	}
+	printk("PSG glitch counters reset.\n");
+}
+
+/* 最後に do_psg_note() を呼んだプロセスの PID を返す（audio_ops 用） */
+uint32_t psg_get_caller_pid(void)
+{
+	return psg_caller_pid;
 }

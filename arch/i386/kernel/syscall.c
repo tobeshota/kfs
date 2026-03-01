@@ -188,10 +188,9 @@ static long do_sys_msleep(long arg1, long arg2, long arg3, long arg4, long arg5)
 
 static long do_sys_psg_note(long arg1, long arg2, long arg3, long arg4, long arg5)
 {
-	(void)arg3;
 	(void)arg4;
 	(void)arg5;
-	do_psg_note((int)arg1, (uint32_t)arg2);
+	do_psg_note((int)arg1, (uint32_t)arg2, (uint32_t)arg3);
 	return 0;
 }
 
