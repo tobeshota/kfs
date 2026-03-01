@@ -148,6 +148,12 @@ run-iso-bios: $(ISO_BIOS)
 run-kernel: $(KERNEL)
 	qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio $(QEMU_AUDIO)
 
+# ===== Fast dev loop (no ISO, no xz compression) =====
+# Image まで作って -kernel で直接起動．
+# grub-mkrescue --compress=xz をスキップするためmake runより速い．
+dev: $(KERNEL)
+	qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio $(QEMU_AUDIO)
+
 # QEMU上でUEFIで起動する
 # 備考: OVMFはQEMUパッケージ内に含まれる
 OVMF_FD ?= $(shell find /usr/share/ovmf /usr/share/OVMF /usr/share/qemu /opt/homebrew /usr/local \( -name "OVMF.fd" -o -name "edk2-x86_64-code.fd" \) 2>/dev/null | head -1)
@@ -180,4 +186,4 @@ fmt:
 doc:
 	@ make doc -C Documentation/
 
-.PHONY: all iso run run-iso-bios run-kernel run-iso-uefi clean fclean re ensure-image test unit integration coverage fmt doc
+.PHONY: all iso run run-iso-bios run-kernel run-iso-uefi dev clean fclean re ensure-image test unit integration coverage fmt doc
