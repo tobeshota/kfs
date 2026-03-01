@@ -39,16 +39,22 @@ pte_t *get_pte(unsigned long vaddr)
 }
 
 /** 仮想アドレスから対応するページテーブルを取得または作成する
- * @param vaddr 仮想アドレス
+ * @param vaddr  仮想アドレス
+ * @param flags  マッピングフラグ（_PAGE_USER を含む場合、PDE にも USER ビットを設定する）
  * @return ページテーブルへのポインタ、エラー時NULL
+ *
+ * @note x86 ページング仕様: PDE に _PAGE_USER がないと ring-3 はその 4MB 範囲全体に
+ *       アクセスできない（PTE の _PAGE_USER に関わらず）。ユーザ空間ページを
+ *       マップする場合は flags に _PAGE_USER を含めること。
  */
-static pte_t *get_or_create_page_table(unsigned long vaddr)
+static pte_t *get_or_create_page_table(unsigned long vaddr, unsigned long flags)
 {
 	int pde_idx;
 	pde_t *pde;
 	pte_t *pte_table;
 	struct page *page;
 	unsigned long pte_table_phys;
+	unsigned long pde_flags;
 
 	pde_idx = pgd_index(vaddr);
 	pde = &boot_page_directory[pde_idx];
@@ -56,6 +62,14 @@ static pte_t *get_or_create_page_table(unsigned long vaddr)
 	/* ページテーブルが既に存在する場合 */
 	if (pde_present(*pde))
 	{
+		/* 既存 PDE に USER ビットが不足していれば補完する
+		 * （同じ 4MB 範囲に先にカーネルページが作成された後でユーザページを
+		 *   追加する場合を想定） */
+		if ((flags & _PAGE_USER) && !pde_user(*pde))
+		{
+			*pde |= _PAGE_USER;
+			__flush_tlb();
+		}
 		pte_table_phys = pde_page(*pde);
 		return (pte_t *)__va(pte_table_phys);
 	}
@@ -68,14 +82,27 @@ static pte_t *get_or_create_page_table(unsigned long vaddr)
 		return NULL;
 	}
 
-	pte_table = (pte_t *)page;
+	/*
+	 * alloc_pages() は物理アドレスを返す。
+	 * - memset / PTE 操作には仮想アドレス(__va)を使う
+	 * - PDE への登録には物理アドレスをそのまま使う
+	 */
+	pte_table_phys = (unsigned long)page;
+	pte_table = (pte_t *)__va(pte_table_phys);
 
 	/* ページテーブルを初期化（全エントリをクリア） */
 	memset(pte_table, 0, PAGE_SIZE);
 
-	/* ページディレクトリエントリを設定（カーネル用、物理アドレスを使用） */
-	pte_table_phys = __pa((unsigned long)pte_table);
-	set_pde(pde, pte_table_phys, _PAGE_KERNEL);
+	/* PDE フラグ: Present + RW は必須。ユーザページをマップする場合は USER も追加。
+	 * PDE.USER=1 にしても PTE.USER=0 のページは ring-3 から保護されたまま。 */
+	pde_flags = _PAGE_KERNEL;
+	if (flags & _PAGE_USER)
+	{
+		pde_flags |= _PAGE_USER;
+	}
+
+	/* ページディレクトリエントリを設定（物理アドレスを使用） */
+	set_pde(pde, pte_table_phys, pde_flags);
 
 	return pte_table;
 }
@@ -141,8 +168,9 @@ int map_page_vmalloc(unsigned long vaddr, unsigned long paddr, unsigned long fla
 		return -1;
 	}
 
-	/* vaddrから対応するページテーブルを取得または作成する */
-	pte_table = get_or_create_page_table(vaddr);
+	/* vaddrから対応するページテーブルを取得または作成する
+	 * flags を渡すことで、ユーザページのマップ時に PDE にも USER ビットが設定される */
+	pte_table = get_or_create_page_table(vaddr, flags);
 	if (pte_table == NULL)
 	{
 		return -1;

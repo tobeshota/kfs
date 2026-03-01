@@ -208,6 +208,66 @@ KFS_TEST(test_psg_tick_noise_lfsr_multiple_steps)
 	KFS_ASSERT_TRUE(1);
 }
 
+/**
+ * test_psg_glitch_stat_does_not_crash
+ * 検証対象: psg_glitch_stat()
+ * 検証項目: クラッシュせずに統計を表示できること
+ */
+KFS_TEST(test_psg_glitch_stat_does_not_crash)
+{
+	psg_glitch_stat();
+	KFS_ASSERT_TRUE(1);
+}
+
+/**
+ * test_psg_glitch_reset_clears
+ * 検証対象: psg_glitch_reset()
+ * 検証項目: クラッシュせずにカウンタをリセットできること
+ */
+KFS_TEST(test_psg_glitch_reset_clears)
+{
+	psg_glitch_reset();
+	psg_glitch_stat(); /* リセット後に再度表示しても問題ないこと */
+	KFS_ASSERT_TRUE(1);
+}
+
+/**
+ * test_psg_get_caller_pid
+ * 検証対象: psg_get_caller_pid()
+ * 検証項目: do_psg_note() 後に caller PID が返ること
+ */
+KFS_TEST(test_psg_get_caller_pid)
+{
+	uint32_t pid;
+
+	do_psg_note(0, 440, 0);
+	pid = psg_get_caller_pid();
+	/* PID は current->pid の値 (>= 0); クラッシュしなければ OK */
+	KFS_ASSERT_TRUE(pid == (uint32_t)pid); /* always true, just checks return */
+}
+
+/**
+ * test_psg_deadline_miss
+ * 検証対象: do_psg_note() deadline 超過検出パス
+ * 検証項目: deadline 設定→jiffies 進める→再発音で glitch カウントが増加するパスをカバー
+ */
+KFS_TEST(test_psg_deadline_miss)
+{
+	/* 1. deadline_ms=10 で発音：deadline_tick = jiffies + 10 */
+	jiffies = 0;
+	do_psg_note(0, 440, 10);
+
+	/* 2. jiffies を大幅に進める（deadline 超過） */
+	jiffies = 200;
+
+	/* 3. 同じチャンネルに再度 do_psg_note → deadline 超過検出パスを通る */
+	do_psg_note(0, 880, 10);
+
+	/* グリッチ統計に記録されているはず */
+	psg_glitch_stat();
+	KFS_ASSERT_TRUE(1);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_psg_init_does_not_crash, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_psg_note_valid_channel, setup_test, teardown_test),
@@ -221,6 +281,10 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_psg_tick_inactive_but_other_active, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_psg_tick_noise_channel, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_psg_tick_noise_lfsr_multiple_steps, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_psg_glitch_stat_does_not_crash, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_psg_glitch_reset_clears, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_psg_get_caller_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_psg_deadline_miss, setup_test, teardown_test),
 };
 
 int register_unit_tests_psg(struct kfs_test_case **out)

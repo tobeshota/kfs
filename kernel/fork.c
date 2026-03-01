@@ -2,6 +2,7 @@
 #include <kfs/errno.h>
 #include <kfs/gfp.h>
 #include <kfs/mm.h>
+#include <kfs/mman.h>
 #include <kfs/pid.h>
 #include <kfs/printk.h>
 #include <kfs/rr.h>
@@ -62,6 +63,11 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	 * @note スタックの値は親プロセスから引き継がない（子プロセスは新しいスタックを使うため）
 	 */
 	tsk->stack = stack;
+
+	/* ユーザスタックは子プロセス固有に設定するため親の値を引き継がない
+	 * do_fork() / kernel_thread() が必要に応じて設定する */
+	tsk->user_stack_vm_start = 0;
+	tsk->user_stack_vm_len = 0;
 
 	return tsk;
 }
@@ -259,26 +265,134 @@ struct task_struct *copy_process(struct task_struct *orig)
 
 /** プロセスを誕生させる
  * @param user_eip 子が ring-3 で実行を開始するアドレス（0 なら親の pt_regs をコピー）
- * @param user_esp 子の ring-3 スタックポインタ（user_eip=0 なら無視）
  * @return 新しいプロセスのPID（成功）、負のエラーコード（失敗）
  * @note Linux 6.18のkernel_clone()相当。
- *       sys_fork() からは do_fork(0,0) で呼ぶ（親の pt_regs をコピー）。
- *       cmd_sched() 等からは do_fork(eip, esp) で呼ぶ（ring-3 直接起動）。
+ *       sys_fork() からは do_fork(0) で呼ぶ（親の pt_regs をコピー）。
+ *       cmd_sched() 等からは do_fork(eip) で呼ぶ（ring-3 直接起動）。
+ *       ユーザスタックは内部で do_mmap(MAP_ANONYMOUS) により動的確保する。
  */
-pid_t do_fork(unsigned long user_eip, unsigned long user_esp)
+pid_t do_fork(unsigned long user_eip)
 {
 	struct task_struct *p;
 	extern struct task_struct *current; /* 現在のプロセス */
+	unsigned long user_esp = 0;
+	void *ustack = MAP_FAILED;
+	const unsigned long STACK_SIZE = PAGE_SIZE; /* 4KB */
+
+	/* user_eip が指定された場合はユーザスタックを動的確保 */
+	if (user_eip != 0)
+	{
+		ustack = do_mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE);
+		if (ustack == MAP_FAILED)
+		{
+			printk(KERN_WARNING "do_fork: failed to allocate user stack\n");
+			return -ENOMEM;
+		}
+		/* スタックはアドレス高位から使うため末尾を渡す */
+		user_esp = (unsigned long)ustack + STACK_SIZE;
+	}
+	else if (current->user_stack_vm_start != 0)
+	{
+		/* sys_fork() 経由（user_eip=0）かつ親がユーザスタックを持つ場合は
+		 * 新しい物理ページを確保して内容をコピーする。
+		 * copy_page_tables() はページテーブルのみコピーし物理ページは共有するため、
+		 * 親が exit() して do_munmap() すると子のスタックが解放されてしまう。 */
+		unsigned long src_start = current->user_stack_vm_start;
+		unsigned long src_size = current->user_stack_vm_len ? current->user_stack_vm_len : STACK_SIZE;
+
+		ustack = do_mmap(NULL, src_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE);
+		if (ustack == MAP_FAILED)
+		{
+			printk(KERN_WARNING "do_fork: failed to copy user stack\n");
+			return -ENOMEM;
+		}
+		/* 親のスタック内容をコピー（shallow copy で十分: スタックデータをそのまま複製） */
+		memcpy(ustack, (void *)src_start, src_size);
+		/* user_esp は親の pt_regs を copy_thread がコピーするため変更不要。
+		 * ただし子の仮想アドレスは ustack から始まるため，
+		 * ESP のオフセット（src_esp - src_start）を新アドレス系に変換して渡す。
+		 * → copy_thread(user_eip=0) は親の pt_regs をそのまま使うため
+		 *   copy_thread 後に childregs->esp だけ付け替える必要がある。
+		 * ここでは user_esp_new を計算し copy_thread の後に適用する。 */
+	}
 
 	/* 現在のプロセスをコピー */
 	p = copy_process(current);
 	if (!p)
 	{
+		if (ustack != MAP_FAILED)
+		{
+			unsigned long sz = current->user_stack_vm_len ? current->user_stack_vm_len : STACK_SIZE;
+			do_munmap((unsigned long)ustack, sz);
+		}
 		return -EAGAIN;
+	}
+
+	/* 子プロセスにユーザスタック情報を記録（exit 時に do_munmap で解放するため） */
+	if (ustack != MAP_FAILED)
+	{
+		unsigned long sz =
+			(user_eip != 0) ? STACK_SIZE : (current->user_stack_vm_len ? current->user_stack_vm_len : STACK_SIZE);
+		p->user_stack_vm_start = (unsigned long)ustack;
+		p->user_stack_vm_len = sz;
 	}
 
 	/* コンテキストスイッチ用スタックフレームを設定 */
 	copy_thread(p, current, user_eip, user_esp);
+
+	/* sys_fork() 経由でスタックをコピーした場合：
+	 * copy_thread は親の pt_regs.esp をそのまま子にコピーしているが、
+	 * 子の新しいスタック仮想アドレスに ESP を付け替える */
+	if (user_eip == 0 && ustack != MAP_FAILED && current->user_stack_vm_start != 0)
+	{
+		struct pt_regs *childregs;
+		unsigned long src_start = current->user_stack_vm_start;
+		unsigned long src_size = p->user_stack_vm_len;
+		unsigned long old_esp;
+		unsigned long new_esp;
+
+		childregs = task_pt_regs(p);
+		old_esp = childregs->esp;
+		/* ESP のスタック先頭からのオフセットを保存し，新アドレス系でオフセットを再現 */
+		if (old_esp >= src_start && old_esp < src_start + src_size)
+		{
+			new_esp = (unsigned long)ustack + (old_esp - src_start);
+		}
+		else
+		{
+			/* フォールバック: 新スタックトップ */
+			new_esp = (unsigned long)ustack + src_size;
+		}
+		childregs->esp = new_esp;
+
+		/* EBP チェーンも旧アドレス系 → 新アドレス系に変換する。
+		 * memcpy でスタック内容をコピーしても saved EBP は旧スタック範囲
+		 * (src_start ~ src_start+src_size) を指したままのため、
+		 * *pte = 0 で旧 PTE をクリアした後に孫が EBP 経由でアクセスすると
+		 * ページフォルトが発生する。スタックを walk して旧→新に変換する。 */
+		unsigned long ebp = childregs->ebp;
+		unsigned long delta = (unsigned long)ustack - src_start;
+		int depth = 0;
+		/* childregs->ebp が旧スタック内なら新アドレスに変換 */
+		if (ebp >= src_start && ebp < src_start + src_size)
+		{
+			childregs->ebp = ebp + delta;
+			ebp = childregs->ebp;
+			/* EBP チェーンを辿って全 saved EBP を変換 */
+			while (depth < 64)
+			{
+				unsigned long *saved_ebp_ptr = (unsigned long *)ebp;
+				unsigned long saved_ebp = *saved_ebp_ptr;
+				if (saved_ebp < src_start || saved_ebp >= src_start + src_size)
+				{
+					break;
+				}
+				*saved_ebp_ptr = saved_ebp + delta;
+				ebp = *saved_ebp_ptr;
+				depth++;
+			}
+		}
+	}
 
 	/* 子プロセスをRRランキューに登録してスケジューリング可能にする */
 	rr_enqueue(p);

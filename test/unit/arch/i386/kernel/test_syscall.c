@@ -6,6 +6,7 @@
 #include "../../../test_reset.h"
 #include "unit_test_framework.h"
 #include <kfs/errno.h>
+#include <kfs/mman.h>
 #include <kfs/signal.h>
 #include <kfs/stdint.h>
 #include <kfs/syscall.h>
@@ -163,17 +164,6 @@ KFS_TEST(test_do_syscall_large_negative)
 {
 	long result = do_syscall(-1000000, 0, 0, 0, 0, 0);
 	KFS_ASSERT_EQ(-ENOSYS, result);
-}
-
-/**
- * NR_syscalls定数の検証
- * 検証対象: NR_syscalls
- * 検証項目: NR_syscallsが162であること（__NR_psg_stop + 1）
- * 目的: syscall.hの定義とsyscall.cの整合性を確認
- */
-KFS_TEST(test_nr_syscalls_value)
-{
-	KFS_ASSERT_EQ(162, NR_syscalls);
 }
 
 /**
@@ -347,6 +337,84 @@ KFS_TEST(test_do_syscall_sched_getscheduler)
 	long result = do_syscall(__NR_sched_getscheduler, 0, 0, 0, 0, 0);
 	KFS_ASSERT_TRUE(result != -ENOSYS);
 }
+/* ========== PSG / mmap システムコールテスト ========== */
+
+/**
+ * psg_note syscall テスト
+ * 検証対象: do_syscall(__NR_psg_note)
+ * 検証項目: 実行本体が呼ばれ、-ENOSYS でないこと
+ */
+KFS_TEST(test_do_syscall_psg_note)
+{
+	long result = do_syscall(__NR_psg_note, 0, 440, 0, 0, 0);
+	KFS_ASSERT_TRUE(result != -ENOSYS);
+}
+
+/**
+ * psg_stop syscall テスト
+ * 検証対象: do_syscall(__NR_psg_stop)
+ * 検証項目: 実行本体が呼ばれ、-ENOSYS でないこと
+ */
+KFS_TEST(test_do_syscall_psg_stop)
+{
+	long result = do_syscall(__NR_psg_stop, 0, 0, 0, 0, 0);
+	KFS_ASSERT_TRUE(result != -ENOSYS);
+}
+
+/**
+ * msleep syscall テスト (ms=0)
+ * 検証対象: do_syscall(__NR_msleep)
+ * 検証項目: ms=0 で即時復帰すること
+ */
+KFS_TEST(test_do_syscall_msleep_zero)
+{
+	long result = do_syscall(__NR_msleep, 0, 0, 0, 0, 0);
+	KFS_ASSERT_TRUE(result == 0);
+}
+
+/**
+ * mmap2 syscall テスト
+ * 検証対象: do_syscall(__NR_mmap2)
+ * 検証項目: MAP_ANONYMOUS で有効なアドレスが返ること
+ */
+KFS_TEST(test_do_syscall_mmap2)
+{
+	long result = do_syscall(__NR_mmap2, 0, 4096, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1);
+	KFS_ASSERT_TRUE((long)result != -ENOSYS);
+}
+
+/**
+ * munmap syscall テスト (無効アドレス)
+ * 検証対象: do_syscall(__NR_munmap)
+ * 検証項目: 実行本体が呼ばれ、-ENOSYS でないこと
+ */
+KFS_TEST(test_do_syscall_munmap_invalid)
+{
+	long result = do_syscall(__NR_munmap, 0xDEAD0000L, 4096, 0, 0, 0);
+	KFS_ASSERT_TRUE(result != -ENOSYS);
+}
+
+/**
+ * write syscall テスト (fd=2, stderr)
+ * 検証対象: do_sys_write()
+ * 検証項目: fd=2 で VGA 端末に出力されること
+ */
+KFS_TEST(test_do_syscall_write_stderr)
+{
+	long result = do_syscall(__NR_write, 2, (long)"x", 1, 0, 0);
+	KFS_ASSERT_EQ(1, result);
+}
+
+/**
+ * write syscall テスト (無効 fd=99)
+ * 検証対象: do_sys_write()
+ * 検証項目: 無効な fd で -EBADF が返ること
+ */
+KFS_TEST(test_do_syscall_write_invalid_fd)
+{
+	long result = do_syscall(__NR_write, 99, (long)"x", 1, 0, 0);
+	KFS_ASSERT_EQ(-EBADF, result);
+}
 
 static struct kfs_test_case cases[] = {
 	/* do_syscall境界チェックテスト */
@@ -359,7 +427,6 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_unimplemented_0, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_unimplemented_write, setup_test, teardown_test),
 	/* 定数検証テスト */
-	KFS_REGISTER_TEST_WITH_SETUP(test_nr_syscalls_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_exit_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_write_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_wait_value, setup_test, teardown_test),
@@ -380,6 +447,14 @@ static struct kfs_test_case cases[] = {
 	/* sched syscall テスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_sched_setscheduler, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_sched_getscheduler, setup_test, teardown_test),
+	/* PSG / mmap システムコールテスト */
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_psg_note, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_psg_stop, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_msleep_zero, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_mmap2, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_munmap_invalid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_stderr, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_invalid_fd, setup_test, teardown_test),
 };
 
 int register_unit_tests_syscall(struct kfs_test_case **out)

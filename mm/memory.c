@@ -18,6 +18,10 @@ struct vm_area_struct *vm_area_list = NULL;
 #define KERNEL_VM_START 0xD0000000 /* 3.25GB */
 #define KERNEL_VM_END 0xFFFFFFFF   /* 4GB */
 
+/* ユーザ仮想メモリの範囲（0〜3GB のユーザ空間内） */
+#define USER_VM_START 0x40000000UL /* 1GB: ユーザ mmap 開始 */
+#define USER_VM_END 0xBFFF0000UL   /* ~3GB: ユーザ空間終端 */
+
 /* 次に割り当て可能な仮想アドレス */
 static unsigned long next_vm_addr = KERNEL_VM_START;
 
@@ -140,7 +144,8 @@ void remove_vm_area(unsigned long addr)
 	}
 }
 
-/**
+/** カーネル空間の仮想アドレスを割り当てる
+ * @brief
  * 指定サイズの未使用仮想アドレス領域を見つける
  * First Fit方式で検索
  *
@@ -190,6 +195,64 @@ unsigned long get_unmapped_area(size_t len)
 	return 0;
 }
 
+/** ユーザ空間の仮想アドレスを割り当てる
+ * @brief
+ * 指定サイズのユーザ空間未使用仮想アドレス領域を確保する。
+ * VMA リストをスキャンして空き領域（ギャップ）を先頭から検索する方式。
+ * munmap で解放されたアドレスを再利用できるためアドレス空間の枯渇を防ぐ。
+ *
+ * @param len 必要なサイズ（バイト単位）
+ * @return 使用可能なユーザ仮想アドレス、見つからない場合は 0
+ */
+unsigned long get_unmapped_area_user(size_t len)
+{
+	struct vm_area_struct *vma;
+	unsigned long addr;
+
+	/* サイズをページ境界に切り上げ */
+	len = (len + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+	if (len == 0 || len > USER_VM_END - USER_VM_START)
+	{
+		return 0;
+	}
+
+	/* ユーザ仮想アドレス範囲内の空き領域をギャップスキャンで探す */
+	addr = USER_VM_START;
+	for (vma = vma_list; vma != NULL; vma = vma->vm_next)
+	{
+		/* ユーザ範囲より下の VMA はスキップ */
+		if (vma->vm_end <= USER_VM_START)
+		{
+			continue;
+		}
+		/* ユーザ範囲を超えた VMA は探索終了 */
+		if (vma->vm_start >= USER_VM_END)
+		{
+			break;
+		}
+		/* addr から vma->vm_start の間に len 分の空きがあれば確保 */
+		if (vma->vm_start >= addr + len)
+		{
+			return addr;
+		}
+		/* 次の候補を現 VMA の終端に進める */
+		if (vma->vm_end > addr)
+		{
+			addr = vma->vm_end;
+		}
+	}
+
+	/* リスト末尾以降に空きがあるか確認 */
+	if (addr + len <= USER_VM_END)
+	{
+		return addr;
+	}
+
+	printk(KERN_WARNING "get_unmapped_area_user: no space for %lu bytes in user range\n", (unsigned long)len);
+	return 0;
+}
+
 /**
  * テスト用: 仮想メモリ領域（VMA）を初期状態にリセット
  * @details
@@ -198,7 +261,7 @@ unsigned long get_unmapped_area(size_t len)
  *
  * リセット内容:
  * - vm_area_listをNULLに設定（全VMAを削除）
- * - 次に割り当て可能な仮想アドレスを初期位置に戻す
+ * - 次に割り当て可能な仮想アドレスを初期位置に戻す（カーネル・ユーザ両方）
  */
 void vm_reset_for_test(void)
 {

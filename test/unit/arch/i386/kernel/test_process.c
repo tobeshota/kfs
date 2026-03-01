@@ -291,9 +291,8 @@ static void lifecycle_in_ring3(void)
 
 KFS_TEST(test_process_lifecycle)
 {
-	static unsigned long ustack[256];
 	g_lifecycle_ran = 0;
-	run_in_ring3(lifecycle_in_ring3, ustack, 256);
+	run_in_ring3(lifecycle_in_ring3);
 	KFS_ASSERT_EQ(1, g_lifecycle_ran);
 }
 

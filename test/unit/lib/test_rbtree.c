@@ -232,7 +232,96 @@ static void test_rb_insert_color(void)
 
 	printk("rb_insert_color test passed\n");
 }
+/** rb_erase テスト: 両方の子があるノードは early return */
+static void test_rb_erase_both_children_early_return(void)
+{
+	struct rb_root root = RB_ROOT;
+	struct rb_node parent, left, right;
 
+	parent.__rb_parent_color = 0;
+	parent.rb_left = &left;
+	parent.rb_right = &right;
+	left.__rb_parent_color = (unsigned long)&parent;
+	left.rb_left = NULL;
+	left.rb_right = NULL;
+	right.__rb_parent_color = (unsigned long)&parent;
+	right.rb_left = NULL;
+	right.rb_right = NULL;
+	root.rb_node = &parent;
+
+	rb_erase(&parent, &root);
+	/* 両子ありは early return -> root.rb_node 変わらず */
+	KFS_ASSERT_TRUE(root.rb_node == &parent);
+}
+
+/** rb_erase テスト: 葉ノードを親の左から削除 */
+static void test_rb_erase_leaf_left_of_parent(void)
+{
+	struct rb_root root = RB_ROOT;
+	struct rb_node parent, leaf;
+
+	parent.__rb_parent_color = 0;
+	parent.rb_left = &leaf;
+	parent.rb_right = NULL;
+	leaf.__rb_parent_color = (unsigned long)&parent;
+	leaf.rb_left = NULL;
+	leaf.rb_right = NULL;
+	root.rb_node = &parent;
+
+	rb_erase(&leaf, &root);
+	KFS_ASSERT_TRUE(parent.rb_left == NULL);
+}
+
+/** rb_erase テスト: 葉ノードを親の右から削除 */
+static void test_rb_erase_leaf_right_of_parent(void)
+{
+	struct rb_root root = RB_ROOT;
+	struct rb_node parent, leaf;
+
+	parent.__rb_parent_color = 0;
+	parent.rb_left = NULL;
+	parent.rb_right = &leaf;
+	leaf.__rb_parent_color = (unsigned long)&parent;
+	leaf.rb_left = NULL;
+	leaf.rb_right = NULL;
+	root.rb_node = &parent;
+
+	rb_erase(&leaf, &root);
+	KFS_ASSERT_TRUE(parent.rb_right == NULL);
+}
+
+/** rb_erase テスト: 子なし・ルートノードを削除 */
+static void test_rb_erase_root_no_children(void)
+{
+	struct rb_root root = RB_ROOT;
+	struct rb_node node;
+
+	node.__rb_parent_color = 0;
+	node.rb_left = NULL;
+	node.rb_right = NULL;
+	root.rb_node = &node;
+
+	rb_erase(&node, &root);
+	KFS_ASSERT_TRUE(root.rb_node == NULL);
+}
+
+/** rb_erase テスト: 左子あり・ルートノードを削除 */
+static void test_rb_erase_root_with_left_child(void)
+{
+	struct rb_root root = RB_ROOT;
+	struct rb_node node, left_child;
+
+	node.__rb_parent_color = 0;
+	node.rb_left = &left_child;
+	node.rb_right = NULL;
+	left_child.__rb_parent_color = (unsigned long)&node;
+	left_child.rb_left = NULL;
+	left_child.rb_right = NULL;
+	root.rb_node = &node;
+
+	rb_erase(&node, &root);
+	KFS_ASSERT_TRUE(root.rb_node == &left_child);
+}
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_rb_node_structure, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_rb_root_initialization, setup_test, teardown_test),
@@ -242,6 +331,11 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_rb_parent_operations, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_rb_next, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_rb_insert_color, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_erase_both_children_early_return, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_erase_leaf_left_of_parent, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_erase_leaf_right_of_parent, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_erase_root_no_children, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_rb_erase_root_with_left_child, setup_test, teardown_test),
 };
 
 int register_unit_tests_rbtree(struct kfs_test_case **out)

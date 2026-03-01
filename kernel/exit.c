@@ -1,5 +1,6 @@
 #include <asm-i386/pgtable.h>
 #include <kfs/mm.h>
+#include <kfs/mman.h>
 #include <kfs/pid.h>
 #include <kfs/printk.h>
 #include <kfs/rr.h>
@@ -27,6 +28,14 @@ __attribute__((noreturn)) void do_exit(int code)
 
 	/* 終了中フラグを設定 */
 	tsk->flags |= PF_EXITING;
+
+	/* do_mmap で確保したユーザスタックを解放（物理ページ＋VMAノード） */
+	if (tsk->user_stack_vm_start != 0)
+	{
+		do_munmap(tsk->user_stack_vm_start, tsk->user_stack_vm_len);
+		tsk->user_stack_vm_start = 0;
+		tsk->user_stack_vm_len = 0;
+	}
 
 	/* メモリ記述子を解放（mm_struct） */
 	if (tsk->mm)

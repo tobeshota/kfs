@@ -181,6 +181,10 @@ struct task_struct
 	int exit_state;	 /* 終了遷移状態（EXIT_ZOMBIE/EXIT_DEAD） */
 	int exit_code;	 /* プロセス終了コード（do_wait()で親に返される） */
 	int exit_signal; /* 終了時に親に送るシグナル番号（通常SIGCHLD） */
+
+	/* ユーザスタック（do_mmap で確保した場合。exit 時に do_munmap で解放） */
+	unsigned long user_stack_vm_start; /* do_mmap が返した仮想アドレス（0=未確保） */
+	unsigned long user_stack_vm_len;   /* 確保サイズ（PAGE_SIZE 単位） */
 };
 
 /* 現在実行中のプロセス（kernel/sched/core.c で定義） */
@@ -208,7 +212,7 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next);
 
 /* fork/exec カーネル内部 API（kernel/fork.c で実装） */
 void fork_init(void);
-pid_t do_fork(unsigned long user_eip, unsigned long user_esp);
+pid_t do_fork(unsigned long user_eip);
 
 /* exec_fn（kernel/exec.c で実装） */
 void __attribute__((noreturn)) exec_fn(void (*fn)(void *), void *arg);

@@ -43,6 +43,7 @@ struct vm_area_struct *find_vma(unsigned long addr);
 int insert_vm_area(struct vm_area_struct *vma);
 void remove_vm_area(unsigned long addr);
 unsigned long get_unmapped_area(size_t len);
+unsigned long get_unmapped_area_user(size_t len);
 
 /* ページング関連関数 */
 int map_page_vmalloc(unsigned long vaddr, unsigned long paddr, unsigned long flags);

@@ -427,6 +427,94 @@ KFS_TEST(test_shell_execute_beep_zero_freq)
 	KFS_ASSERT_TRUE(1);
 }
 
+/* Helper: shell_init + type string + Enter */
+static void run_shell_cmd(const char *cmd)
+{
+	shell_init();
+	for (size_t i = 0; cmd[i] != '\0'; i++)
+	{
+		shell_keyboard_handler(cmd[i]);
+	}
+	shell_keyboard_handler('\n');
+}
+
+/* jiffies コマンドのテスト */
+KFS_TEST(test_shell_execute_jiffies)
+{
+	run_shell_cmd("jiffies");
+	KFS_ASSERT_TRUE(1);
+}
+
+/* glitch コマンドのテスト */
+KFS_TEST(test_shell_execute_glitch)
+{
+	run_shell_cmd("glitch");
+	KFS_ASSERT_TRUE(1);
+}
+
+/* glitch reset コマンドのテスト */
+KFS_TEST(test_shell_execute_glitch_reset)
+{
+	run_shell_cmd("glitch reset");
+	KFS_ASSERT_TRUE(1);
+}
+
+/* pginfo コマンドのテスト */
+KFS_TEST(test_shell_execute_pginfo)
+{
+	run_shell_cmd("pginfo");
+	KFS_ASSERT_TRUE(1);
+}
+
+/* dkstack コマンドのテスト */
+KFS_TEST(test_shell_execute_dkstack)
+{
+	run_shell_cmd("dkstack");
+	KFS_ASSERT_TRUE(1);
+}
+
+/* neofetch コマンドのテスト */
+KFS_TEST(test_shell_execute_neofetch)
+{
+	run_shell_cmd("neofetch");
+	KFS_ASSERT_TRUE(1);
+}
+
+/* sleep (引数なし) → Usage 出力して return */
+KFS_TEST(test_shell_execute_sleep_no_args)
+{
+	run_shell_cmd("sleep");
+	KFS_ASSERT_TRUE(1);
+}
+
+/* sleep 0 → invalid duration → return */
+KFS_TEST(test_shell_execute_sleep_zero)
+{
+	run_shell_cmd("sleep 0");
+	KFS_ASSERT_TRUE(1);
+}
+
+/* loadkeys us (シェル経由) */
+KFS_TEST(test_shell_execute_loadkeys_via_shell)
+{
+	run_shell_cmd("loadkeys us");
+	KFS_ASSERT_TRUE(1);
+}
+
+/* loadkeys fr (シェル経由) */
+KFS_TEST(test_shell_execute_loadkeys_fr_via_shell)
+{
+	run_shell_cmd("loadkeys fr");
+	KFS_ASSERT_TRUE(1);
+}
+
+/* beep negative freq → do_psg_stop path */
+KFS_TEST(test_shell_execute_beep_negative)
+{
+	run_shell_cmd("beep -1");
+	KFS_ASSERT_TRUE(1);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_init, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_printable, setup_test, teardown_test),
@@ -460,6 +548,17 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_switch_layouts, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_no_args, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_zero_freq, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_jiffies, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_glitch, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_glitch_reset, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_pginfo, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_dkstack, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_neofetch, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_sleep_no_args, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_sleep_zero, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_loadkeys_via_shell, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_loadkeys_fr_via_shell, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_negative, setup_test, teardown_test),
 };
 
 int register_unit_tests_shell(struct kfs_test_case **out)

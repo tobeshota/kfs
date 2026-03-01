@@ -14,10 +14,12 @@
 #define __NR_msleep 158
 #define __NR_psg_note 159
 #define __NR_psg_stop 160
-#define __NR_sigreturn 119 /* Linux i386 互换番号 */
+#define __NR_sigreturn 119 /* Linux i386 互換番号 */
+#define __NR_munmap 91	   /* Linux i386 互換番号 */
+#define __NR_mmap2 192	   /* Linux i386 互換番号（引数6本をレジスタで渡す版） */
 
 /* サポートするシステムコールの数 */
-#define NR_syscalls 162
+#define NR_syscalls 193
 
 /* システムコールのエントリポイント(entry.Sで定義) */
 extern void system_call(void);

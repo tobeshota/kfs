@@ -162,10 +162,8 @@ static void sched_ring3_main(void)
 
 static void cmd_sched(void)
 {
-	static unsigned long ustack[256];
-
 	/* ring-0 → ring-3 へ降りてスケジューリングループを実行し、終了を待つ */
-	do_fork((unsigned long)sched_ring3_main, (unsigned long)(ustack + 256));
+	do_fork((unsigned long)sched_ring3_main);
 	do_wait(NULL, 0);
 }
 
@@ -207,11 +205,9 @@ static void cmd_beep(const char *args)
 		printk("beep: stopped\n");
 		return;
 	}
-	static unsigned long ustack[256];
-
 	printk("beep: %d Hz\n", freq);
 	do_psg_note(0, (uint32_t)freq, 0);
-	do_fork((unsigned long)beep_ring3_main, (unsigned long)(ustack + 256));
+	do_fork((unsigned long)beep_ring3_main);
 	do_wait(NULL, 0);
 	do_psg_stop(0);
 }
@@ -221,8 +217,6 @@ static void chord_ring3_main(void)
 	msleep(2000);
 	exit(0);
 }
-
-static unsigned long daiku_stack[256];
 
 /** daiku の ring-3 ランチャー
  * fork() で孫プロセスを生成して daiku_main を exec_fn() で実行させ，
@@ -248,21 +242,19 @@ static void daiku_ring3(void)
 static void cmd_daiku(void)
 {
 	printk("daiku: playing Ode to Joy (Beethoven 9th, public domain) on PSG ch0+ch1...\n");
-	do_fork((unsigned long)daiku_ring3, (unsigned long)(daiku_stack + 256));
+	do_fork((unsigned long)daiku_ring3);
 	do_wait(NULL, 0); /* ランチャー（子）の終了を待つ。孫は PID1 が回収 */
 }
 
 /* chord コマンド: A4+E4+C4 の疑似和音を 2 秒間鳴らす（TDM デモ） */
 static void cmd_chord(void)
 {
-	static unsigned long ustack[256];
-
 	do_psg_note(0, 440, 0); /* A4 */
 	do_psg_note(1, 330, 0); /* E4 */
 	do_psg_note(2, 262, 0); /* C4 */
 	printk("chord: A4+E4+C4 (2s)\n");
 	/* ring-3 の msleep() で 2 秒待機し，終了後に ring-0 でチャンネルを止める */
-	do_fork((unsigned long)chord_ring3_main, (unsigned long)(ustack + 256));
+	do_fork((unsigned long)chord_ring3_main);
 	do_wait(NULL, 0);
 	do_psg_stop(0);
 	do_psg_stop(1);
@@ -291,8 +283,6 @@ static void sleep_ring3_main(void)
  */
 static void cmd_sleep(const char *args)
 {
-	static unsigned long ustack[256];
-
 	while (*args == ' ')
 	{
 		args++;
@@ -310,7 +300,7 @@ static void cmd_sleep(const char *args)
 	}
 	g_sleep_ms = (unsigned int)secs * 1000;
 	/* ring-3 へ降りて msleep() を呼ばせ，終了を待つ */
-	do_fork((unsigned long)sleep_ring3_main, (unsigned long)(ustack + 256));
+	do_fork((unsigned long)sleep_ring3_main);
 	do_wait(NULL, 0);
 }
 
