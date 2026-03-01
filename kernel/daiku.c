@@ -108,5 +108,4 @@ void daiku_main(void *arg)
 		psg_stop(0);
 		psg_stop(1);
 	}
-	exit(0);
 }
