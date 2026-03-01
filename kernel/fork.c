@@ -72,6 +72,35 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
  * @return 0（成功）、負のエラーコード（失敗）
  * @note COW（Copy On Write）はPhase 6で実装予定
  */
+
+/* リンカが生成するセクション境界シンボル（linker.ld で定義） */
+extern unsigned long __text_start;
+extern unsigned long __text_end;
+extern unsigned long __data_start;
+extern unsigned long __data_end;
+extern unsigned long __bss_start;
+extern unsigned long __bss_end;
+
+/** カーネルセクション境界を mm_struct に記録する
+ * @brief copy_mm() 内のカーネルコンテキストから呼ばれる。
+ *        Linux では binfmt_elf.c の load_elf_binary() が ELF ヘッダから設定するが、
+ *        kfs には ELF ローダがなく全プロセスが同一バイナリを共有するため
+ *        linker シンボルで静的に設定する。
+ */
+static void mm_set_kernel_sections(struct mm_struct *mm)
+{
+	if (!mm)
+	{
+		return;
+	}
+	mm->start_code = (unsigned long)&__text_start;
+	mm->end_code = (unsigned long)&__text_end;
+	mm->start_data = (unsigned long)&__data_start;
+	mm->end_data = (unsigned long)&__data_end;
+	mm->start_bss = (unsigned long)&__bss_start;
+	mm->end_bss = (unsigned long)&__bss_end;
+}
+
 static int copy_mm(struct task_struct *tsk, struct mm_struct *oldmm)
 {
 	struct mm_struct *mm;
@@ -94,6 +123,9 @@ static int copy_mm(struct task_struct *tsk, struct mm_struct *oldmm)
 
 	/* mm_structのメタデータをコピー */
 	memcpy(mm, oldmm, sizeof(*mm));
+
+	/* BSS/data/text セクション境界を設定 */
+	mm_set_kernel_sections(mm);
 
 	/* ページテーブルを複製（子プロセスのメモリ空間を親から分離） */
 	if (oldmm->pgd)
