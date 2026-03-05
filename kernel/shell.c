@@ -111,20 +111,10 @@ void cmd_loadkeys(const char *args)
 	}
 }
 
-/** sched コマンド用ワーカー: "-" を VGAとCOM1に書き込む */
-static void write_dash(void *arg)
+static void putchar(void *c)
 {
-	(void)arg;
-	write(1, "-", 1);
-	write(4, "-", 1);
-}
-
-/** sched コマンド用ワーカー: "_" を VGAとCOM1に書き込む */
-static void write_under(void *arg)
-{
-	(void)arg;
-	write(1, "_", 1);
-	write(4, "_", 1);
+	char ch = *(char *)c;
+	write(1, &ch, 1);
 }
 
 /** sched コマンド: ユーザ空間におけるプロセスのライフサイクルをテストする
@@ -147,14 +137,14 @@ static void sched_ring3_main(void)
 		{
 			/* 子プロセスのうち，
 			 * PIDが偶数の者は"-"を出力し，奇数の者は"_"を出力する */
-			exec_fn(i % 2 == 0 ? write_dash : write_under, NULL);
+			char c = (i % 2 == 0) ? '-' : '_';
+			exec_fn(putchar, &c);
 		}
 		/* 親プロセスは我が子の終了を待ち，
 		 * 終了した我が子を揮発させる */
 		wait(NULL);
 	}
 	write(1, "\n", 1);
-	write(4, "\n", 1);
 
 	/* 親プロセスが終了する */
 	exit(0);
