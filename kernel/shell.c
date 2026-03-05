@@ -111,16 +111,15 @@ void cmd_loadkeys(const char *args)
 	}
 }
 
-static void putchar(void *c)
+static void putstr(void *s)
 {
-	char ch = *(char *)c;
-	write(1, &ch, 1);
+	write(1, s, strlen(s));
 }
 
 /** sched コマンド: ユーザ空間におけるプロセスのライフサイクルをテストする
  * @brief ring-3において，プロセスがfork()で誕生し，exec_fn()で生まれ変わり，
  *        exit()で終了し，親のwait()によって揮発するまでの全過程が意図通りであることを確かめる．
- *        期待する出力: "- _ - _ - _ - _ - _ - _ - _ - _ - _ - _ \n"
+ *        期待する出力: "-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_\n"
  */
 static void sched_ring3_main(void)
 {
@@ -135,15 +134,14 @@ static void sched_ring3_main(void)
 		}
 		else if (pid == 0)
 		{
-			/* 子プロセスは”-”か”_”を出力する */
-			exec_fn(putchar, (void *)(i % 2 == 0 ? "-" : "_"));
+			/* 子プロセスは"-"を出力する */
+			exec_fn(putstr, (void *)"-");
 		}
 		else
 		{
-			/* 親プロセスは我が子の終了を待ち，
-			 * 終了した我が子を揮発させる */
+			/* 親プロセスは終了した子プロセスを回収後，"_"を出力する */
 			wait(NULL);
-			write(1, " ", 1);
+			write(1, "_", 1);
 		}
 	}
 	write(1, "\n", 1);
