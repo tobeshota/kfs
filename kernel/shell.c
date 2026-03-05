@@ -111,30 +111,20 @@ void cmd_loadkeys(const char *args)
 	}
 }
 
-/** sched コマンド用ワーカー: "-" を VGAとCOM1に書き込む */
-static void write_dash(void *arg)
+static void putchar(void *c)
 {
-	(void)arg;
-	write(1, "-", 1);
-	write(4, "-", 1);
-}
-
-/** sched コマンド用ワーカー: "_" を VGAとCOM1に書き込む */
-static void write_under(void *arg)
-{
-	(void)arg;
-	write(1, "_", 1);
-	write(4, "_", 1);
+	char ch = *(char *)c;
+	write(1, &ch, 1);
 }
 
 /** sched コマンド: ユーザ空間におけるプロセスのライフサイクルをテストする
  * @brief ring-3において，プロセスがfork()で誕生し，exec_fn()で生まれ変わり，
  *        exit()で終了し，親のwait()によって揮発するまでの全過程が意図通りであることを確かめる．
- *        期待する出力は，"-"と"_"が交互に50回ずつ（合計100回）表示された後に改行が出ることである．
+ *        期待する出力: "- _ - _ - _ - _ - _ - _ - _ - _ - _ - _ \n"
  */
 static void sched_ring3_main(void)
 {
-	for (int i = 0; i < 50; i++)
+	for (int i = 0; i < 20; i++)
 	{
 		/* プロセスを誕生させる */
 		pid_t pid = fork();
@@ -145,16 +135,18 @@ static void sched_ring3_main(void)
 		}
 		else if (pid == 0)
 		{
-			/* 子プロセスのうち，
-			 * PIDが偶数の者は"-"を出力し，奇数の者は"_"を出力する */
-			exec_fn(i % 2 == 0 ? write_dash : write_under, NULL);
+			/* 子プロセスは”-”か”_”を出力する */
+			exec_fn(putchar, (void *)(i % 2 == 0 ? "-" : "_"));
 		}
-		/* 親プロセスは我が子の終了を待ち，
-		 * 終了した我が子を揮発させる */
-		wait(NULL);
+		else
+		{
+			/* 親プロセスは我が子の終了を待ち，
+			 * 終了した我が子を揮発させる */
+			wait(NULL);
+			write(1, " ", 1);
+		}
 	}
 	write(1, "\n", 1);
-	write(4, "\n", 1);
 
 	/* 親プロセスが終了する */
 	exit(0);

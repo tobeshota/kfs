@@ -4,9 +4,11 @@
  */
 
 #include <kfs/capability.h>
+#include <kfs/console.h>
 #include <kfs/errno.h>
 #include <kfs/pid.h>
 #include <kfs/sched.h>
+#include <kfs/serial.h>
 #include <kfs/sys.h>
 #include <kfs/timer.h>
 
@@ -134,4 +136,39 @@ long sys_msleep(uint32_t ms)
 	}
 	schedule_timeout((long)ms);
 	return 0;
+}
+
+/** stdout/stderr への書き込みを VGA + COM1 の両方に tee する
+ * @param fd    1=stdout/2=stderr → VGA端末 + COM1 両方、4=COM1 のみ
+ * @param buf   書き込むバッファ
+ * @param count バイト数
+ * @return 書き込んだバイト数、エラー時負数
+ */
+long sys_write(int fd, const char *buf, size_t count)
+{
+	size_t i;
+
+	if (fd != 1 && fd != 2 && fd != 4)
+	{
+		return -EBADF;
+	}
+	if (!buf || count == 0)
+	{
+		return 0;
+	}
+	if (fd == 1 || fd == 2)
+	{
+		/* stdout/stderr: VGA端末 と COM1 の両方に出力（tee） */
+		for (i = 0; i < count; i++)
+		{
+			terminal_putchar(buf[i]);
+		}
+		serial_write(buf, count);
+	}
+	else
+	{
+		/* fd==4: COM1 のみ */
+		serial_write(buf, count);
+	}
+	return (long)count;
 }
