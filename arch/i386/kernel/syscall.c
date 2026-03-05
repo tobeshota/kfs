@@ -1,9 +1,7 @@
-#include <kfs/console.h>
 #include <kfs/errno.h>
 #include <kfs/mman.h>
 #include <kfs/printk.h>
 #include <kfs/psg.h>
-#include <kfs/serial.h>
 #include <kfs/signal.h>
 #include <kfs/stddef.h>
 #include <kfs/sys.h>
@@ -51,48 +49,16 @@ static long do_sys_sched_getscheduler(long arg1, long arg2, long arg3, long arg4
 typedef long (*syscall_fn_t)(long, long, long, long, long);
 
 /** write() システムコール
- * @param arg1 fd   1=stdout/2=stderr → VGA端末、4=シリアルCOM1
- * @param arg2 buf  書き込むデータのポインタ
+ * @param arg1 fd    1=stdout/2=stderr → VGA端末 + COM1 両方、4=COM1 のみ
+ * @param arg2 buf   書き込むデータのポインタ
  * @param arg3 count バイト数
  * @return 書き込んだバイト数、エラー時負数
  */
 static long do_sys_write(long arg1, long arg2, long arg3, long arg4, long arg5)
 {
-	int fd = (int)arg1;
-	const char *buf = (const char *)arg2;
-	size_t count = (size_t)arg3;
-	size_t i;
-
 	(void)arg4;
 	(void)arg5;
-
-	/* fdの妙合性を先に確認（bufを調べる前に行う） */
-	if (fd != 1 && fd != 2 && fd != 4)
-	{
-		return -EBADF;
-	}
-
-	if (!buf || count == 0)
-	{
-		return 0;
-	}
-
-	if (fd == 1 || fd == 2)
-	{
-		/* stdout / stderr → VGA端末に1文字ずつ出力 */
-		for (i = 0; i < count; i++)
-		{
-			terminal_putchar(buf[i]);
-		}
-		return (long)count;
-	}
-	if (fd == 4)
-	{
-		/* COM1シリアル → serial_write でバルク出力 */
-		serial_write(buf, count);
-		return (long)count;
-	}
-	return -EBADF;
+	return sys_write((int)arg1, (const char *)arg2, (size_t)arg3);
 }
 
 /** fork() システムコール
