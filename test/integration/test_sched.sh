@@ -5,7 +5,7 @@ set -Eeuo pipefail
 # cmd_sched() が ring-3 プロセスを 20 個 fork/exec_fn/wait ループし、
 # 子が'-'を、親が'_'を出力して改行で終わることを確認する。
 #
-# 期待出力（40文字）: -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
+# 期待出力（40文字）: -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
 
 if [[ -z "${LOG_FILE:-}" ]]; then
 	echo "ERROR: LOG_FILE not set (must be provided by integration_test.sh)" >&2
@@ -13,7 +13,7 @@ if [[ -z "${LOG_FILE:-}" ]]; then
 fi
 
 # 期待出力と完全一致する行が存在すること
-EXPECTED="-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_"
+EXPECTED="-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_"
 
 if grep -Fxq -- "$EXPECTED" "$LOG_FILE"; then
 	echo "Found expected sched output: $EXPECTED"
