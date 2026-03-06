@@ -172,11 +172,7 @@ static void test_pid_structure_initialization(void)
 	printk("PID structure initialization test passed\n");
 }
 
-/** 枯渇後にNULLが返ることを確かめる
- * スラブを満杉させて alloc_pid() が NULL を返すか確認する。
- * struct pid は kmalloc-32 キャッシュから割り当てられ，
- * テスト環境の初期ページ（1ページ = 128个）で必ず籏渇する。
- */
+/* pid_nr_free を 0 に設定して枯渇状態をシミュレートし、alloc_pid() が NULL を返すことを確認する */
 KFS_TEST(test_alloc_pid_returns_null_when_exhausted)
 {
 	int saved_nr_free;
