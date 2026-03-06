@@ -3,6 +3,8 @@
 #include <kfs/pid.h>
 #include <kfs/sched.h>
 
+/* テスト専用ヘルパー（test/unit/kernel/pid_test_helper.c） */
+extern int pid_set_nr_free_for_test(int val);
 /* 全テストで共通のセットアップ関数 */
 static void setup_test(void)
 {
@@ -170,12 +172,34 @@ static void test_pid_structure_initialization(void)
 	printk("PID structure initialization test passed\n");
 }
 
+/** 枯渇後にNULLが返ることを確かめる
+ * スラブを満杉させて alloc_pid() が NULL を返すか確認する。
+ * struct pid は kmalloc-32 キャッシュから割り当てられ，
+ * テスト環境の初期ページ（1ページ = 128个）で必ず籏渇する。
+ */
+KFS_TEST(test_alloc_pid_returns_null_when_exhausted)
+{
+	int saved_nr_free;
+
+	/* pidmap.nr_free を 0 に設定して枯渇状態をシミュレート */
+	saved_nr_free = pid_set_nr_free_for_test(0);
+
+	/* 枯渇状態では NULL が返ること */
+	KFS_ASSERT_TRUE(alloc_pid() == NULL);
+
+	/* 後続テストのために nr_free を復元 */
+	pid_set_nr_free_for_test(saved_nr_free);
+
+	printk("alloc_pid exhaustion test: NULL confirmed when nr_free=0\n");
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_alloc_pid_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_put_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_pid_exhaustion, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_pid_reference_counting, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_pid_structure_initialization, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_alloc_pid_returns_null_when_exhausted, setup_test, teardown_test),
 };
 
 int register_unit_tests_pid(struct kfs_test_case **out)

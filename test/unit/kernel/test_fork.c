@@ -283,6 +283,37 @@ KFS_TEST(test_kernel_thread_returns_pid)
 	KFS_ASSERT_TRUE(pid > 0);
 }
 
+/** do_fork() がスレッド上限到達時に -EAGAIN を返しパニックしないことを検証
+ *
+ * nr_threads を直接 max_threads に設定して上限到達状態をシミュレートし、
+ * copy_process() の nr_threads >= max_threads チェックが機能することを確認する。
+ * do_fork() が値を返せた = panic() の呼び出しがなかったことの証明。
+ * Linux 2.6.11 copy_process() の nr_threads >= max_threads チェックの動作確認。
+ *
+ * @note do_fork() をループで呼ぶと max_threads 個の実プロセスが生成されメモリを
+ *       食い尽くして NMI クラッシュする。nr_threads を直接操作することで1回のみで済む。
+ */
+KFS_TEST(test_do_fork_returns_negative_on_exhaustion)
+{
+	int saved_nr_threads;
+	pid_t result;
+
+	/* nr_threads を上限に設定して exhaustion 状態をシミュレート */
+	saved_nr_threads = nr_threads;
+	nr_threads = max_threads;
+
+	/* copy_process() の nr_threads >= max_threads チェックで即 NULL が返る */
+	result = do_fork(0);
+
+	/* -EAGAIN が返ること（ここに到達 = panic しなかった証明） */
+	KFS_ASSERT_TRUE(result < 0);
+
+	/* 後続テストのために nr_threads を復元 */
+	nr_threads = saved_nr_threads;
+
+	printk("do_fork exhaustion test: do_fork returned %d (max_threads=%d)\n", (int)result, max_threads);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_mm, setup_test, teardown_test),
@@ -292,6 +323,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_find_task_by_pid_not_found, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_fork_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_kernel_thread_returns_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_fork_returns_negative_on_exhaustion, setup_test, teardown_test),
 };
 
 int register_unit_tests_fork(struct kfs_test_case **out)
