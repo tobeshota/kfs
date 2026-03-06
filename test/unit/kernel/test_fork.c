@@ -12,6 +12,7 @@ extern struct task_struct *copy_process(struct task_struct *orig);
 extern pid_t do_fork(unsigned long user_eip);
 extern void fork_init(void);
 extern pid_t kernel_thread(void (*fn)(void));
+extern void release_task(struct task_struct *p);
 
 /* テスト用ヘルパー（kernel/sched/core.c） */
 extern struct task_struct *find_task_by_pid(pid_t pid);
@@ -64,12 +65,27 @@ static void setup_test(void)
 
 	/* fork初期化 */
 	fork_init();
+
+	/* 前テストが生成したプロセスによる nr_threads の汚染をリセット */
+	nr_threads = 0;
 }
 
 /* 全テストで共通のクリーンアップ関数 */
 static void teardown_test(void)
 {
-	/* 必要なら後処理（現在は空） */
+	/* テスト中に生成した全プロセスを回収する
+	 * （Linux の init が孤児プロセスを wait() で刈り取るのに相当）
+	 * release_task() が nr_threads-- とメモリ解放を行うので
+	 * 後続テストへの汚染を防げる */
+	struct list_head *pos, *tmp;
+	list_for_each_safe(pos, tmp, &task_list)
+	{
+		struct task_struct *tsk = list_entry(pos, struct task_struct, tasks);
+		if (tsk != &init_task)
+		{
+			release_task(tsk);
+		}
+	}
 }
 
 /** copy_process()の基本動作テスト */
@@ -283,6 +299,32 @@ KFS_TEST(test_kernel_thread_returns_pid)
 	KFS_ASSERT_TRUE(pid > 0);
 }
 
+/** fork 爆弾を実際に起こしてもカーネルがクラッシュしないことを確かめる
+ * @brief
+ * do_fork() を繰り返し呼び続け、負数が返るまでループする．
+ * 保護機構（nr_threads >= max_threads チェック）がなければ
+ * メモリを食い尽くして NMI でクラッシュし、このテストは完走できない．
+ * ここに到達できた = copy_process() の上限チェックが機能した証拠となる．
+ */
+KFS_TEST(test_fork_bomb)
+{
+	pid_t result;
+	int count = 0;
+
+	/* 実際に fork 爆弾を起こす．
+	 * 保護機構がなければここでクラッシュする */
+	do
+	{
+		result = do_fork(0);
+		count++;
+	} while (result >= 0);
+
+	/* ここに到達できた = クラッシュしなかった証明 */
+	KFS_ASSERT_TRUE(result < 0);
+
+	printk("fork bomb test: stopped after %d forks (max_threads=%d)\n", count - 1, max_threads);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_mm, setup_test, teardown_test),
@@ -292,6 +334,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_find_task_by_pid_not_found, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_fork_basic, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_kernel_thread_returns_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_fork_bomb, setup_test, teardown_test),
 };
 
 int register_unit_tests_fork(struct kfs_test_case **out)

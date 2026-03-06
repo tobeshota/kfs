@@ -19,6 +19,17 @@
  */
 struct kmem_cache *task_struct_cachep = NULL;
 
+/** 現在生存しているスレッド（プロセス）数
+ * @note copy_process() で ++ され，
+ *       release_task() で -- される
+ */
+int nr_threads = 0;
+
+/** fork bomb 防止の上限
+ * @note fork_init() で total_pages を元に計算される
+ */
+int max_threads;
+
 /** task_structを複製
  * @param orig コピー元のtask_struct
  * @return 新しいtask_struct（失敗時NULL）
@@ -192,6 +203,12 @@ struct task_struct *copy_process(struct task_struct *orig)
 	struct pid *pid;
 	int err;
 
+	/* fork bomb 防止：スレッド上限チェック */
+	if (nr_threads >= max_threads)
+	{
+		return NULL;
+	}
+
 	/* task_structを複製 */
 	p = dup_task_struct(orig);
 	if (!p)
@@ -256,6 +273,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 	/* グローバルタスクリストに追加 */
 	extern struct list_head task_list; /* kernel/sched/core.cのtask_list */
 	list_add_tail(&p->tasks, &task_list);
+	nr_threads++;
 
 	/* 新プロセスを実行可能状態に */
 	p->__state = TASK_RUNNING;
@@ -408,6 +426,18 @@ void __init fork_init(void)
 {
 	/* task_struct用スラブキャッシュを作成 */
 	task_struct_cachep = kmem_cache_create("task_struct", sizeof(struct task_struct));
+
+	/* fork bomb 防止の上限を計算
+	 * カーネルスタックには物理メモリの 1/64 までしか使わせない。
+	 * 残りは task_struct・mm_struct・ページテーブル等に確保する。 */
+	extern unsigned long total_pages;
+	unsigned long stack_pages_per_thread = THREAD_SIZE / PAGE_SIZE; /* 1スレッドのスタックに必要なページ数 */
+	unsigned long max_stack_pages = total_pages / 64; /* スタックに使ってよい最大ページ数 */
+	max_threads = (int)(max_stack_pages / stack_pages_per_thread); /* 上限スレッド数 */
+	if (max_threads < 1)
+	{
+		max_threads = 1;
+	}
 }
 
 /** 指定した関数をカーネル空間のプロセスとして実行する

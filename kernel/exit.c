@@ -117,6 +117,8 @@ void release_task(struct task_struct *p)
 
 	/* グローバルタスクリストから削除 */
 	list_del(&p->tasks);
+	extern int nr_threads;
+	nr_threads--;
 
 	/* 親の子リストから削除 */
 	list_del(&p->sibling);
