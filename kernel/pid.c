@@ -15,17 +15,14 @@
 static struct
 {
 	unsigned long page[PIDMAP_ENTRIES]; /* ビットマップページ（各ビットが1つのPIDを表す） */
+	int nr_free;						/* 空きPID数 */
 } pidmap = {
 	.page =
 		{
 			1,
 		}, /* PID 0は予約済み（init_task用） */
+	.nr_free = PID_MAX_DEFAULT - 1,
 };
-
-/** 空きPID数（test/ から extern で参照可能）
- * @note alloc_pid() で --、put_pid() で ++ される
- */
-int pid_nr_free = PID_MAX_DEFAULT - 1;
 
 /* PID割り当ての開始位置（0は予約済み） */
 static int last_pid = 0;
@@ -41,7 +38,7 @@ struct pid *alloc_pid(void)
 	int offset, bit, i;
 
 	/* 空きPIDがない */
-	if (pid_nr_free == 0)
+	if (pidmap.nr_free == 0)
 	{
 		return NULL;
 	}
@@ -71,7 +68,7 @@ struct pid *alloc_pid(void)
 	offset = pid_nr / (8 * sizeof(long));
 	bit = pid_nr % (8 * sizeof(long));
 	pidmap.page[offset] |= (1UL << bit);
-	pid_nr_free--;
+	pidmap.nr_free--;
 	last_pid = pid_nr;
 
 	/* pid構造体を割り当て */
@@ -80,7 +77,7 @@ struct pid *alloc_pid(void)
 	{
 		/* メモリ不足：PIDビットを戻す */
 		pidmap.page[offset] &= ~(1UL << bit);
-		pid_nr_free++;
+		pidmap.nr_free++;
 		return NULL;
 	}
 
@@ -127,7 +124,7 @@ void put_pid(struct pid *pid_struct)
 	offset = pid_nr / (8 * sizeof(long));
 	bit = pid_nr % (8 * sizeof(long));
 	pidmap.page[offset] &= ~(1UL << bit);
-	pid_nr_free++;
+	pidmap.nr_free++;
 
 	/* pid構造体を解放 */
 	kfree(pid_struct);
