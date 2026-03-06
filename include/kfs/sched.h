@@ -191,8 +191,7 @@ struct task_struct
 extern struct task_struct *current;
 
 /* fork bomb 防止カウンタ（kernel/fork.c で定義） */
-extern int nr_threads;	/* 現在のスレッド数 */
-extern int max_threads; /* fork bomb 防止の上限 */
+extern int nr_threads; /* 現在のスレッド数 */
 /* スケジューラ API（kernel/sched/core.c で実装） */
 int schedule(void); /* 1=context switched, 0=no switch */
 void scheduler_tick(void);

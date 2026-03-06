@@ -321,7 +321,7 @@ KFS_TEST(test_fork_bomb)
 
 	/* ここに到達できた = クラッシュしなかった証明 */
 	KFS_ASSERT_TRUE(result < 0);
-
+	extern int max_threads;
 	printk("fork bomb test: stopped after %d forks (max_threads=%d)\n", count - 1, max_threads);
 }
 
