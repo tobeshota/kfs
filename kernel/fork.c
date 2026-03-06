@@ -428,16 +428,12 @@ void __init fork_init(void)
 	task_struct_cachep = kmem_cache_create("task_struct", sizeof(struct task_struct));
 
 	/* fork bomb 防止の上限を計算
-	 * カーネルスタックには物理メモリの 1/8 までしか使わせない。
-	 * 残りの 7/8 は task_struct・mm_struct・ページテーブル等に確保する。 */
+	 * カーネルスタックには物理メモリの 1/64 までしか使わせない。
+	 * 残りは task_struct・mm_struct・ページテーブル等に確保する。 */
 	extern unsigned long total_pages;
 	unsigned long stack_pages_per_thread = THREAD_SIZE / PAGE_SIZE; /* 1スレッドのスタックに必要なページ数 */
-	unsigned long max_stack_pages = total_pages / 8;                /* スタックに使ってよい最大ページ数 */
-	max_threads = (int)(max_stack_pages / stack_pages_per_thread);  /* 上限スレッド数 */
-	if (max_threads < 1)
-	{
-		max_threads = 1;
-	}
+	unsigned long max_stack_pages = total_pages / 64; /* スタックに使ってよい最大ページ数 */
+	max_threads = (int)(max_stack_pages / stack_pages_per_thread); /* 上限スレッド数 */
 	if (max_threads < 1)
 	{
 		max_threads = 1;
