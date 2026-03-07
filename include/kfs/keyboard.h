@@ -6,6 +6,9 @@
 /* キーボードIRQ番号 */
 #define KEYBOARD_IRQ 1
 
+/* PS/2 スキャンコードは 7 ビット(0x00-0x7F)なのでテーブルサイズは 128 */
+#define KEYBOARD_SCANCODE_MAX 128
+
 /* キーボードレイアウト種別 */
 typedef enum
 {
