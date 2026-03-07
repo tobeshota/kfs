@@ -19,10 +19,18 @@ typedef enum
  */
 typedef int (*keyboard_handler_t)(char c);
 
+/** RAW スキャンコードハンドラ型
+ * @param code    キーコード（scancode & 0x7F）
+ * @param release 0=押下, 1=解放
+ * @return 1=処理済み（以降の通常処理をスキップ）, 0=通常処理に委譲
+ */
+typedef int (*keyboard_raw_handler_t)(uint8_t code, int release);
+
 void kfs_keyboard_init(void);
 void kfs_keyboard_reset(void);
 void kfs_keyboard_feed_scancode(uint8_t scancode);
 void kfs_keyboard_set_handler(keyboard_handler_t handler);
+void kfs_keyboard_set_raw_handler(keyboard_raw_handler_t handler);
 void kfs_keyboard_set_layout(kbd_layout_t layout);
 kbd_layout_t kfs_keyboard_get_layout(void);
 

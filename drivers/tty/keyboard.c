@@ -23,6 +23,9 @@ static int extended_prefix;
 /* カスタムキーボードハンドラ（シェルなどが登録する） */
 static keyboard_handler_t custom_handler = NULL;
 
+/* RAW スキャンコードハンドラ（piano モードなどが登録する） */
+static keyboard_raw_handler_t raw_handler = NULL;
+
 /* 現在のキーボードレイアウト */
 static kbd_layout_t current_layout = KBD_LAYOUT_QWERTY;
 
@@ -144,7 +147,16 @@ void kfs_keyboard_reset(void)
 	caps_lock = 0;
 	extended_prefix = 0;
 	custom_handler = NULL;
+	raw_handler = NULL;
 	current_layout = KBD_LAYOUT_QWERTY;
+}
+
+/** RAW スキャンコードハンドラを登録する
+ * @param handler press/release 両方を受け取るハンドラ。NULL で解除。
+ */
+void kfs_keyboard_set_raw_handler(keyboard_raw_handler_t handler)
+{
+	raw_handler = handler;
 }
 
 /** キーボードレイアウトを設定する
@@ -272,6 +284,13 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 
 	int release = (scancode & 0x80) != 0; /* scancodeの上位1ビット。キーの押下(0)または解放(1)を示すフラグ */
 	uint8_t code = scancode & 0x7F; /* scancodeの下位7ビット。対応するキーコード */
+
+	/* RAW ハンドラが登録されていれば先に呼ぶ (piano モードなど press/release 両方が必要な場合) */
+	if (raw_handler && raw_handler(code, release))
+	{
+		extended_prefix = 0;
+		return;
+	}
 
 	/* 特殊キーの処理 */
 	switch (code)
