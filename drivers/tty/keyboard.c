@@ -9,6 +9,9 @@
 /* @see https://wiki.osdev.org/I8042_PS/2_Controller */
 #define PS2_STATUS_PORT 0x64 /* PS/2 コントローラのペリフェラルから受け取るステータスレジスタのポート番号 */
 #define PS2_DATA_PORT 0x60 /* PS/2 コントローラのデータポート番号 */
+#define PS2_STATUS_OBF 0x01 /* Status Register: Output Buffer Full ビット。1 のとき DATA_PORT にデータあり */
+#define SCANCODE_RELEASE_BIT 0x80 /* スキャンコード上位1ビット: 0=押下, 1=解放 */
+#define SCANCODE_KEY_MASK 0x7F	  /* スキャンコード下位7ビット: キーコード本体 */
 
 static int left_shift;
 static int right_shift;
@@ -20,8 +23,18 @@ static int caps_lock;
  */
 static int extended_prefix;
 
-/* カスタムキーボードハンドラ（シェルなどが登録する） */
+/** カスタムキーボードハンドラ（シェルなどが登録する）
+ * @note レイアウト変換済み ASCII 文字・押下時のみ通知。
+ *       シェルのように「文字」として扱いたい用途に使う。
+ */
 static keyboard_handler_t custom_handler = NULL;
+
+/** RAW スキャンコードハンドラ（piano モードなどが登録する）
+ * @note 物理スキャンコード・押下と解放の両方を通知。
+ *       piano のように「どの物理キーが今押されているか」を
+ *       追跡する必要がある用途に使う。
+ */
+static keyboard_raw_handler_t raw_handler = NULL;
 
 /* 現在のキーボードレイアウト */
 static kbd_layout_t current_layout = KBD_LAYOUT_QWERTY;
@@ -29,7 +42,7 @@ static kbd_layout_t current_layout = KBD_LAYOUT_QWERTY;
 extern uint8_t kfs_io_inb(uint16_t port);
 
 /* QWERTY配列（US）- 通常キー */
-static const char scancode_map_qwerty_normal[128] = {
+static const char scancode_map_qwerty_normal[KEYBOARD_SCANCODE_MAX] = {
 	[0x02] = '1',  [0x03] = '2', [0x04] = '3',	[0x05] = '4', [0x06] = '5', [0x07] = '6',  [0x08] = '7',
 	[0x09] = '8',  [0x0A] = '9', [0x0B] = '0',	[0x0C] = '-', [0x0D] = '=', [0x0F] = '\t', [0x10] = 'q',
 	[0x11] = 'w',  [0x12] = 'e', [0x13] = 'r',	[0x14] = 't', [0x15] = 'y', [0x16] = 'u',  [0x17] = 'i',
@@ -40,7 +53,7 @@ static const char scancode_map_qwerty_normal[128] = {
 };
 
 /* QWERTY配列（US）- Shiftキー押下時 */
-static const char scancode_map_qwerty_shift[128] = {
+static const char scancode_map_qwerty_shift[KEYBOARD_SCANCODE_MAX] = {
 	[0x02] = '!', [0x03] = '@', [0x04] = '#', [0x05] = '$', [0x06] = '%', [0x07] = '^', [0x08] = '&', [0x09] = '*',
 	[0x0A] = '(', [0x0B] = ')', [0x0C] = '_', [0x0D] = '+', [0x10] = 'Q', [0x11] = 'W', [0x12] = 'E', [0x13] = 'R',
 	[0x14] = 'T', [0x15] = 'Y', [0x16] = 'U', [0x17] = 'I', [0x18] = 'O', [0x19] = 'P', [0x1A] = '{', [0x1B] = '}',
@@ -50,7 +63,7 @@ static const char scancode_map_qwerty_shift[128] = {
 };
 
 /* AZERTY配列（フランス語）- 通常キー */
-static const char scancode_map_azerty_normal[128] = {
+static const char scancode_map_azerty_normal[KEYBOARD_SCANCODE_MAX] = {
 	[0x02] = '&', [0x03] = 'e', [0x04] = '"', [0x05] = '\'', [0x06] = '(', [0x07] = '-',  [0x08] = 'e',
 	[0x09] = '_', [0x0A] = 'c', [0x0B] = 'a', [0x0C] = ')',	 [0x0D] = '=', [0x0F] = '\t', [0x10] = 'a',
 	[0x11] = 'z', [0x12] = 'e', [0x13] = 'r', [0x14] = 't',	 [0x15] = 'y', [0x16] = 'u',  [0x17] = 'i',
@@ -61,7 +74,7 @@ static const char scancode_map_azerty_normal[128] = {
 };
 
 /* AZERTY配列（フランス語）- Shiftキー押下時 */
-static const char scancode_map_azerty_shift[128] = {
+static const char scancode_map_azerty_shift[KEYBOARD_SCANCODE_MAX] = {
 	[0x02] = '1', [0x03] = '2', [0x04] = '3', [0x05] = '4', [0x06] = '5', [0x07] = '6', [0x08] = '7', [0x09] = '8',
 	[0x0A] = '9', [0x0B] = '0', [0x0C] = 'o', [0x0D] = '+', [0x10] = 'A', [0x11] = 'Z', [0x12] = 'E', [0x13] = 'R',
 	[0x14] = 'T', [0x15] = 'Y', [0x16] = 'U', [0x17] = 'I', [0x18] = 'O', [0x19] = 'P', [0x1A] = '"', [0x1B] = 'L',
@@ -144,7 +157,16 @@ void kfs_keyboard_reset(void)
 	caps_lock = 0;
 	extended_prefix = 0;
 	custom_handler = NULL;
+	raw_handler = NULL;
 	current_layout = KBD_LAYOUT_QWERTY;
+}
+
+/** RAW スキャンコードハンドラを登録する
+ * @param handler press/release 両方を受け取るハンドラ。NULL で解除。
+ */
+void kfs_keyboard_set_raw_handler(keyboard_raw_handler_t handler)
+{
+	raw_handler = handler;
 }
 
 /** キーボードレイアウトを設定する
@@ -190,7 +212,7 @@ void kfs_keyboard_init(void)
 	/** キーボードからの出力バッファ(CPUにとっては入力バッファ)を読み捨てる
 	 * @see https://wiki.osdev.org/I8042_PS/2_Controller
 	 */
-	while (kfs_io_inb(PS2_STATUS_PORT) & 0x01)
+	while (kfs_io_inb(PS2_STATUS_PORT) & PS2_STATUS_OBF)
 	{
 		(void)kfs_io_inb(PS2_DATA_PORT);
 	}
@@ -270,8 +292,15 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		return;
 	}
 
-	int release = (scancode & 0x80) != 0; /* scancodeの上位1ビット。キーの押下(0)または解放(1)を示すフラグ */
-	uint8_t code = scancode & 0x7F; /* scancodeの下位7ビット。対応するキーコード */
+	int release = (scancode & SCANCODE_RELEASE_BIT) != 0; /* 上位1ビットが1なら解放イベント */
+	uint8_t code = scancode & SCANCODE_KEY_MASK;		  /* 下位7ビットがキーコード本体 */
+
+	/* RAW ハンドラが登録されていれば先に呼ぶ (piano モードなど press/release 両方が必要な場合) */
+	if (raw_handler && raw_handler(code, release))
+	{
+		extended_prefix = 0;
+		return;
+	}
 
 	/* 特殊キーの処理 */
 	switch (code)

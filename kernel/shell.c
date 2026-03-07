@@ -4,6 +4,7 @@
 #include <kfs/keyboard.h>
 #include <kfs/neofetch.h>
 #include <kfs/panic.h>
+#include <kfs/piano.h>
 #include <kfs/printk.h>
 #include <kfs/psg.h>
 #include <kfs/reboot.h>
@@ -24,11 +25,13 @@
 /* シェルの状態を保持する構造体 */
 static struct
 {
-	char cmd_buffer[CMD_BUFFER_SIZE]; /* 入力されたコマンド文字列を格納 */
-	size_t cmd_len;					  /* 現在のコマンド長 */
-	size_t prompt_row;				  /* プロンプトが表示されている行 */
-	size_t prompt_col;				  /* プロンプト終了後のカーソル位置（入力開始位置） */
-	int initialized;				  /* 初期化済みフラグ */
+	char cmd_buffer[CMD_BUFFER_SIZE];  /* 入力されたコマンド文字列を格納 */
+	size_t cmd_len;					   /* 現在のコマンド長 */
+	size_t prompt_row;				   /* プロンプトが表示されている行 */
+	size_t prompt_col;				   /* プロンプト終了後のカーソル位置（入力開始位置） */
+	int initialized;				   /* 初期化済みフラグ */
+	int cmd_ready;					   /* コマンド実行待ちフラグ（IRQ外で処理するため） */
+	char pending_cmd[CMD_BUFFER_SIZE]; /* 実行待ちコマンド文字列 */
 } shell_state;
 
 /* プロンプトを表示する。ユーザに入力待機状態を示すために必要 */
@@ -533,6 +536,13 @@ static void execute_command(const char *cmd)
 		return;
 	}
 
+	/* piano コマンド: PSG エミュレータをピアノとして演奏する */
+	if (strcmp(cmd, "piano") == 0)
+	{
+		cmd_piano();
+		return;
+	}
+
 	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
 	printk("Unknown command: %s\n", cmd);
 }
@@ -586,15 +596,21 @@ int shell_keyboard_handler(char c)
 		return 1; /* 処理した */
 	}
 
-	/* 改行の場合はコマンドを実行 */
+	/* 改行の場合はコマンド実行フラグを立てる。
+	 * keyboard IRQ コンテキスト外で execute_command を呼ぶことで、
+	 * beep/sleep/chord など do_fork + do_wait を使うコマンドが
+	 * IRQ ハンドラ内でブロックして EOI が送れなくなる問題を防ぐ。 */
 	if (c == '\n' || c == '\r')
 	{
 		printk("\n");
-		/* NULL終端を確実にする */
 		shell_state.cmd_buffer[shell_state.cmd_len] = '\0';
-		execute_command(shell_state.cmd_buffer);
+		/* pending_cmd にコピーしてフラグを立てる */
+		for (size_t i = 0; i <= shell_state.cmd_len; i++)
+		{
+			shell_state.pending_cmd[i] = shell_state.cmd_buffer[i];
+		}
 		clear_command_buffer();
-		show_prompt();
+		shell_state.cmd_ready = 1;
 		return 1; /* 処理した */
 	}
 
@@ -701,6 +717,21 @@ __attribute__((weak)) void shell_run(void)
 		{
 			/* シリアルからの入力を処理（キーボードハンドラを再利用） */
 			shell_keyboard_handler((char)c);
+		}
+
+		/*
+		 * keyboard IRQ コンテキストの外でコマンドを実行する。
+		 * shell_keyboard_handler が '\n' を受け取ると cmd_ready = 1 にして
+		 * すぐに return する（IRQ ハンドラを解放して EOI を送信させる）。
+		 * do_fork + do_wait を使うコマンドは
+		 * IRQ コンテキストでブロックすると次の keyboard IRQ が届かなくなるため、
+		 * schedule() で一度 CPU を譲ってからこのメインループで実行する。
+		 */
+		if (shell_state.cmd_ready)
+		{
+			shell_state.cmd_ready = 0;
+			execute_command(shell_state.pending_cmd);
+			show_prompt();
 		}
 
 		/* CPU を他タスクへ譲る（hlt は cpu_idle_loop() で行う） */
