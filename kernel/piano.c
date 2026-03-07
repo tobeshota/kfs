@@ -106,7 +106,7 @@ static void retrigger_held_keys(void)
  * PSG レジスタを直接操作するだけで済むため、ブロックや sleep は不要。
  * 戻り値 1 は「このスキャンコードを通常の ASCII 変換処理に渡さない」を意味する。
  */
-static int piano_raw_handler(uint8_t code, int release)
+int piano_raw_handler(uint8_t code, int release)
 {
 	uint32_t freq;
 	int ch;
@@ -248,4 +248,9 @@ void cmd_piano(void)
 	}
 
 	printk("piano: bye.\n");
+}
+
+int piano_is_active(void)
+{
+	return piano_active;
 }
