@@ -79,7 +79,7 @@ KFS_TEST(test_piano_handler_assigned_key_press_returns_1)
  */
 KFS_TEST(test_piano_handler_assigned_key_release_returns_1)
 {
-	piano_raw_handler(0x1E, 0); /* 'a' press */
+	piano_raw_handler(0x1E, 0);				 /* 'a' press */
 	int result = piano_raw_handler(0x1E, 1); /* 'a' release */
 	KFS_ASSERT_EQ(1, result);
 }
@@ -211,10 +211,10 @@ KFS_TEST(test_piano_handler_three_keys_no_crash)
  */
 KFS_TEST(test_piano_handler_shift_then_key_no_crash)
 {
-	piano_raw_handler(0x2A, 0); /* shift press */
+	piano_raw_handler(0x2A, 0);					  /* shift press */
 	KFS_ASSERT_EQ(1, piano_raw_handler(0x1E, 0)); /* a press (1オクターブ下) */
 	KFS_ASSERT_EQ(1, piano_raw_handler(0x1E, 1)); /* a release */
-	piano_raw_handler(0x2A, 1); /* shift release */
+	piano_raw_handler(0x2A, 1);					  /* shift release */
 	KFS_ASSERT_EQ(1, 1);
 }
 
@@ -226,29 +226,29 @@ KFS_TEST(test_piano_handler_shift_then_key_no_crash)
  */
 KFS_TEST(test_piano_handler_space_then_key_no_crash)
 {
-	piano_raw_handler(0x39, 0); /* space press */
+	piano_raw_handler(0x39, 0);					  /* space press */
 	KFS_ASSERT_EQ(1, piano_raw_handler(0x1E, 0)); /* a press (1オクターブ上) */
 	KFS_ASSERT_EQ(1, piano_raw_handler(0x1E, 1)); /* a release */
-	piano_raw_handler(0x39, 1); /* space release */
+	piano_raw_handler(0x39, 1);					  /* space release */
 	KFS_ASSERT_EQ(1, 1);
 }
 
 /* テストケースの登録 */
 static struct kfs_test_case cases[] = {
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_escape_press_returns_1,    setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_escape_release_returns_1,  setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_assigned_key_press_returns_1,   setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_escape_press_returns_1, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_escape_release_returns_1, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_assigned_key_press_returns_1, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_assigned_key_release_returns_1, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_unassigned_key_returns_1,  setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_shift_left_returns_1,      setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_enter_returns_1,           setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_space_returns_1,           setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_active_after_escape_press,         setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_double_press_no_crash,     setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_unassigned_key_returns_1, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_shift_left_returns_1, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_enter_returns_1, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_space_returns_1, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_active_after_escape_press, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_double_press_no_crash, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_press_release_press_no_crash, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_three_keys_no_crash,       setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_shift_then_key_no_crash,   setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_space_then_key_no_crash,   setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_three_keys_no_crash, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_shift_then_key_no_crash, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_piano_handler_space_then_key_no_crash, setup_test, teardown_test),
 };
 
 int register_unit_tests_piano(struct kfs_test_case **out)

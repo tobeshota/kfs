@@ -8,10 +8,10 @@
 
 /* @see https://wiki.osdev.org/I8042_PS/2_Controller */
 #define PS2_STATUS_PORT 0x64 /* PS/2 コントローラのペリフェラルから受け取るステータスレジスタのポート番号 */
-#define PS2_DATA_PORT   0x60 /* PS/2 コントローラのデータポート番号 */
-#define PS2_STATUS_OBF  0x01 /* Status Register: Output Buffer Full ビット。1 のとき DATA_PORT にデータあり */
+#define PS2_DATA_PORT 0x60 /* PS/2 コントローラのデータポート番号 */
+#define PS2_STATUS_OBF 0x01 /* Status Register: Output Buffer Full ビット。1 のとき DATA_PORT にデータあり */
 #define SCANCODE_RELEASE_BIT 0x80 /* スキャンコード上位1ビット: 0=押下, 1=解放 */
-#define SCANCODE_KEY_MASK    0x7F /* スキャンコード下位7ビット: キーコード本体 */
+#define SCANCODE_KEY_MASK 0x7F	  /* スキャンコード下位7ビット: キーコード本体 */
 
 static int left_shift;
 static int right_shift;
@@ -293,7 +293,7 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 	}
 
 	int release = (scancode & SCANCODE_RELEASE_BIT) != 0; /* 上位1ビットが1なら解放イベント */
-	uint8_t code = scancode & SCANCODE_KEY_MASK;           /* 下位7ビットがキーコード本体 */
+	uint8_t code = scancode & SCANCODE_KEY_MASK;		  /* 下位7ビットがキーコード本体 */
 
 	/* RAW ハンドラが登録されていれば先に呼ぶ (piano モードなど press/release 両方が必要な場合) */
 	if (raw_handler && raw_handler(code, release))
