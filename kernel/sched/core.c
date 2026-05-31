@@ -1,4 +1,5 @@
 #include <kfs/list.h>
+#include <kfs/errno.h>
 #include <kfs/mm_types.h>
 #include <kfs/pid.h>
 #include <kfs/printk.h>
@@ -117,6 +118,32 @@ struct task_struct *find_task_by_pid(pid_t pid)
 	}
 
 	return NULL;
+}
+
+/** 全タスクを走査する
+ * @param fn 各 task_struct に対するコールバック
+ * @param ctx コールバックへ渡す任意データ
+ * @return 0=全件走査完了, 負数=エラー, 正数=コールバックが返した中断コード
+ */
+int task_for_each(int (*fn)(struct task_struct *task, void *ctx), void *ctx)
+{
+	struct task_struct *task;
+
+	if (!fn)
+	{
+		return -EINVAL;
+	}
+
+	list_for_each_entry(task, &task_list, tasks)
+	{
+		int ret = fn(task, ctx);
+		if (ret)
+		{
+			return ret;
+		}
+	}
+
+	return 0;
 }
 
 /** スケジューラを初期化する
