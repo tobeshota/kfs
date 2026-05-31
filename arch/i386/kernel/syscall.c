@@ -147,9 +147,9 @@ static long do_sys_prctl(long arg1, long arg2, long arg3, long arg4, long arg5)
 	(void)arg3;
 	(void)arg4;
 	(void)arg5;
-	return (long)sys_prctl((int)arg1, (unsigned long)arg2, (unsigned long)arg3, (unsigned long)arg4, (unsigned long)arg5);
+	return (long)sys_prctl((int)arg1, (unsigned long)arg2, (unsigned long)arg3, (unsigned long)arg4,
+						   (unsigned long)arg5);
 }
-
 
 /** msleep(ms) システムコール
  * @param arg1 スリープ時間 [ミリ秒]
@@ -189,7 +189,6 @@ static long do_sys_ps_snapshot(long arg1, long arg2, long arg3, long arg4, long 
 	(void)arg5;
 	return (long)sys_ps_snapshot((struct kfs_ps_entry *)arg1, (size_t)arg2);
 }
-
 
 /** sigreturn() システムコール
  * @brief ring-3 シグナルハンドラが return した後、sigreturn()（lib/unistd.c）から呼ばれる

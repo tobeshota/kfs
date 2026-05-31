@@ -1,15 +1,15 @@
 #include <kfs/capability.h>
 #include <kfs/console.h>
 #include <kfs/errno.h>
-#include <kfs/ps.h>
+#include <kfs/list.h>
 #include <kfs/pid.h>
+#include <kfs/prctl.h>
+#include <kfs/ps.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
+#include <kfs/string.h>
 #include <kfs/sys.h>
 #include <kfs/timer.h>
-#include <kfs/string.h>
-#include <kfs/prctl.h>
-#include <kfs/list.h>
 
 /** @brief task_struct の状態から ps 表示用の1文字を返す
  * @param task 対象の task_struct

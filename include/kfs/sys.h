@@ -2,8 +2,8 @@
 #define _KFS_SYS_H
 
 #include <kfs/capability.h>
-#include <kfs/sched.h>
 #include <kfs/ps.h>
+#include <kfs/sched.h>
 
 int sys_getuid(void);
 int sys_setuid(uid_t uid);

@@ -1,5 +1,5 @@
 #include <kfs/pid.h>	 /* pid_t */
-#include <kfs/ps.h>	 /* struct kfs_ps_entry */
+#include <kfs/ps.h>		 /* struct kfs_ps_entry */
 #include <kfs/sched.h>	 /* uid_t */
 #include <kfs/signal.h>	 /* sighandler_t */
 #include <kfs/syscall.h> /* __NR_fork, __NR_exit, __NR_wait */
