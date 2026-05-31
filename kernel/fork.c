@@ -443,10 +443,11 @@ void __init fork_init(void)
 /** 指定した関数をカーネル空間のプロセスとして実行する
  * @brief copy_thread_with_fn() が fork_frame.ebx = fn を設定することで
  *        ret_from_fork がカーネルスレッドパス（call *%%ebx）へ分岐する。
+ * @param name プロセス名
  * @param fn 新プロセスで実行するカーネル関数
  * @return 子PID（成功）、負数（失敗）
  */
-pid_t kernel_thread(void (*fn)(void))
+pid_t kernel_thread(void (*fn)(void), const char *name)
 {
 	extern void copy_thread_with_fn(struct task_struct * p, void (*fn)(void));
 	struct task_struct *p;
@@ -455,6 +456,13 @@ pid_t kernel_thread(void (*fn)(void))
 	if (!p)
 	{
 		return -EAGAIN;
+	}
+
+	/* プロセス名を設定 */
+	if (name)
+	{
+		strncpy(p->comm, name, sizeof(p->comm) - 1);
+		p->comm[sizeof(p->comm) - 1] = '\0';
 	}
 
 	/* fork_frame.ebx = fn を設定

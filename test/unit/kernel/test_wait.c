@@ -30,7 +30,7 @@ extern struct task_struct init_task;
 
 /* 初期化関数 */
 extern void fork_init(void);
-extern pid_t kernel_thread(void (*fn)(void));
+extern pid_t kernel_thread(void (*fn)(void), const char *name);
 extern void pid_init(void);
 extern void init_idle_task(void);
 
@@ -82,7 +82,7 @@ KFS_TEST(test_do_wait_zombie_child)
 	int status = 0;
 	pid_t child_pid, ret;
 
-	child_pid = kernel_thread(fn_exit_42);
+	child_pid = kernel_thread(fn_exit_42, NULL);
 	KFS_ASSERT_TRUE(child_pid > 0);
 
 	/* do_wait が schedule() で子を実行させ、子がゾンビになった後に回収 */
@@ -100,7 +100,7 @@ KFS_TEST(test_do_wait_null_wstatus)
 {
 	pid_t child_pid, ret;
 
-	child_pid = kernel_thread(fn_exit_0);
+	child_pid = kernel_thread(fn_exit_0, NULL);
 	KFS_ASSERT_TRUE(child_pid > 0);
 
 	/* wstatus = NULL でも segfault しないこと */
@@ -118,7 +118,7 @@ KFS_TEST(test_sys_wait_basic)
 	pid_t child_pid, ret;
 
 	/* sys_exit(7) → do_exit((7 & 0xff) << 8) → wstatus = 7 << 8 */
-	child_pid = kernel_thread(fn_sys_exit_7);
+	child_pid = kernel_thread(fn_sys_exit_7, NULL);
 	KFS_ASSERT_TRUE(child_pid > 0);
 
 	ret = sys_wait(&status);
