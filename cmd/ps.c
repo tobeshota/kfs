@@ -1,18 +1,38 @@
-#include <kfs/pid.h>
-#include <kfs/stddef.h>
+#include <kfs/errno.h>
+#include <kfs/printk.h>
+#include <kfs/ps.h>
+#include <kfs/unistd.h>
 
-#define KFS_PS_TTY_LEN 16
-#define KFS_PS_TIME_LEN 16
-#define KFS_PS_STAT_LEN 8
-#define KFS_PS_CMD_LEN 128
-
-/* ps がユーザー空間で保持する表示用レコード */
-struct kfs_ps_entry
+/** ps コマンド（ユーザランド）エントリ
+ * @brief Phase1 の骨組み。`ps_snapshot` を呼んで1件だけ取得する。
+ * @details 後続コミットで引数解析・複数件取得・整形表示を追加する予定。
+ */
+void cmd_ps(void)
 {
-	pid_t pid;
-	pid_t ppid;
-	char tty[KFS_PS_TTY_LEN];
-	char time[KFS_PS_TIME_LEN];
-	char stat[KFS_PS_STAT_LEN];
-	char cmd[KFS_PS_CMD_LEN];
-};
+	/* 最大取得件数（スタック上確保） */
+	enum
+	{
+		MAX_PS = 64,
+	};
+	struct kfs_ps_entry entries[MAX_PS];
+
+	long n = ps_snapshot(entries, MAX_PS);
+	if (n < 0)
+	{
+		printk("ps: snapshot failed\n");
+		return;
+	}
+
+	/* ヘッダ（無指定モード） */
+	printk("PID   TTY      TIME  CMD\n");
+
+	for (long i = 0; i < n; i++)
+	{
+		struct kfs_ps_entry *e = &entries[i];
+		/* フォーマット: PID  TTY  TIME  CMD
+		 * NOTE: kernel の vsnprintf は '-' フラグをサポートしないため
+		 * 左寄せ指定（"%-7s"）は使えない。右寄せ幅指定に変更する。
+		 */
+		printk("%5d %7s %5s %s\n", (int)e->pid, e->tty, e->time, e->cmd);
+	}
+}
