@@ -11,7 +11,7 @@
 extern struct task_struct *copy_process(struct task_struct *orig);
 extern pid_t do_fork(unsigned long user_eip);
 extern void fork_init(void);
-extern pid_t kernel_thread(void (*fn)(void));
+extern pid_t kernel_thread(void (*fn)(void), const char *name);
 extern void release_task(struct task_struct *p);
 
 /* テスト用ヘルパー（kernel/sched/core.c） */
@@ -295,7 +295,7 @@ static void dummy_kthread_fn(void)
 
 KFS_TEST(test_kernel_thread_returns_pid)
 {
-	pid_t pid = kernel_thread(dummy_kthread_fn);
+	pid_t pid = kernel_thread(dummy_kthread_fn, NULL);
 	KFS_ASSERT_TRUE(pid > 0);
 }
 

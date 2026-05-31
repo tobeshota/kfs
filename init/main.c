@@ -36,7 +36,7 @@ static void kernel_init(void)
 {
 	/* PID 2: シェルを起動 */
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK));
-	kernel_thread(shell_run);
+	kernel_thread(shell_run, "kthreadd");
 
 	/* 孤児プロセス（バックグラウンド再生等）を回収するループ
 	 * do_wait() はEXIT_ZOMBIEの孤児が現れるまでブロックし、回収後にまたブロックする。 */
@@ -104,9 +104,9 @@ void start_kernel(void)
 	printk("Alt+F1..F4 switch consoles; keyboard echo ready.\n");
 
 	/* PID 1 の init プロセスを起動する（シェルの展開と孤児回収を担当） */
-	kernel_thread(kernel_init);
+	kernel_thread(kernel_init, "init");
 
-	/* init_task はここから cpu_idle_loop() でアイドル待機する。
+	/* init_task はここから cpu_idle_lo	op() でアイドル待機する。
 	 * この呼び出しから戻ることはない。 */
 	cpu_idle_loop();
 }

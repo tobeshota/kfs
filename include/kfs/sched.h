@@ -198,7 +198,7 @@ void scheduler_tick(void);
 void wake_up_process(struct task_struct *tsk);
 void sched_init(void);
 void cpu_idle_loop(void) __attribute__((weak));
-pid_t kernel_thread(void (*fn)(void));
+pid_t kernel_thread(void (*fn)(void), const char *name);
 
 /* コンテキストスイッチ（arch/i386/kernel/entry.S で実装） */
 void __switch_to(struct task_struct *prev, struct task_struct *next);

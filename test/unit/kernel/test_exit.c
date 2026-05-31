@@ -33,7 +33,7 @@ extern struct list_head task_list;
 
 /* 初期化関数 */
 extern void fork_init(void);
-extern pid_t kernel_thread(void (*fn)(void));
+extern pid_t kernel_thread(void (*fn)(void), const char *name);
 extern pid_t do_wait(int *wstatus, int options);
 extern void pid_init(void);
 extern void init_idle_task(void);
@@ -78,7 +78,7 @@ static void fn_exit_with_mm(void)
 /* reparent テスト用: 孫を kernel_thread で起動してすぐ自分は exit */
 static void fn_parent_reparent(void)
 {
-	kernel_thread(fn_exit_0);
+	kernel_thread(fn_exit_0, NULL);
 	sys_exit(0);
 }
 
@@ -92,7 +92,7 @@ KFS_TEST(test_do_exit_basic)
 	int wstatus = 0;
 	pid_t child_pid, waited_pid;
 
-	child_pid = kernel_thread(fn_exit_42);
+	child_pid = kernel_thread(fn_exit_42, NULL);
 	KFS_ASSERT_TRUE(child_pid > 0);
 
 	waited_pid = do_wait(&wstatus, 0);
@@ -111,7 +111,7 @@ KFS_TEST(test_do_exit_exit_code_zero)
 	int wstatus = -1;
 	pid_t child_pid;
 
-	child_pid = kernel_thread(fn_exit_0);
+	child_pid = kernel_thread(fn_exit_0, NULL);
 	KFS_ASSERT_TRUE(child_pid > 0);
 
 	pid_t waited = do_wait(&wstatus, 0);
@@ -130,7 +130,7 @@ KFS_TEST(test_sys_exit)
 	int wstatus = 0;
 	pid_t child_pid;
 
-	child_pid = kernel_thread(fn_exit_255);
+	child_pid = kernel_thread(fn_exit_255, NULL);
 	KFS_ASSERT_TRUE(child_pid > 0);
 
 	pid_t waited = do_wait(&wstatus, 0);
@@ -157,7 +157,7 @@ KFS_TEST(test_do_exit_mm_free)
 	test_mm.start_stack = 0x08049000;
 	init_task.mm = &test_mm;
 
-	child_pid = kernel_thread(fn_exit_with_mm);
+	child_pid = kernel_thread(fn_exit_with_mm, NULL);
 	init_task.mm = NULL; /* 親の mm を元に戻す */
 	KFS_ASSERT_TRUE(child_pid > 0);
 
@@ -178,7 +178,7 @@ KFS_TEST(test_release_task_basic)
 	struct list_head *pos;
 	int count;
 
-	child_pid = kernel_thread(fn_exit_0);
+	child_pid = kernel_thread(fn_exit_0, NULL);
 	KFS_ASSERT_TRUE(child_pid > 0);
 	KFS_ASSERT_TRUE(!list_empty(&task_list)); /* kernel_thread 後はタスクリストにある */
 
@@ -208,7 +208,7 @@ KFS_TEST(test_do_exit_reparent_children)
 {
 	pid_t parent_pid, waited;
 
-	parent_pid = kernel_thread(fn_parent_reparent);
+	parent_pid = kernel_thread(fn_parent_reparent, NULL);
 	KFS_ASSERT_TRUE(parent_pid > 0);
 
 	/* parent を回収（parent の do_exit 内で grandchild が init_task に reparent） */
