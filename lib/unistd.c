@@ -55,6 +55,18 @@ int write(int fd, const void *buf, unsigned int count)
 	return (int)ret;
 }
 
+/* プロセスの操作を行なう */
+int prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80"
+						 : "=a"(ret)
+						 : "0"(__NR_prctl), "b"((long)option), "c"((long)arg2), "d"((long)arg3), "S"((long)arg4),
+						   "D"((long)arg5)
+						 : "memory");
+	return (int)ret;
+}
+
 /* 指定ミリ秒スリープする（HZ=1000 なので ms == tick 数） */
 int msleep(unsigned int ms)
 {

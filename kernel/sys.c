@@ -124,6 +124,21 @@ int sys_sched_getscheduler(pid_t pid)
 	return (int)tsk->policy;
 }
 
+long sys_prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5)
+{
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+
+	if (option == PR_SET_NAME)
+	{
+		strncpy(current->comm, (const char *)arg2, sizeof(current->comm) - 1);
+		current->comm[sizeof(current->comm) - 1] = '\0';
+		return 0;
+	}
+	return -ENOSYS; /* 未実装 */
+}
+
 /** ms ミリ秒スリープする
  * @param ms スリープ時間 [ミリ秒]（HZ=1000 なので ms == tick 数）
  * @return 0: 成功
