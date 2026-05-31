@@ -216,7 +216,9 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next);
 void fork_init(void);
 pid_t do_fork(unsigned long user_eip);
 
+int task_for_each(int (*fn)(struct task_struct *task, void *ctx), void *ctx);
+
 /* exec_fn（kernel/exec.c で実装） */
-void __attribute__((noreturn)) exec_fn(void (*fn)(void *), void *arg);
+#include <kfs/exec.h>
 
 #endif /* _KFS_SCHED_H */
