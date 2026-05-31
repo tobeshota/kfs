@@ -1,4 +1,5 @@
 #include <kfs/pid.h>	 /* pid_t */
+#include <kfs/ps.h>		 /* struct kfs_ps_entry */
 #include <kfs/sched.h>	 /* uid_t */
 #include <kfs/signal.h>	 /* sighandler_t */
 #include <kfs/syscall.h> /* __NR_fork, __NR_exit, __NR_wait */
@@ -55,6 +56,18 @@ int write(int fd, const void *buf, unsigned int count)
 	return (int)ret;
 }
 
+/* プロセスの操作を行なう */
+int prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80"
+						 : "=a"(ret)
+						 : "0"(__NR_prctl), "b"((long)option), "c"((long)arg2), "d"((long)arg3), "S"((long)arg4),
+						   "D"((long)arg5)
+						 : "memory");
+	return (int)ret;
+}
+
 /* 指定ミリ秒スリープする（HZ=1000 なので ms == tick 数） */
 int msleep(unsigned int ms)
 {
@@ -104,6 +117,22 @@ int psg_stop(int ch)
 	long ret;
 	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_psg_stop), "b"((long)ch) : "memory");
 	return (int)ret;
+}
+
+/** ps のスナップショットを取得する
+ * @param entries ユーザ提供の配列ポインタ（カーネルがこの領域に書き込む）
+ * @param max_entries entries 配列の要素数
+ * @return 取得したエントリ数（>=0）または負数のエラーコード
+ * @note このプロトタイプは lib/unistd.c のラッパー経由で syscall を呼び出す。
+ */
+long ps_snapshot(struct kfs_ps_entry *entries, size_t max_entries)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80"
+						 : "=a"(ret)
+						 : "0"(__NR_ps_snapshot), "b"(entries), "c"((long)max_entries)
+						 : "memory");
+	return ret;
 }
 
 /* mmap2 システムコールを呼び出す（MAP_ANONYMOUS のみサポート） */

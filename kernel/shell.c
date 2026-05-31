@@ -17,6 +17,10 @@
 #include <kfs/unistd.h>
 #include <kfs/wait.h>
 
+/* 外部コマンド: cmd/ 以下に実装されるコマンド関数のプロトタイプ */
+/* cmd_ps は引数文字列を受け取る。空文字列が渡されることがある。 */
+extern void cmd_ps(const char *args);
+
 #define SHELL_PROMPT "kfs $ " /* シェルプロンプト文字列 */
 #define CMD_BUFFER_SIZE 256	  /* コマンドバッファのサイズ */
 #define PS2_STATUS_PORT 0x64 /* PS/2 コントローラのペリフェラルから受け取るステータスレジスタのポート番号 */
@@ -540,6 +544,18 @@ static void execute_command(const char *cmd)
 	if (strcmp(cmd, "piano") == 0)
 	{
 		cmd_piano();
+		return;
+	}
+
+	/* ps コマンド: プロセス一覧表示 */
+	if (strcmp(cmd, "ps") == 0)
+	{
+		cmd_ps("");
+		return;
+	}
+	if (strncmp(cmd, "ps ", 3) == 0)
+	{
+		cmd_ps(cmd + 3);
 		return;
 	}
 

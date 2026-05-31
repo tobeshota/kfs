@@ -140,6 +140,17 @@ static long do_sys_kill(long arg1, long arg2, long arg3, long arg4, long arg5)
 	return (long)sys_kill((pid_t)arg1, (int)arg2);
 }
 
+static long do_sys_prctl(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_prctl((int)arg1, (unsigned long)arg2, (unsigned long)arg3, (unsigned long)arg4,
+						   (unsigned long)arg5);
+}
+
 /** msleep(ms) システムコール
  * @param arg1 スリープ時間 [ミリ秒]
  * @return 0: 成功
@@ -169,6 +180,14 @@ static long do_sys_psg_stop(long arg1, long arg2, long arg3, long arg4, long arg
 	(void)arg5;
 	do_psg_stop((int)arg1);
 	return 0;
+}
+
+static long do_sys_ps_snapshot(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_ps_snapshot((struct kfs_ps_entry *)arg1, (size_t)arg2);
 }
 
 /** sigreturn() システムコール
@@ -212,9 +231,11 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_signal] = do_sys_signal,
 	[__NR_sched_setscheduler] = do_sys_sched_setscheduler,
 	[__NR_sched_getscheduler] = do_sys_sched_getscheduler,
+	[__NR_prctl] = do_sys_prctl,
 	[__NR_msleep] = do_sys_msleep,
 	[__NR_psg_note] = do_sys_psg_note,
 	[__NR_psg_stop] = do_sys_psg_stop,
+	[__NR_ps_snapshot] = do_sys_ps_snapshot,
 	[__NR_sigreturn] = do_sys_sigreturn,
 	[__NR_munmap] = do_sys_munmap,
 	[__NR_mmap2] = do_sys_mmap2,

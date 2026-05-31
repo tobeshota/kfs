@@ -9,11 +9,13 @@
 #define __NR_getuid 24				/* Linux i386 互換番号 */
 #define __NR_kill 37				/* Linux i386 互換番号 */
 #define __NR_signal 48				/* Linux i386 互換番号 */
-#define __NR_sched_setscheduler 156 /* Linux i386 互換番号 */
-#define __NR_sched_getscheduler 157 /* Linux i386 互換番号 */
+#define __NR_sched_setscheduler 144 /* Linux i386 互換番号 */
+#define __NR_sched_getscheduler 145 /* Linux i386 互換番号 */
+#define __NR_prctl 157
 #define __NR_msleep 158
 #define __NR_psg_note 159
 #define __NR_psg_stop 160
+#define __NR_ps_snapshot 161
 #define __NR_sigreturn 119 /* Linux i386 互換番号 */
 #define __NR_munmap 91	   /* Linux i386 互換番号 */
 #define __NR_mmap2 192	   /* Linux i386 互換番号（引数6本をレジスタで渡す版） */

@@ -1,18 +1,117 @@
-/**
- * @file sys.c
- * @brief UID・Capability のシステムコールヘルパー
- */
-
 #include <kfs/capability.h>
 #include <kfs/console.h>
 #include <kfs/errno.h>
+#include <kfs/list.h>
 #include <kfs/pid.h>
+#include <kfs/prctl.h>
+#include <kfs/ps.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
+#include <kfs/string.h>
 #include <kfs/sys.h>
 #include <kfs/timer.h>
 
-/** 現在のプロセスの実ユーザー ID を返す */
+/** @brief task_struct の状態から ps 表示用の1文字を返す
+ * @param task 対象の task_struct
+ * @return 状態文字 ('R','S','D','T','Z','X' など)、不明時は '?'
+ */
+static char ps_state_char(const struct task_struct *task)
+{
+	if (task->exit_state == EXIT_ZOMBIE)
+	{
+		return 'Z';
+	}
+	if (task->exit_state == EXIT_DEAD)
+	{
+		return 'X';
+	}
+	if (task->__state == TASK_RUNNING)
+	{
+		return 'R';
+	}
+	if (task->__state & TASK_INTERRUPTIBLE)
+	{
+		return 'S';
+	}
+	if (task->__state & TASK_UNINTERRUPTIBLE)
+	{
+		return 'D';
+	}
+	if (task->__state & __TASK_STOPPED)
+	{
+		return 'T';
+	}
+	return '?';
+}
+
+/** @brief ps_snapshot の内部コンテキスト
+ * @details コールバックへ渡され、書き込み先配列・上限・現在の件数を保持する
+ * @note ctx は context の略
+ */
+struct ps_snapshot_ctx
+{
+	struct kfs_ps_entry *entries;
+	size_t max_entries;
+	size_t count;
+};
+
+/** @brief タスク走査コールバック — 各タスク情報を `kfs_ps_entry` に詰める
+ * @param task 現在のタスク
+ * @param ctx  `struct ps_snapshot_ctx *` にキャスト可能なコンテキスト
+ * @return 0=継続, 正数=走査中断（バッファ満杯等）
+ * @note 出力バッファの上限に達すると正値を返して走査を中断する。
+ */
+static int ps_snapshot_collect(struct task_struct *task, void *ctx)
+{
+	struct ps_snapshot_ctx *snapshot = (struct ps_snapshot_ctx *)ctx;
+	struct kfs_ps_entry *entry;
+
+	if (snapshot->count >= snapshot->max_entries)
+	{
+		/* バッファが満杯なら走査を中断する（呼び出し元で件数を確認） */
+		return 1;
+	}
+
+	entry = &snapshot->entries[snapshot->count++];
+	entry->pid = task->pid;
+	entry->ppid = task->parent ? task->parent->pid : 0;
+	entry->tty[0] = '-';
+	entry->tty[1] = '\0';
+	/* 現在はダミーの TIME 表示。将来 jiffies -> hh:mm:ss 変換を入れる */
+	entry->time[0] = '0';
+	entry->time[1] = ':';
+	entry->time[2] = '0';
+	entry->time[3] = '0';
+	entry->time[4] = '\0';
+	entry->stat[0] = ps_state_char(task);
+	entry->stat[1] = '\0';
+	strncpy(entry->cmd, task->comm, sizeof(entry->cmd));
+	entry->cmd[sizeof(entry->cmd) - 1] = '\0';
+	return 0;
+}
+
+long sys_ps_snapshot(struct kfs_ps_entry *entries, size_t max_entries)
+{
+	struct ps_snapshot_ctx ctx;
+
+	if (!entries && max_entries != 0)
+	{
+		return -EINVAL;
+	}
+
+	ctx.entries = entries;
+	ctx.max_entries = max_entries;
+	ctx.count = 0;
+
+	if (task_for_each(ps_snapshot_collect, &ctx) < 0)
+	{
+		return -EINVAL;
+	}
+
+	return (long)ctx.count;
+}
+
+/* 現在のプロセスの実ユーザー ID を返す */
 int sys_getuid(void)
 {
 	return (int)current->uid.val;
@@ -122,6 +221,21 @@ int sys_sched_getscheduler(pid_t pid)
 	}
 
 	return (int)tsk->policy;
+}
+
+long sys_prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5)
+{
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+
+	if (option == PR_SET_NAME)
+	{
+		strncpy(current->comm, (const char *)arg2, sizeof(current->comm) - 1);
+		current->comm[sizeof(current->comm) - 1] = '\0';
+		return 0;
+	}
+	return -ENOSYS; /* 未実装 */
 }
 
 /** ms ミリ秒スリープする
