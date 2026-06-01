@@ -78,6 +78,9 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	/* ユーザスタックは子プロセス固有に設定するため親の値を引き継がない
 	 * do_fork() / kernel_thread() が必要に応じて設定する */
 	tsk->user_stack_vm_start = 0;
+
+	/* pid_struct をコピーされないように初期化 */
+	tsk->pid_struct = NULL;
 	tsk->user_stack_vm_len = 0;
 
 	return tsk;
@@ -228,6 +231,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 		return NULL;
 	}
 	p->pid = pid->nr;
+	p->pid_struct = pid;
 
 	/* mm_structをコピー */
 	err = copy_mm(p, orig->mm);

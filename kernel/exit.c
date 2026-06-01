@@ -152,10 +152,12 @@ void release_task(struct task_struct *p)
 	/* 親の子リストから削除 */
 	list_del(&p->sibling);
 
-	/* PIDを解放 */
-	/* TODO: Phase 1でPID管理を完全実装後、正しいpid構造体を取得してput_pid()呼び出し */
-	/* struct pid *pid = ...; */
-	/* put_pid(pid); */
+	/* PID構造体の参照を解放（put_pid が内部で数値ビットをクリアする） */
+	if (p->pid_struct)
+	{
+		put_pid(p->pid_struct);
+		p->pid_struct = NULL;
+	}
 
 	/* シグナル構造体を解放 */
 	if (p->signal)
