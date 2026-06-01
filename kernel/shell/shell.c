@@ -515,7 +515,9 @@ __attribute__((weak)) void shell_run(void)
 		{
 			pid_t r = do_wait(NULL, WNOHANG);
 			if (r <= 0)
+			{
 				break;
+			}
 		}
 
 		/* CPU を他タスクへ譲る（hlt は cpu_idle_loop() で行う） */

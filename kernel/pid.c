@@ -1,8 +1,8 @@
 #include <kfs/errno.h>
 #include <kfs/pid.h>
+#include <kfs/printk.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
-#include <kfs/printk.h>
 
 /* PID管理用の定数 */
 #define PID_MAX_DEFAULT 32768 /* デフォルト最大PID（Linux 6.18互換） */
@@ -49,7 +49,7 @@ struct pid *alloc_pid(void)
 	for (test_pid = 1; test_pid < PID_MAX_DEFAULT; test_pid++)
 	{
 		offset = test_pid / (8 * sizeof(long)); // pidmap.page配列のインデックス
-		bit = test_pid % (8 * sizeof(long));    // pidmap.page配列内のビット位置
+		bit = test_pid % (8 * sizeof(long));	// pidmap.page配列内のビット位置
 
 		/* このPIDが空いているか確認 */
 		if (!(pidmap.page[offset] & (1UL << bit)))

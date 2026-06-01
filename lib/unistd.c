@@ -171,9 +171,6 @@ void sigreturn(void)
 pid_t waitpid(pid_t pid, int *wstatus, int options)
 {
 	long ret;
-	__asm__ __volatile__("int $0x80"
-						 : "=a"(ret)
-						 : "0"(__NR_waitpid), "b"(pid), "c"(wstatus), "d"(options)
-						 : "memory");
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_waitpid), "b"(pid), "c"(wstatus), "d"(options) : "memory");
 	return (pid_t)ret;
 }
