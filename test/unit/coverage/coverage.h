@@ -39,6 +39,6 @@ void coverage_dump(void);
  * @note このマクロは計装スクリプトによって自動的に挿入される
  * @see test/unit/coverage/insert_coverage_func.py
  */
-#define COVERAGE_LINE() coverage_record_line(__FILE__, __LINE__)
+#define COVERAGE_LINE() ((void)coverage_record_line(__FILE__, __LINE__))
 
 #endif /* _COVERAGE_H */
