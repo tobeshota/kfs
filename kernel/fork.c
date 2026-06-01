@@ -443,8 +443,8 @@ void __init fork_init(void)
 /** 指定した関数をカーネル空間のプロセスとして実行する
  * @brief copy_thread_with_fn() が fork_frame.ebx = fn を設定することで
  *        ret_from_fork がカーネルスレッドパス（call *%%ebx）へ分岐する。
- * @param name プロセス名
  * @param fn 新プロセスで実行するカーネル関数
+ * @param name プロセス名（NULLの場合はデフォルト名が使用される）
  * @return 子PID（成功）、負数（失敗）
  */
 pid_t kernel_thread(void (*fn)(void), const char *name)

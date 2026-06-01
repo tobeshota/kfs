@@ -1,13 +1,15 @@
 /**
- * @file kernel/daiku.c
+ * @file kernel/shell/builtin/daiku.c
  * @brief よろこびの歌（ベートーベン 第九 第4楽章主題, 1824) — パブリックドメイン
  *
  * ring-3 プロセスとして psg_note() / psg_stop() / msleep() syscall を使い
  * ch0 (メロディ) + ch1 (ベース) を 1 プロセスで同時再生する。
  */
 
+#include <kfs/printk.h>
 #include <kfs/stdint.h>
 #include <kfs/unistd.h> /* psg_note(), psg_stop(), msleep(), exit() */
+#include <kfs/wait.h>
 
 /* BPM=120 (アレグレット) — 4/4 拍子 */
 #define BPM 120
@@ -109,4 +111,23 @@ void daiku_main(void *arg)
 		psg_stop(0);
 		psg_stop(1);
 	}
+}
+
+static void daiku_ring3(void)
+{
+	extern void daiku_main(void *);
+
+	pid_t pid = fork();
+	if (pid == 0)
+	{
+		exec_fn(daiku_main, NULL);
+	}
+	exit(0);
+}
+
+void cmd_daiku(void)
+{
+	printk("daiku: playing Ode to Joy (Beethoven 9th, public domain) on PSG ch0+ch1...\n");
+	do_fork((unsigned long)daiku_ring3);
+	do_wait(NULL, 0);
 }
