@@ -509,6 +509,15 @@ __attribute__((weak)) void shell_run(void)
 			show_prompt();
 		}
 
+		/* シェルの子プロセスがゾンビとして残らないよう、
+		 * 定期的に非ブロッキングで回収する */
+		while (1)
+		{
+			pid_t r = do_wait(NULL, WNOHANG);
+			if (r <= 0)
+				break;
+		}
+
 		/* CPU を他タスクへ譲る（hlt は cpu_idle_loop() で行う） */
 		schedule();
 	}
