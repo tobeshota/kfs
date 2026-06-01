@@ -19,9 +19,10 @@
 #define __NR_sigreturn 119 /* Linux i386 互換番号 */
 #define __NR_munmap 91	   /* Linux i386 互換番号 */
 #define __NR_mmap2 192	   /* Linux i386 互換番号（引数6本をレジスタで渡す版） */
+#define __NR_waitpid 247
 
 /* サポートするシステムコールの数 */
-#define NR_syscalls 193
+#define NR_syscalls 256
 
 /* システムコールのエントリポイント(entry.Sで定義) */
 extern void system_call(void);

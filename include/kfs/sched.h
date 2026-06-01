@@ -185,6 +185,7 @@ struct task_struct
 	/* ユーザスタック（do_mmap で確保した場合。exit 時に do_munmap で解放） */
 	unsigned long user_stack_vm_start; /* do_mmap が返した仮想アドレス（0=未確保） */
 	unsigned long user_stack_vm_len;   /* 確保サイズ（PAGE_SIZE 単位） */
+	struct pid *pid_struct; /* struct pid のポインタ（alloc_pid の返り値を保存） */
 };
 
 /* 現在実行中のプロセス（kernel/sched/core.c で定義） */

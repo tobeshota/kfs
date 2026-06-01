@@ -17,5 +17,7 @@
 
 pid_t do_wait(int *wstatus, int options);
 pid_t sys_wait(int *wstatus);
+pid_t do_waitpid(pid_t pid, int *wstatus, int options);
+pid_t sys_waitpid(pid_t pid, int *wstatus, int options);
 
 #endif /* _KFS_WAIT_H */

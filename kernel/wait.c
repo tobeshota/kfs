@@ -78,3 +78,65 @@ pid_t sys_wait(int *wstatus)
 {
 	return do_wait(wstatus, 0);
 }
+
+/** pid 指定版の do_wait: 特定 PID の子を待つ
+ * @param pid 待ち対象の PID（-1: any child）
+ * @param wstatus 終了ステータス書き込みポインタ
+ * @param options WNOHANG サポート
+ */
+pid_t do_waitpid(pid_t pid, int *wstatus, int options)
+{
+	struct task_struct *tsk = current;
+	struct list_head *pos, *tmp;
+	struct task_struct *child;
+
+	/* 子プロセスがいない場合 */
+	if (list_empty(&tsk->children))
+	{
+		return -ECHILD;
+	}
+
+	while (1)
+	{
+		int found = 0;
+		list_for_each_safe(pos, tmp, &tsk->children)
+		{
+			child = list_entry(pos, struct task_struct, sibling);
+
+			if (pid != -1 && child->pid != pid)
+			{
+				continue; /* 対象外 */
+			}
+			found = 1;
+
+			if (child->exit_state == EXIT_ZOMBIE)
+			{
+				pid_t found_pid = child->pid;
+				if (wstatus)
+				{
+					*wstatus = child->exit_code;
+				}
+				release_task(child);
+				return found_pid;
+			}
+		}
+
+		/* 指定 PID が存在しない場合は ECHILD */
+		if (!found)
+		{
+			return -ECHILD;
+		}
+
+		if (options & WNOHANG)
+		{
+			return 0;
+		}
+
+		schedule();
+	}
+}
+
+pid_t sys_waitpid(pid_t pid, int *wstatus, int options)
+{
+	return do_waitpid(pid, wstatus, options);
+}

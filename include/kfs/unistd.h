@@ -9,6 +9,7 @@
 pid_t fork(void);
 void __attribute__((noreturn)) exit(int status);
 pid_t wait(int *wstatus);
+pid_t waitpid(pid_t pid, int *wstatus, int options);
 int write(int fd, const void *buf, unsigned int count);
 int kill(pid_t pid, int sig);
 int prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5);

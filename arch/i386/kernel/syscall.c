@@ -101,6 +101,14 @@ static long do_sys_wait(long arg1, long arg2, long arg3, long arg4, long arg5)
 	return (long)sys_wait((int *)arg1);
 }
 
+/** waitpid(pid, wstatus, options) システムコールラッパー */
+static long do_sys_waitpid(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_waitpid((pid_t)arg1, (int *)arg2, (int)arg3);
+}
+
 /** getuid() システムコール
  * @return 現在のプロセスの UID
  */
@@ -239,6 +247,7 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_sigreturn] = do_sys_sigreturn,
 	[__NR_munmap] = do_sys_munmap,
 	[__NR_mmap2] = do_sys_mmap2,
+	[__NR_waitpid] = do_sys_waitpid,
 };
 
 /** システムコールディスパッチャ
