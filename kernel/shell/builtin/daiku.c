@@ -113,21 +113,17 @@ void daiku_main(void *arg)
 	}
 }
 
-static void daiku_ring3(void)
+static void daiku_bg_entry(void)
 {
-	extern void daiku_main(void *);
-
-	pid_t pid = fork();
-	if (pid == 0)
-	{
-		exec_fn(daiku_main, NULL);
-	}
-	exit(0);
+	exec_fn(daiku_main, NULL);
 }
 
 void cmd_daiku(void)
 {
 	printk("daiku: playing Ode to Joy (Beethoven 9th, public domain) on PSG ch0+ch1...\n");
-	do_fork((unsigned long)daiku_ring3);
-	do_wait(NULL, 0);
+
+	/** バックグラウンドでdaiku_mainを実行する
+	 * 子を作り，親は待たずに戻る
+	 * 子は終了後，親（PID 2）がshell_run内で定期的に呼ぶwait()により回収される */
+	do_fork((unsigned long)daiku_bg_entry);
 }
