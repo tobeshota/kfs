@@ -1,4 +1,5 @@
 #include <asm-i386/pgtable.h>
+#include <kfs/exit.h>
 #include <kfs/mm.h>
 #include <kfs/mman.h>
 #include <kfs/pid.h>
@@ -11,6 +12,31 @@
 extern struct task_struct *current;
 extern struct task_struct init_task;
 extern struct list_head task_list;
+
+#define MAX_EXIT_HOOKS 8
+
+static exit_hook_t exit_hooks[MAX_EXIT_HOOKS];
+static int exit_hook_count;
+
+void register_exit_hook(exit_hook_t hook)
+{
+	if (!hook || exit_hook_count >= MAX_EXIT_HOOKS)
+	{
+		return;
+	}
+	exit_hooks[exit_hook_count++] = hook;
+}
+
+void invoke_exit_hooks(struct task_struct *tsk)
+{
+	for (int i = 0; i < exit_hook_count; i++)
+	{
+		if (exit_hooks[i])
+		{
+			exit_hooks[i](tsk);
+		}
+	}
+}
 
 /** プロセスを終了させる
  * @param code 終了コード（親プロセスに返される値）
@@ -25,6 +51,9 @@ __attribute__((noreturn)) void do_exit(int code)
 
 	/* 終了コードを設定（親がwaitで取得する） */
 	tsk->exit_code = code;
+
+	/* デバイス固有の終了後始末はフック経由で実行する */
+	invoke_exit_hooks(tsk);
 
 	/* 終了中フラグを設定 */
 	tsk->flags |= PF_EXITING;
@@ -123,10 +152,12 @@ void release_task(struct task_struct *p)
 	/* 親の子リストから削除 */
 	list_del(&p->sibling);
 
-	/* PIDを解放 */
-	/* TODO: Phase 1でPID管理を完全実装後、正しいpid構造体を取得してput_pid()呼び出し */
-	/* struct pid *pid = ...; */
-	/* put_pid(pid); */
+	/* PID構造体の参照を解放（put_pid が内部で数値ビットをクリアする） */
+	if (p->pid_struct)
+	{
+		put_pid(p->pid_struct);
+		p->pid_struct = NULL;
+	}
 
 	/* シグナル構造体を解放 */
 	if (p->signal)

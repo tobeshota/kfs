@@ -50,12 +50,12 @@ void cmd_ps(const char *args)
 
 	if (long_mode)
 	{
-		printk("PID  STAT TTY      TIME  CMD\n");
+		printk("PID  PPID STAT TTY      TIME  CMD\n");
 		for (long i = 0; i < n; i++)
 		{
 			struct kfs_ps_entry *e = &entries[i];
-			/* PID STAT TTY TIME CMD */
-			printk("%5d %4s %7s %5s %s\n", (int)e->pid, e->stat, e->tty, e->time, e->cmd);
+			/* PID PPID STAT TTY TIME CMD */
+			printk("%5d %4d %4s %7s %5s %s\n", (int)e->pid, (int)e->ppid, e->stat, e->tty, e->time, e->cmd);
 		}
 	}
 	else

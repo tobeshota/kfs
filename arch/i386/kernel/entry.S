@@ -265,6 +265,12 @@ system_call:
 
 	addl $24, %esp		/* 6引数分をpopする */
 	movl %eax, 24(%esp)	/* システムコールの返り値をpt_regs->eaxに設定する */
+
+	/* 保留中シグナルを処理する */
+	pushl %esp			/* do_signal_with_regs(struct pt_regs *regs) */
+	call do_signal_with_regs
+	addl $4, %esp
+
 	RESTORE_ALL
 
 /* task_struct のオフセット定数 */

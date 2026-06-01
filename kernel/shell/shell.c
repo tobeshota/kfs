@@ -17,9 +17,16 @@
 #include <kfs/unistd.h>
 #include <kfs/wait.h>
 
-/* 外部コマンド: cmd/ 以下に実装されるコマンド関数のプロトタイプ */
+/* 外部コマンド: kernel/shell/builtin/ 以下に実装されるコマンド関数のプロトタイプ */
 /* cmd_ps は引数文字列を受け取る。空文字列が渡されることがある。 */
+extern void cmd_halt(void);
+extern void cmd_loadkeys(const char *args);
+extern void cmd_sched(void);
+extern void cmd_beep(const char *args);
+extern void cmd_daiku(void);
+extern void cmd_sleep(const char *args);
 extern void cmd_ps(const char *args);
+extern void cmd_kill(const char *args);
 
 #define SHELL_PROMPT "kfs $ " /* シェルプロンプト文字列 */
 #define CMD_BUFFER_SIZE 256	  /* コマンドバッファのサイズ */
@@ -53,254 +60,6 @@ static void clear_command_buffer(void)
 	shell_state.cmd_buffer[0] = '\0';
 }
 
-/** システムを停止する（halt組み込みコマンド）
- *
- * @details 割り込みを無効化し、汎用レジスタをクリアしてからCPUを停止する。
- *          汎用レジスタをクリアする理由は，hlt後に物理アクセスによる
- *          メモリダンプで機密情報が漏洩することを防ぐため．
- */
-static void cmd_halt(void)
-{
-	printk("System halted.\n");
-
-	/* 割り込みを無効化（これ以降は割り込み不可） */
-	__asm__ __volatile__("cli");
-
-	/* 汎用レジスタをクリアする（機密情報の漏洩を防ぐため） */
-	clear_gp_registers();
-
-	/* CPUを停止する */
-	for (;;)
-	{
-		__asm__ __volatile__("hlt");
-	}
-}
-
-/* システムを再起動する（reboot組み込みコマンド） */
-static void cmd_reboot(void)
-{
-	machine_restart();
-	/* この行には到達しない */
-}
-
-/** キーボードレイアウトを変更する（loadkeys組み込みコマンド）
- * @param args コマンド引数（レイアウト名）
- * @note テスト用にstaticを外している
- */
-void cmd_loadkeys(const char *args)
-{
-	const char *layout = args;
-
-	/* 先頭の空白をスキップ */
-	while (*layout == ' ')
-	{
-		layout++;
-	}
-
-	if (strcmp(layout, "us") == 0 || strcmp(layout, "qwerty") == 0)
-	{
-		kfs_keyboard_set_layout(KBD_LAYOUT_QWERTY);
-		printk("Keyboard layout set to QWERTY (US)\n");
-	}
-	else if (strcmp(layout, "fr") == 0 || strcmp(layout, "azerty") == 0)
-	{
-		kfs_keyboard_set_layout(KBD_LAYOUT_AZERTY);
-		printk("Keyboard layout set to AZERTY (FR)\n");
-	}
-	else if (*layout == '\0')
-	{
-		printk("Usage: loadkeys <us|fr|qwerty|azerty>\n");
-	}
-	else
-	{
-		printk("loadkeys: unknown keymap '%s'\n", layout);
-		printk("Available keymaps: us, fr, qwerty, azerty\n");
-	}
-}
-
-static void putstr(void *s)
-{
-	write(1, s, strlen(s));
-}
-
-/** sched コマンド: ユーザ空間におけるプロセスのライフサイクルをテストする
- * @brief ring-3において，プロセスがfork()で誕生し，exec_fn()で生まれ変わり，
- *        exit()で終了し，親のwait()によって揮発するまでの全過程が意図通りであることを確かめる．
- *        期待する出力: "-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_\n"
- */
-static void sched_ring3_main(void)
-{
-	for (int i = 0; i < 20; i++)
-	{
-		/* プロセスを誕生させる */
-		pid_t pid = fork();
-		if (pid < 0)
-		{
-			write(1, "Failed to fork process\n", 23);
-			exit(1);
-		}
-		else if (pid == 0)
-		{
-			/* 子プロセスは"-"を出力する */
-			exec_fn(putstr, (void *)"-");
-		}
-		else
-		{
-			/* 親プロセスは終了した子プロセスを回収後，"_"を出力する */
-			wait(NULL);
-			write(1, "_", 1);
-		}
-	}
-	write(1, "\n", 1);
-
-	/* 親プロセスが終了する */
-	exit(0);
-}
-
-static void cmd_sched(void)
-{
-	/* ring-0 → ring-3 へ降りてスケジューリングループを実行し、終了を待つ */
-	do_fork((unsigned long)sched_ring3_main);
-	do_wait(NULL, 0);
-}
-
-/** beep コマンド: 指定周波数の矩形波を 1 秒間鳴らす
- * @param args コマンド名以降の文字列（周波数文字列または空文字列）
- *
- * @note
- *   コマンド       周波数     音名
- *   beep          -         使い方を表示
- *   beep 0        -         停止
- *   beep 262      262 Hz    C4（ド）
- *   beep 330      330 Hz    E4（ミ）
- *   beep 392      392 Hz    G4（ソ）
- *   beep 440      440 Hz    A4（ラ）← 国際標準チューニング基準音
- *   beep 494      494 Hz    B4（シ）
- *   beep 523      523 Hz    C5（高いド）
- */
-static void beep_ring3_main(void)
-{
-	msleep(1000);
-	exit(0);
-}
-
-static void cmd_beep(const char *args)
-{
-	while (*args == ' ')
-	{
-		args++;
-	}
-	if (*args == '\0')
-	{
-		printk("Usage: beep <freq_hz>  (e.g. beep 440)\n");
-		return;
-	}
-	int freq = atoi(args);
-	if (freq <= 0)
-	{
-		do_psg_stop(0);
-		printk("beep: stopped\n");
-		return;
-	}
-	printk("beep: %d Hz\n", freq);
-	do_psg_note(0, (uint32_t)freq, 0);
-	do_fork((unsigned long)beep_ring3_main);
-	do_wait(NULL, 0);
-	do_psg_stop(0);
-}
-
-static void chord_ring3_main(void)
-{
-	msleep(2000);
-	exit(0);
-}
-
-/** daiku の ring-3 ランチャー
- * fork() で孫プロセスを生成して daiku_main を exec_fn() で実行させ，
- * 自身はすぐに exit() する（double-fork パターン）。
- * 孫プロセスは exit.c の reparent ロジックにより PID1 に引き取られ，
- * バックグラウンドで daiku_main が走り続ける。
- */
-static void daiku_ring3(void)
-{
-	extern void daiku_main(void *); /* kernel/daiku.c */
-
-	pid_t pid = fork();
-	if (pid == 0)
-	{
-		/* 孫プロセス: daiku_main を実行（終了まで戻らない） */
-		exec_fn(daiku_main, NULL);
-	}
-	/* 子プロセス: 孫の終了をwait()で待たず終了する．これによりバックグラウンド再生が実現できる．
-	 * なお，孫は孤児プロセスとなるためPID1 に引き取られる */
-	exit(0);
-}
-
-static void cmd_daiku(void)
-{
-	printk("daiku: playing Ode to Joy (Beethoven 9th, public domain) on PSG ch0+ch1...\n");
-	do_fork((unsigned long)daiku_ring3);
-	do_wait(NULL, 0); /* ランチャー（子）の終了を待つ。孫は PID1 が回収 */
-}
-
-/* chord コマンド: A4+E4+C4 の疑似和音を 2 秒間鳴らす（TDM デモ） */
-static void cmd_chord(void)
-{
-	do_psg_note(0, 440, 0); /* A4 */
-	do_psg_note(1, 330, 0); /* E4 */
-	do_psg_note(2, 262, 0); /* C4 */
-	printk("chord: A4+E4+C4 (2s)\n");
-	/* ring-3 の msleep() で 2 秒待機し，終了後に ring-0 でチャンネルを止める */
-	do_fork((unsigned long)chord_ring3_main);
-	do_wait(NULL, 0);
-	do_psg_stop(0);
-	do_psg_stop(1);
-	do_psg_stop(2);
-}
-
-/** sleep コマンド用 ring-3 エントリポイント
- * @note msleep() は int $0x80 経由の ring-3 ラッパーなので，
- *       ring-3 コンテキストから呼ぶ必要がある
- */
-static unsigned int g_sleep_ms; /* cmd_sleep → sleep_ring3_main へのパラメータ渡し用 */
-
-static void sleep_ring3_main(void)
-{
-	msleep(g_sleep_ms);
-	exit(0);
-}
-
-/** sleep コマンド: 指定秒数だけ CPU を手放して待機する
- * 用法: sleep <秒>
- * @note ring-3 の msleep() 経路（int $0x80 → sys_msleep → schedule_timeout）が
- *       正しく機能することを確かめるため，子プロセスを fork して msleep() を呼ばせる．
- *       子が TASK_INTERRUPTIBLE でスリープ中はランキューが空になり
- *       do_wait() 内の schedule() が 0 を返して -EAGAIN になるため，
- *       親は hlt でタイマー割り込みを待ちながらリトライする．
- */
-static void cmd_sleep(const char *args)
-{
-	while (*args == ' ')
-	{
-		args++;
-	}
-	if (*args == '\0')
-	{
-		printk("Usage: sleep <seconds>\n");
-		return;
-	}
-	int secs = atoi(args);
-	if (secs <= 0)
-	{
-		printk("sleep: invalid duration\n");
-		return;
-	}
-	g_sleep_ms = (unsigned int)secs * 1000;
-	/* ring-3 へ降りて msleep() を呼ばせ，終了を待つ */
-	do_fork((unsigned long)sleep_ring3_main);
-	do_wait(NULL, 0);
-}
-
 /* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
 static void execute_command(const char *cmd)
 {
@@ -320,7 +79,7 @@ static void execute_command(const char *cmd)
 	/* reboot コマンド */
 	if (strcmp(cmd, "reboot") == 0)
 	{
-		cmd_reboot();
+		machine_restart();
 		return; /* この行には到達しないが、明示的に記載 */
 	}
 
@@ -519,17 +278,17 @@ static void execute_command(const char *cmd)
 		return;
 	}
 
-	/* chord コマンド: A4+E4+C4 の疑似和音を 2 秒間鳴らす */
-	if (strcmp(cmd, "chord") == 0)
-	{
-		cmd_chord();
-		return;
-	}
-
 	/* sleep コマンド: 指定秒数だけ CPU を手放して待機する */
 	if (strncmp(cmd, "sleep", 5) == 0 && (cmd[5] == ' ' || cmd[5] == '\0'))
 	{
 		cmd_sleep(cmd + 5);
+		return;
+	}
+
+	/* kill コマンド: 指定 PID にシグナルを送信する */
+	if (strncmp(cmd, "kill", 4) == 0 && (cmd[4] == ' ' || cmd[4] == '\0'))
+	{
+		cmd_kill(cmd + 4);
 		return;
 	}
 
@@ -614,7 +373,7 @@ int shell_keyboard_handler(char c)
 
 	/* 改行の場合はコマンド実行フラグを立てる。
 	 * keyboard IRQ コンテキスト外で execute_command を呼ぶことで、
-	 * beep/sleep/chord など do_fork + do_wait を使うコマンドが
+	 * beep/sleep など do_fork + do_wait を使うコマンドが
 	 * IRQ ハンドラ内でブロックして EOI が送れなくなる問題を防ぐ。 */
 	if (c == '\n' || c == '\r')
 	{
@@ -748,6 +507,17 @@ __attribute__((weak)) void shell_run(void)
 			shell_state.cmd_ready = 0;
 			execute_command(shell_state.pending_cmd);
 			show_prompt();
+		}
+
+		/* シェルの子プロセスがゾンビとして残らないよう、
+		 * 定期的に非ブロッキングで回収する */
+		while (1)
+		{
+			pid_t r = do_wait(NULL, WNOHANG);
+			if (r <= 0)
+			{
+				break;
+			}
 		}
 
 		/* CPU を他タスクへ譲る（hlt は cpu_idle_loop() で行う） */

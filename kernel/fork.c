@@ -78,6 +78,9 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	/* ユーザスタックは子プロセス固有に設定するため親の値を引き継がない
 	 * do_fork() / kernel_thread() が必要に応じて設定する */
 	tsk->user_stack_vm_start = 0;
+
+	/* pid_struct をコピーされないように初期化 */
+	tsk->pid_struct = NULL;
 	tsk->user_stack_vm_len = 0;
 
 	return tsk;
@@ -228,6 +231,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 		return NULL;
 	}
 	p->pid = pid->nr;
+	p->pid_struct = pid;
 
 	/* mm_structをコピー */
 	err = copy_mm(p, orig->mm);
@@ -443,8 +447,8 @@ void __init fork_init(void)
 /** 指定した関数をカーネル空間のプロセスとして実行する
  * @brief copy_thread_with_fn() が fork_frame.ebx = fn を設定することで
  *        ret_from_fork がカーネルスレッドパス（call *%%ebx）へ分岐する。
- * @param name プロセス名
  * @param fn 新プロセスで実行するカーネル関数
+ * @param name プロセス名（NULLの場合はデフォルト名が使用される）
  * @return 子PID（成功）、負数（失敗）
  */
 pid_t kernel_thread(void (*fn)(void), const char *name)

@@ -24,6 +24,7 @@
  * このとき，各チャンネルの実効更新レート = HZ / PSG_CH_COUNT = 250 Hz
  */
 
+#include <kfs/exit.h>
 #include <kfs/pcspkr.h>
 #include <kfs/printk.h>
 #include <kfs/psg.h>
@@ -45,6 +46,9 @@ static volatile int psg_current_ch = 0;
  * @note 0 になったら次のアクティブチャンネルへ切り替える
  */
 static volatile int psg_slot_remaining = 0;
+
+/** exit hook の登録済みフラグ */
+static int psg_exit_hook_registered = 0;
 
 /** 各チャンネルの連続発音時間 [tick = ms]
  * @note 最低音 G3=196Hz の周期は 5.1ms なので 4 周期 = 20ms 必要。
@@ -82,6 +86,12 @@ static uint32_t noise_lfsr_next(void)
 void psg_init(void)
 {
 	int i;
+
+	if (!psg_exit_hook_registered)
+	{
+		psg_init_exit_hook();
+		psg_exit_hook_registered = 1;
+	}
 
 	for (i = 0; i < PSG_CH_COUNT; i++)
 	{
@@ -221,4 +231,25 @@ void psg_glitch_reset(void)
 uint32_t psg_get_caller_pid(void)
 {
 	return psg_caller_pid;
+}
+
+/* 指定 PID のプロセスが PSG を使っていたなら全チャンネルを停止する */
+static void psg_exit_hook(struct task_struct *tsk)
+{
+	if (!tsk || psg_caller_pid != (uint32_t)tsk->pid)
+	{
+		return;
+	}
+
+	for (int ch = 0; ch < PSG_CH_COUNT; ch++)
+	{
+		do_psg_stop(ch);
+	}
+	psg_caller_pid = 0;
+}
+
+/* PSG の終了フックを登録する */
+void psg_init_exit_hook(void)
+{
+	register_exit_hook(psg_exit_hook);
 }

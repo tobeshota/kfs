@@ -28,5 +28,6 @@ void psg_tick(void);
 void psg_glitch_stat(void);
 void psg_glitch_reset(void);
 uint32_t psg_get_caller_pid(void);
+void psg_init_exit_hook(void);
 
 #endif /* _KFS_PSG_H */

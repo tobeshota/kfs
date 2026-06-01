@@ -1,5 +1,6 @@
 #include <kfs/errno.h>
 #include <kfs/pid.h>
+#include <kfs/printk.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
 
@@ -35,7 +36,7 @@ struct pid *alloc_pid(void)
 {
 	struct pid *pid_struct;
 	int pid_nr;
-	int offset, bit, i;
+	int offset, bit, i, test_pid;
 
 	/* 空きPIDがない */
 	if (pidmap.nr_free == 0)
@@ -43,11 +44,10 @@ struct pid *alloc_pid(void)
 		return NULL;
 	}
 
-	/* 次の空きPIDを検索（ラウンドロビン） */
+	/* 最小の空きPIDを検索（常に小さい番号を優先して再利用する） */
 	pid_nr = -1;
-	for (i = 0; i < PID_MAX_DEFAULT; i++)
+	for (test_pid = 1; test_pid < PID_MAX_DEFAULT; test_pid++)
 	{
-		int test_pid = (last_pid + i + 1) % PID_MAX_DEFAULT;
 		offset = test_pid / (8 * sizeof(long)); // pidmap.page配列のインデックス
 		bit = test_pid % (8 * sizeof(long));	// pidmap.page配列内のビット位置
 

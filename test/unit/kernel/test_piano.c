@@ -1,5 +1,5 @@
 /**
- * test_piano.c - kernel/piano.c のユニットテスト
+ * test_piano.c - kernel/shell/builtin/piano.c のユニットテスト
  *
  * テスト戦略:
  *   piano_raw_handler() はキーボード IRQ コールバックとして公開されているため、

@@ -100,6 +100,9 @@ def instrument_functions(content, file_path):
     while i < len(lines):
         line = lines[i]
         stripped = line.strip()
+        # 独自の行に「enum」がある列挙型の保留フラグ
+        if 'pending_enum' not in locals():
+            pending_enum = False
 
         # 空行やコメント行はそのまま追加
         if not stripped or stripped.startswith('//') or stripped.startswith('/*') or stripped.startswith('*'):
@@ -113,9 +116,11 @@ def instrument_functions(content, file_path):
             i += 1
             continue
 
-        # 配列/構造体初期化子の検出
-        # "変数名[] = {" や "変数名 = {" のパターンを検出
-        if '[] = {' in line or (re.search(r'\w+\s*=\s*\{', line) and not stripped.startswith('if') and not stripped.startswith('while') and not stripped.startswith('for')):
+        # 配列/構造体/enum 初期化子の検出
+        # "変数名[] = {", "変数名 = {" のパターン、または "enum { ... }" を検出
+        if ('[] = {' in line or
+            (re.search(r'\w+\s*=\s*\{', line) and not stripped.startswith('if') and not stripped.startswith('while') and not stripped.startswith('for')) or
+            re.search(r'\benum\b\s*(\w+)?\s*\{', line)):
             # 初期化子の開始
             initializer_depth += line.count('{') - line.count('}')
             result.append(line)
@@ -131,6 +136,14 @@ def instrument_functions(content, file_path):
 
         # ブレース深度を追跡
         if '{' in line:
+            # enum キーワードが前の行にあって '{' が来た場合は初期化子開始とみなす
+            if pending_enum and stripped == '{':
+                initializer_depth += line.count('{') - line.count('}')
+                pending_enum = False
+                result.append(line)
+                i += 1
+                continue
+
             if stripped == '{' and is_function_brace(i, lines):
                 in_function = True
                 brace_depth = 1
@@ -213,6 +226,9 @@ def instrument_functions(content, file_path):
                 # マニフェストに記録（COVERAGE_LINE()自身の行番号）
                 inserted_line = len(result)  # 追加したCOVERAGE_LINE()の行番号（1ベース）
                 coverage_manifest.append(f"{file_path}:{inserted_line}")
+        # enum が単独の行に現れた場合、次の '{' を初期化子開始として扱うためフラグを立てる
+        if stripped.startswith('enum') and '{' not in line:
+            pending_enum = True
 
         result.append(line)
         i += 1
