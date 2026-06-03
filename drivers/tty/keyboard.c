@@ -321,30 +321,30 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 	/* 特殊キーの処理 */
 	switch (code)
 	{
-	case 0x2A:	/* 左Shift */
+	case 0x2A: /* 左Shift */
 		left_shift = release ? 0 : 1;
 		extended_prefix = 0;
 		return;
-	case 0x36:	/* 右Shift */
+	case 0x36: /* 右Shift */
 		right_shift = release ? 0 : 1;
 		extended_prefix = 0;
 		return;
-	case 0x38:	/* Alt */
+	case 0x38: /* Alt */
 		alt_pressed = release ? 0 : 1;
 		extended_prefix = 0;
 		return;
-	case 0x1D:	/* Ctrl */
+	case 0x1D: /* Ctrl */
 		ctrl_pressed = release ? 0 : 1;
 		extended_prefix = 0;
 		return;
-	case 0x3A:	/* Caps Lock */
+	case 0x3A: /* Caps Lock */
 		if (!release)
 		{
 			caps_lock = !caps_lock;
 		}
 		extended_prefix = 0;
 		return;
-	case 0x0E:	/* バックスペース */
+	case 0x0E: /* バックスペース */
 		if (!release)
 		{
 			/* バックスペース: ハンドラに渡す */
@@ -361,7 +361,7 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		extended_prefix = 0;
 		return;
 
-	case 0x1C:	/* Enter */
+	case 0x1C: /* Enter */
 		if (!release)
 		{
 			if (custom_handler && custom_handler('\n'))
@@ -377,10 +377,10 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		extended_prefix = 0;
 		return;
 	/* F1 - F4 */
-	case 0x3B:	/* F1 */
-	case 0x3C:	/* F2 */
-	case 0x3D:	/* F3 */
-	case 0x3E:	/* F4 */
+	case 0x3B: /* F1 */
+	case 0x3C: /* F2 */
+	case 0x3D: /* F3 */
+	case 0x3E: /* F4 */
 		if (!release && alt_pressed)
 		{
 			size_t target = (size_t)(code - 0x3B);
