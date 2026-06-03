@@ -1,4 +1,6 @@
 #include <kfs/console.h>
+#include <kfs/errno.h>
+#include <kfs/pid.h>
 #include <kfs/printk.h>
 #include <kfs/serial.h>
 #include <kfs/stddef.h>
@@ -37,6 +39,7 @@ struct kfs_console_state
 
 static struct kfs_console_state kfs_console_states[KFS_VIRTUAL_CONSOLE_COUNT];
 static size_t kfs_console_active;
+pid_t foreground_pgrp; /* 端末のフォアグラウンドプロセスグループID（0=未設定） */
 static int kfs_console_bootstrap_completed;
 
 /* 現在使用してるコンソールを取得 */
@@ -89,7 +92,6 @@ static void kfs_terminal_set_cursor_shape(enum cursor_shape shape)
 		end = 15;
 		break;
 	}
-
 	kfs_io_outb(VGA_CRTC_COMMAND_PORT, VGA_CURSOR_START);
 	kfs_io_outb(VGA_CRTC_DATA_PORT, start);
 	kfs_io_outb(VGA_CRTC_COMMAND_PORT, VGA_CURSOR_END);
@@ -181,6 +183,7 @@ static void ensure_console_bootstrap(void)
 		}
 	}
 	kfs_console_active = 0;
+	foreground_pgrp = 0;
 	kfs_console_bootstrap_completed = 1;
 }
 

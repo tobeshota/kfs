@@ -40,7 +40,6 @@ void kfs_terminal_scroll_down(void);
 void kfs_terminal_cursor_left(void);
 void kfs_terminal_cursor_right(void);
 
-pid_t kfs_get_foreground_pgrp(int fd);
-int kfs_set_foreground_pgrp(int fd, pid_t pgrp);
+extern pid_t foreground_pgrp;
 
 #endif /* KFS_CONSOLE_H */
