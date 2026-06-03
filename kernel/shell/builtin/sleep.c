@@ -14,6 +14,7 @@ static unsigned int g_sleep_ms; /* cmd_sleep → sleep_ring3_main へのパラ�
 
 static void sleep_ring3_main(void)
 {
+	setpgid(0, 0);
 	msleep(g_sleep_ms);
 	exit(0);
 }

@@ -18,6 +18,7 @@ static void putstr(void *s)
  */
 static void sched_ring3_main(void)
 {
+	setpgid(0, 0);
 	for (int i = 0; i < 20; i++)
 	{
 		/* プロセスを誕生させる */
