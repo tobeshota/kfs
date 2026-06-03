@@ -22,6 +22,10 @@ struct task_struct init_task = {
 	/* プロセスID */
 	.pid = 0, /* PID 0（idle） */
 
+	/* プロセスグループ／セッション */
+	.pgrp = 0,
+	.session = 0,
+
 	/* プロセス階層 */
 	.parent = &init_task,							/* 自分自身が親 */
 	.children = LIST_HEAD_INIT(init_task.children), /* 子リスト */
