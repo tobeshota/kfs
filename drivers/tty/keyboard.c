@@ -15,6 +15,7 @@
 
 static int left_shift;
 static int right_shift;
+static int ctrl_pressed;
 static int alt_pressed;
 static int caps_lock;
 
@@ -148,11 +149,26 @@ static void handle_backspace(void)
 	}
 }
 
+/* Ctrl 押下時の文字変換: 文字キーを制御文字に落とす */
+static char translate_ctrl_char(char ch)
+{
+	if (ch >= 'a' && ch <= 'z')
+	{
+		return (char)(ch - 'a' + 1);
+	}
+	if (ch >= 'A' && ch <= 'Z')
+	{
+		return (char)(ch - 'A' + 1);
+	}
+	return 0;
+}
+
 /* キーボード状態をリセットする */
 void kfs_keyboard_reset(void)
 {
 	left_shift = 0;
 	right_shift = 0;
+	ctrl_pressed = 0;
 	alt_pressed = 0;
 	caps_lock = 0;
 	extended_prefix = 0;
@@ -305,26 +321,30 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 	/* 特殊キーの処理 */
 	switch (code)
 	{
-	case 0x2A:
+	case 0x2A: /* 左Shift */
 		left_shift = release ? 0 : 1;
 		extended_prefix = 0;
 		return;
-	case 0x36:
+	case 0x36: /* 右Shift */
 		right_shift = release ? 0 : 1;
 		extended_prefix = 0;
 		return;
-	case 0x38:
+	case 0x38: /* Alt */
 		alt_pressed = release ? 0 : 1;
 		extended_prefix = 0;
 		return;
-	case 0x3A:
+	case 0x1D: /* Ctrl */
+		ctrl_pressed = release ? 0 : 1;
+		extended_prefix = 0;
+		return;
+	case 0x3A: /* Caps Lock */
 		if (!release)
 		{
 			caps_lock = !caps_lock;
 		}
 		extended_prefix = 0;
 		return;
-	case 0x0E:
+	case 0x0E: /* バックスペース */
 		if (!release)
 		{
 			/* バックスペース: ハンドラに渡す */
@@ -340,8 +360,8 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		}
 		extended_prefix = 0;
 		return;
-	/* Enter */
-	case 0x1C:
+
+	case 0x1C: /* Enter */
 		if (!release)
 		{
 			if (custom_handler && custom_handler('\n'))
@@ -357,10 +377,10 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		extended_prefix = 0;
 		return;
 	/* F1 - F4 */
-	case 0x3B:
-	case 0x3C:
-	case 0x3D:
-	case 0x3E:
+	case 0x3B: /* F1 */
+	case 0x3C: /* F2 */
+	case 0x3D: /* F3 */
+	case 0x3E: /* F4 */
 		if (!release && alt_pressed)
 		{
 			size_t target = (size_t)(code - 0x3B);
@@ -433,6 +453,14 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 	char ch = translate_scancode(code);
 	if (ch)
 	{
+		if (ctrl_pressed)
+		{
+			char ctrl_char = translate_ctrl_char(ch);
+			if (ctrl_char)
+			{
+				ch = ctrl_char;
+			}
+		}
 		if (custom_handler && custom_handler(ch))
 		{
 			/* ハンドラが処理した */
