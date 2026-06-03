@@ -144,6 +144,10 @@ struct task_struct
 	/* プロセスID */
 	pid_t pid; /* プロセスID */
 
+	/* プロセスグループ／セッション */
+	pid_t pgrp;	   /* プロセスグループID */
+	pid_t session; /* セッションID（セッションリーダの PID） */
+
 	/* プロセス階層 */
 	struct task_struct *parent; /* 親プロセス */
 	struct list_head children;	/* 子プロセスリスト */
