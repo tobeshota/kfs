@@ -252,6 +252,71 @@ long sys_msleep(uint32_t ms)
 	return 0;
 }
 
+/** 引数pidで指定されたプロセスのプロセスグループIDをgpidに設定する
+ * @param pid 対象 PID（0の場合は current を意味する）
+ * @param pgid 設定するプロセスグループID（0の場合は pgid = pid を意味する）
+ * @return 成功: 0、PIDが見つからない: -ESRCH、引数不正: -EINVAL
+ * @note 現時点では最小実装として自分自身の pgrp のみ変更を許可する（pid == current->pid）
+ */
+int sys_setpgid(pid_t pid, pid_t pgid)
+{
+	if (pid == 0)
+	{
+		pid = current->pid;
+	}
+	if (pgid == 0)
+	{
+		pgid = pid;
+	}
+
+	/* 現時点では最小実装として自分自身の pgrp のみ変更を許可する */
+	if (pid != current->pid)
+	{
+		return -ESRCH;
+	}
+
+	struct task_struct *tsk = find_task_by_pid(pid);
+	if (!tsk)
+	{
+		return -ESRCH;
+	}
+
+	if (pgid <= 0)
+	{
+		return -EINVAL;
+	}
+
+	tsk->pgrp = pgid;
+	return 0;
+}
+
+/** 引数pidで指定されたプロセスのプロセスグループIDを返す
+ * @param pid 対象 PID（0の場合は current を意味する）
+ * @return 成功時: pgrp，PIDが見つからない場合: -ESRCH
+ */
+pid_t sys_getpgid(pid_t pid)
+{
+	if (pid == 0)
+	{
+		return current->pgrp;
+	}
+
+	struct task_struct *tsk = find_task_by_pid(pid);
+	if (!tsk)
+	{
+		return -ESRCH;
+	}
+	return tsk->pgrp;
+}
+
+/** 呼び出しプロセスのプロセスグループIDを返す
+ * @note getgpid(0) と同じ動作
+ */
+pid_t sys_getpgrp(void)
+{
+	return current->pgrp;
+}
+
 /** stdout/stderr への書き込みを VGA + COM1 の両方に tee する
  * @param fd    1=stdout/2=stderr → VGA端末 + COM1 両方、4=COM1 のみ
  * @param buf   書き込むバッファ

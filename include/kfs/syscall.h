@@ -20,6 +20,9 @@
 #define __NR_munmap 91	   /* Linux i386 互換番号 */
 #define __NR_mmap2 192	   /* Linux i386 互換番号（引数6本をレジスタで渡す版） */
 #define __NR_waitpid 247
+#define __NR_setpgid 248
+#define __NR_getpgid 249
+#define __NR_getpgrp 250
 
 /* サポートするシステムコールの数 */
 #define NR_syscalls 256
