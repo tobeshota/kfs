@@ -11,6 +11,7 @@
 #include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
+#include <kfs/signal.h>
 #include <kfs/stdint.h>
 #include <kfs/string.h>
 #include <kfs/timer.h>
@@ -436,7 +437,19 @@ int shell_keyboard_handler(char c)
 		return 1; /* 処理した */
 	}
 
-	/* 制御文字は無視（タブなど将来拡張可能） */
+	/* Ctrl+C: 端末の foreground pgrp に SIGINT を送る (簡易実装) */
+	if (c == '\x03')
+	{
+		pid_t fg = kfs_get_foreground_pgrp(0);
+		if (fg == 0)
+		{
+			fg = current->pgrp;
+		}
+		kill_pg(fg, SIGINT);
+		return 1;
+	}
+
+	/* '\x03'以外の制御文字は無視（タブなど将来拡張可能） */
 	if (c < 32 && c != '\t')
 	{
 		return 1; /* 処理した（無視） */
