@@ -159,6 +159,36 @@ static long do_sys_prctl(long arg1, long arg2, long arg3, long arg4, long arg5)
 						   (unsigned long)arg5);
 }
 
+/* setpgid(pid, pgid) のラッパー */
+static long do_sys_setpgid(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_setpgid((pid_t)arg1, (pid_t)arg2);
+}
+
+/* getpgid(pid) のラッパー */
+static long do_sys_getpgid(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_getpgid((pid_t)arg1);
+}
+
+/* getpgrp() のラッパー */
+static long do_sys_getpgrp(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_getpgrp();
+}
+
 /** msleep(ms) システムコール
  * @param arg1 スリープ時間 [ミリ秒]
  * @return 0: 成功
@@ -248,6 +278,9 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_munmap] = do_sys_munmap,
 	[__NR_mmap2] = do_sys_mmap2,
 	[__NR_waitpid] = do_sys_waitpid,
+	[__NR_setpgid] = do_sys_setpgid,
+	[__NR_getpgid] = do_sys_getpgid,
+	[__NR_getpgrp] = do_sys_getpgrp,
 };
 
 /** システムコールディスパッチャ

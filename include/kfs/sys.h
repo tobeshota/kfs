@@ -16,5 +16,8 @@ long sys_ps_snapshot(struct kfs_ps_entry *entries, size_t max_entries);
 long sys_prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5);
 long sys_msleep(uint32_t ms);
 long sys_write(int fd, const char *buf, size_t count);
+int sys_setpgid(pid_t pid, pid_t pgid);
+pid_t sys_getpgid(pid_t pid);
+pid_t sys_getpgrp(void);
 
 #endif /* _KFS_SYS_H */

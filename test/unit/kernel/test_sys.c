@@ -107,6 +107,58 @@ KFS_TEST(test_sys_capset_invalid_pid_returns_esrch)
 	KFS_ASSERT_EQ(-ESRCH, sys_capset(-42, &new_cap, NULL, NULL));
 }
 
+/* sys_setpgid(0, pgid) が current の pgrp を指定値に更新することを確かめる */
+KFS_TEST(test_sys_setpgid_pid0_updates_current_pgrp)
+{
+	current->pid = 42;
+	current->pgrp = 1;
+
+	KFS_ASSERT_EQ(0, sys_setpgid(0, 99));
+	KFS_ASSERT_EQ(99, current->pgrp);
+}
+
+/* sys_setpgid で pid != current->pid を指定すると -ESRCH を返すことを確かめる */
+KFS_TEST(test_sys_setpgid_other_pid_returns_esrch)
+{
+	current->pid = 42;
+	current->pgrp = 1;
+
+	KFS_ASSERT_EQ(-ESRCH, sys_setpgid(43, 43));
+	KFS_ASSERT_EQ(1, current->pgrp); /* 変更されないこと */
+}
+
+/* sys_setpgid で不正な pgid を指定すると -EINVAL を返すことを確かめる */
+KFS_TEST(test_sys_setpgid_invalid_pgid_returns_einval)
+{
+	current->pid = 42;
+	current->pgrp = 1;
+
+	KFS_ASSERT_EQ(-EINVAL, sys_setpgid(0, -1));
+	KFS_ASSERT_EQ(1, current->pgrp); /* 変更されないこと */
+}
+
+/* sys_getpgid(0) が current の pgrp を返すことを確かめる */
+KFS_TEST(test_sys_getpgid_pid0_returns_current_pgrp)
+{
+	current->pgrp = 77;
+
+	KFS_ASSERT_EQ(77, sys_getpgid(0));
+}
+
+/* 存在しない PID を指定すると sys_getpgid が -ESRCH を返すことを確かめる */
+KFS_TEST(test_sys_getpgid_invalid_pid_returns_esrch)
+{
+	KFS_ASSERT_EQ(-ESRCH, sys_getpgid(-42));
+}
+
+/* sys_getpgrp が current の pgrp を返すことを確かめる */
+KFS_TEST(test_sys_getpgrp_returns_current_pgrp)
+{
+	current->pgrp = 123;
+
+	KFS_ASSERT_EQ(123, sys_getpgrp());
+}
+
 /** sys_msleep(0) は schedule_timeout を呼ばずに即座に 0 を返すはず
  * 検証対象: kernel/sys.c sys_msleep()
  * 検証項目: ms == 0 のとき早期リターンで 0 が返る
@@ -127,6 +179,12 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_capget_invalid_pid_returns_esrch, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_capset_pid0_updates_current, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_capset_invalid_pid_returns_esrch, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_setpgid_pid0_updates_current_pgrp, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_setpgid_other_pid_returns_esrch, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_setpgid_invalid_pgid_returns_einval, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_getpgid_pid0_returns_current_pgrp, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_getpgid_invalid_pid_returns_esrch, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_getpgrp_returns_current_pgrp, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_msleep_zero_returns_immediately, setup_test, teardown_test),
 };
 
