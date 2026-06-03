@@ -75,6 +75,7 @@ void do_signal(void);
 void do_signal_with_regs(struct pt_regs *regs);
 int signal_pending(void);
 int send_signal(int sig, struct task_struct *p);
+int kill_pg(pid_t pgrp, int sig);
 int sys_kill(pid_t pid, int sig);
 sighandler_t sys_signal(int sig, sighandler_t handler);
 int sys_sigreturn(void);
