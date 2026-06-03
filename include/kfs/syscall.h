@@ -23,6 +23,8 @@
 #define __NR_setpgid 248
 #define __NR_getpgid 249
 #define __NR_getpgrp 250
+#define __NR_tcgetpgrp 251
+#define __NR_tcsetpgrp 252
 
 /* サポートするシステムコールの数 */
 #define NR_syscalls 256

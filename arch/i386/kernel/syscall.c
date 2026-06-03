@@ -242,6 +242,25 @@ static long do_sys_sigreturn(long arg1, long arg2, long arg3, long arg4, long ar
 	return (long)sys_sigreturn();
 }
 
+/* tcgetpgrp(fd) のラッパー */
+static long do_sys_tcgetpgrp(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_tcgetpgrp((int)arg1);
+}
+
+/* tcsetpgrp(fd, pgrp) のラッパー */
+static long do_sys_tcsetpgrp(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_tcsetpgrp((int)arg1, (pid_t)arg2);
+}
+
 /* mmap2(addr, len, prot, flags, fd) システムコール
  * @note pgoff は MAP_ANONYMOUS では不要なため省略（syscall_fn_t は5引数）
  */
@@ -281,6 +300,8 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_setpgid] = do_sys_setpgid,
 	[__NR_getpgid] = do_sys_getpgid,
 	[__NR_getpgrp] = do_sys_getpgrp,
+	[__NR_tcgetpgrp] = do_sys_tcgetpgrp,
+	[__NR_tcsetpgrp] = do_sys_tcsetpgrp,
 };
 
 /** システムコールディスパッチャ

@@ -1,6 +1,7 @@
 #ifndef KFS_CONSOLE_H
 #define KFS_CONSOLE_H
 
+#include <kfs/pid.h>
 #include <kfs/stddef.h>
 #include <kfs/stdint.h>
 #include <video/vga.h>
@@ -38,5 +39,7 @@ void kfs_terminal_scroll_down(void);
 /* カーソル移動（左右の矢印キー用） */
 void kfs_terminal_cursor_left(void);
 void kfs_terminal_cursor_right(void);
+
+extern pid_t foreground_pgrp;
 
 #endif /* KFS_CONSOLE_H */

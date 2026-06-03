@@ -317,6 +317,34 @@ pid_t sys_getpgrp(void)
 	return current->pgrp;
 }
 
+/** 現在の端末のフォアグラウンドプロセスグループIDを返す
+ * @param fd 端末のファイルディスクリプタ
+ * @return フォアグラウンドプロセスグループID
+ * @note 現在は fd を無視した簡易実装である
+ */
+pid_t sys_tcgetpgrp(int fd)
+{
+	(void)fd;
+	return foreground_pgrp;
+}
+
+/** 現在の端末のフォアグラウンドプロセスグループIDをpgrpに設定する
+ * @param fd 端末のファイルディスクリプタ
+ * @param pgrp 設定するフォアグラウンドプロセスグループID
+ * @return 0: 成功，-EINVAL: 不正なプロセスグループID
+ * @note 現在は fd を無視した簡易実装である
+ */
+int sys_tcsetpgrp(int fd, pid_t pgrp)
+{
+	(void)fd;
+	if (pgrp <= 0)
+	{
+		return -EINVAL;
+	}
+	foreground_pgrp = pgrp;
+	return 0;
+}
+
 /** stdout/stderr への書き込みを VGA + COM1 の両方に tee する
  * @param fd    1=stdout/2=stderr → VGA端末 + COM1 両方、4=COM1 のみ
  * @param buf   書き込むバッファ
