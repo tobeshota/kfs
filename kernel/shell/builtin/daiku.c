@@ -115,6 +115,7 @@ void daiku_main(void *arg)
 
 static void daiku_bg_entry(void)
 {
+	setpgid(0, 0);
 	exec_fn(daiku_main, NULL);
 }
 

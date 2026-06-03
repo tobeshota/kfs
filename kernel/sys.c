@@ -256,6 +256,10 @@ long sys_msleep(uint32_t ms)
  * @param pid 対象 PID（0の場合は current を意味する）
  * @param pgid 設定するプロセスグループID（0の場合は pgid = pid を意味する）
  * @return 成功: 0、PIDが見つからない: -ESRCH、引数不正: -EINVAL
+ * @example
+ * setpgid(0, 0);  // 自身をプロセスグループPID番のプロセスグループリーダーにする
+ *                 // （自身のPGIDを PGID == PID となるように設定する）
+ *
  * @note 現時点では最小実装として自分自身の pgrp のみ変更を許可する（pid == current->pid）
  */
 int sys_setpgid(pid_t pid, pid_t pgid)

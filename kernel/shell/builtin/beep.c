@@ -23,6 +23,7 @@
  */
 static void beep_ring3_main(void)
 {
+	setpgid(0, 0);
 	msleep(1000);
 	exit(0);
 }

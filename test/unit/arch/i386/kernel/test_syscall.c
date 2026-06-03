@@ -7,14 +7,33 @@
 #include "unit_test_framework.h"
 #include <kfs/errno.h>
 #include <kfs/mman.h>
+#include <kfs/pid.h>
+#include <kfs/sched.h>
 #include <kfs/signal.h>
+#include <kfs/slab.h>
 #include <kfs/stdint.h>
 #include <kfs/syscall.h>
+#include <kfs/unistd.h>
+
+extern struct task_struct *current;
+extern struct task_struct init_task;
+extern pid_t do_fork(unsigned long user_eip);
+extern pid_t do_wait(int *wstatus, int options);
+extern void fork_init(void);
+extern void pid_init(void);
+extern void init_idle_task(void);
 
 /* セットアップ */
 static void setup_test(void)
 {
 	reset_all_state_for_test();
+	kmem_cache_init();
+	pid_init();
+	init_idle_task();
+	fork_init();
+	current = &init_task;
+	current->pid = 1;
+	current->pgrp = 12345;
 }
 
 static void teardown_test(void)
@@ -102,6 +121,17 @@ KFS_TEST(test_nr_getuid_value)
 KFS_TEST(test_nr_kill_value)
 {
 	KFS_ASSERT_EQ(37, __NR_kill);
+}
+
+/**
+ * __NR_setpgid 定数の検証
+ * 検証対象: __NR_setpgid
+ * 検証項目: __NR_setpgid が 248 であること（Linux 互換）
+ * 目的: Phase 5 の shell-side setpgid 経路が正しい syscall 番号へ向くことを確認
+ */
+KFS_TEST(test_nr_setpgid_value)
+{
+	KFS_ASSERT_EQ(248, __NR_setpgid);
 }
 
 /**
@@ -283,6 +313,32 @@ KFS_TEST(test_int80_kill_sig0)
 	KFS_ASSERT_TRUE(result != -ENOSYS);
 }
 
+static void ring3_setpgid_worker(void)
+{
+	(void)setpgid(0, 0);
+	exit(0);
+}
+
+/**
+ * setpgid(0, 0) が ring-3 から呼べて、子がそのまま終了できることを確認する
+ * 検証対象: lib/unistd.c の setpgid/getpgrp ラッパーと kernel/sys.c の sys_setpgid/sys_getpgrp
+ * 目的: shell の fork 後に子が setpgid を呼び出す最小経路を確認
+ */
+KFS_TEST(test_int80_setpgid_ring3_calls_successfully)
+{
+	int wstatus = -1;
+	pid_t child_pid;
+	pid_t waited;
+
+	current->pgrp = 12345;
+	child_pid = do_fork((unsigned long)ring3_setpgid_worker);
+	KFS_ASSERT_TRUE(child_pid > 0);
+
+	waited = do_wait(&wstatus, 0);
+	KFS_ASSERT_EQ((int)waited, (int)child_pid);
+	KFS_ASSERT_EQ(0, wstatus);
+}
+
 /**
  * write fd=1 (stdout) のパス
  * 検証対象: do_syscall(__NR_write)
@@ -432,6 +488,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_wait_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_getuid_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_kill_value, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_nr_setpgid_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_signal_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_getuid_registered, setup_test, teardown_test),
 	/* INT 0x80テスト */
@@ -440,6 +497,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_int80_wait_no_children, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_int80_signal_sigusr1_ign, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_int80_kill_sig0, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_int80_setpgid_ring3_calls_successfully, setup_test, teardown_test),
 	/* write パステスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_stdout, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_serial, setup_test, teardown_test),
