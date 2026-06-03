@@ -48,6 +48,46 @@ pid_t wait(int *wstatus)
 	return (pid_t)ret;
 }
 
+/* 引数pidで指定されたプロセスのプロセスグループIDをgpidに設定する */
+int setpgid(pid_t pid, pid_t pgid)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_setpgid), "b"(pid), "c"(pgid) : "memory");
+	return (int)ret;
+}
+
+/* 引数pidで指定されたプロセスのプロセスグループIDを返す */
+pid_t getpgid(pid_t pid)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_getpgid), "b"(pid) : "memory");
+	return (pid_t)ret;
+}
+
+/* 呼び出しプロセスのプロセスグループIDを返す */
+pid_t getpgrp(void)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_getpgrp) : "memory");
+	return (pid_t)ret;
+}
+
+/* 現在の端末のフォアグラウンドプロセスグループIDを返す */
+pid_t tcgetpgrp(int fd)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_tcgetpgrp), "b"((long)fd) : "memory");
+	return (pid_t)ret;
+}
+
+/* 現在の端末のフォアグラウンドプロセスグループIDをpgrpに設定する */
+int tcsetpgrp(int fd, pid_t pgrp)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_tcsetpgrp), "b"((long)fd), "c"((long)pgrp) : "memory");
+	return (int)ret;
+}
+
 /* fd にバイト列を書き込む（1=stdout, 2=stderr, 4=COM1シリアル） */
 int write(int fd, const void *buf, unsigned int count)
 {
