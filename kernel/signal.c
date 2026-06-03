@@ -185,6 +185,76 @@ int send_signal(int sig, struct task_struct *p)
 	return 0;
 }
 
+struct pgrp_signal_ctx
+{
+	pid_t pgrp;	   /* 対象プロセスグループID */
+	int sig;	   /* 送信するシグナル番号 */
+	int delivered; /* 送信したシグナルの数 */
+	int error;	   /* 送信中にエラーが発生した場合は負のエラーコードをセット */
+};
+
+static int kill_pg_cb(struct task_struct *task, void *ctx)
+{
+	struct pgrp_signal_ctx *signal_ctx = (struct pgrp_signal_ctx *)ctx;
+
+	if (task->exit_state == EXIT_DEAD)
+	{
+		return 0;
+	}
+	if (task->pgrp != signal_ctx->pgrp)
+	{
+		return 0;
+	}
+
+	if (send_signal(signal_ctx->sig, task) == 0)
+	{
+		signal_ctx->delivered++;
+	}
+	else
+	{
+		signal_ctx->error = -EINVAL;
+	}
+	return 0;
+}
+
+/** 同一プロセスグループの全メンバにシグナルを送信する
+ * @param pgrp 対象プロセスグループID
+ * @param sig  送信するシグナル番号
+ * @return 0: 成功，-ESRCH: 対象グループなし，-EINVAL: 引数不正
+ */
+int kill_pg(pid_t pgrp, int sig)
+{
+	struct pgrp_signal_ctx ctx;
+
+	if (pgrp <= 0)
+	{
+		return -EINVAL;
+	}
+	if (!valid_signal(sig))
+	{
+		return -EINVAL;
+	}
+
+	ctx.pgrp = pgrp;
+	ctx.sig = sig;
+	ctx.delivered = 0;
+	ctx.error = 0;
+
+	if (task_for_each(kill_pg_cb, &ctx) < 0)
+	{
+		return -EINVAL;
+	}
+	if (ctx.error)
+	{
+		return ctx.error;
+	}
+	if (ctx.delivered == 0)
+	{
+		return -ESRCH;
+	}
+	return 0;
+}
+
 /** killシステムコール用ヘルパー
  * @brief 指定PIDのプロセスにシグナルを送信する
  * @param pid  送信先プロセスID

@@ -312,6 +312,33 @@ KFS_TEST(test_send_signal_invalid_signum)
 	KFS_ASSERT_EQ(-1, ret);
 }
 
+/* kill_pg() が同一 pgrp のプロセスへシグナルを送ることをテスト */
+KFS_TEST(test_kill_pgrp_delivers_to_group)
+{
+	int ret;
+
+	current->pgrp = 7;
+	current->pending.signal = 0;
+
+	ret = kill_pg(7, SIGINT);
+	KFS_ASSERT_EQ(0, ret);
+	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGINT));
+}
+
+/* kill_pg() が存在しない pgrp を拒否することをテスト */
+KFS_TEST(test_kill_pgrp_invalid_group)
+{
+	KFS_ASSERT_EQ(-ESRCH, kill_pg(9999, SIGINT));
+}
+
+/* kill_pg() が不正引数を拒否することをテスト */
+KFS_TEST(test_kill_pgrp_invalid_args)
+{
+	KFS_ASSERT_EQ(-EINVAL, kill_pg(0, SIGINT)); /* 無効なプロセスグループID */
+	KFS_ASSERT_EQ(-EINVAL, kill_pg(1, 0));		/* 無効なシグナル番号 */
+	KFS_ASSERT_EQ(-EINVAL, kill_pg(1, _NSIG));	/* 無効なシグナル番号 */
+}
+
 /* sys_kill()が有効なPIDにシグナルを送信することをテスト */
 KFS_TEST(test_sys_kill_valid_pid)
 {
@@ -476,6 +503,9 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_sets_pending, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_null_process, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_invalid_signum, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kill_pgrp_delivers_to_group, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kill_pgrp_invalid_group, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kill_pgrp_invalid_args, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_kill_valid_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_kill_invalid_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_signal_same_as_signal, setup_test, teardown_test),
