@@ -1,5 +1,6 @@
 #include <kfs/errno.h>
 #include <kfs/printk.h>
+#include <kfs/shell.h>
 #include <kfs/string.h>
 #include <kfs/unistd.h>
 
@@ -199,8 +200,9 @@ static int send_kill_signal(int pid, int sig)
 /** kill コマンド
  * @brief `kill [options] <pid>` でプロセスにシグナルを送る
  */
-void cmd_kill(const char *args)
+void cmd_kill(const char *args, int foreground)
 {
+	(void)foreground;
 	const char *cursor = args;
 	int sig = SIGTERM;
 	int pid;
@@ -212,7 +214,6 @@ void cmd_kill(const char *args)
 		print_kill_help();
 		return;
 	}
-
 	if (strncmp(cursor, "--help", 6) == 0 && is_token_end(cursor + 6))
 	{
 		print_kill_help();

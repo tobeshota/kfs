@@ -1,13 +1,15 @@
 #include <kfs/keyboard.h>
 #include <kfs/printk.h>
+#include <kfs/shell.h>
 #include <kfs/string.h>
 
 /** キーボードレイアウトを変更する（loadkeys組み込みコマンド）
  * @param args コマンド引数（レイアウト名）
  * @note テスト用にstaticを外している
  */
-void cmd_loadkeys(const char *args)
+void cmd_loadkeys(const char *args, int foreground)
 {
+	(void)foreground;
 	const char *layout = args;
 
 	/* 先頭の空白をスキップ */

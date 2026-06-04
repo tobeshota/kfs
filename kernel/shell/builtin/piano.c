@@ -3,6 +3,7 @@
 #include <kfs/printk.h>
 #include <kfs/psg.h>
 #include <kfs/sched.h>
+#include <kfs/shell.h>
 #include <kfs/stdint.h>
 
 /** ピアノの鍵盤配列
@@ -206,8 +207,10 @@ int piano_raw_handler(uint8_t code, int release)
 	return 1;
 }
 
-void cmd_piano(void)
+void cmd_piano(const char *args, int foreground)
 {
+	(void)args;
+	(void)foreground;
 	int i;
 
 	/* 操作方法をカーネルログに表示する */

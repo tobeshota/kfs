@@ -1,6 +1,7 @@
 #include <asm-i386/page.h>
 #include <kfs/console.h>
 #include <kfs/printk.h>
+#include <kfs/shell.h>
 #include <shell.h>
 #include <video/vga.h>
 
@@ -120,4 +121,11 @@ void print_neofetch(void)
 	}
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
 	printk("\n\n\n\n\n\n\n\n\n\n");
+}
+
+void cmd_neofetch(const char *args, int foreground)
+{
+	(void)args;
+	(void)foreground;
+	print_neofetch();
 }

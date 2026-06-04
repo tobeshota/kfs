@@ -1,8 +1,10 @@
 #include <kfs/exec.h>
 #include <kfs/printk.h>
 #include <kfs/sched.h>
+#include <kfs/shell.h>
 #include <kfs/stdint.h>
 #include <kfs/string.h>
+#include <kfs/sys.h>
 #include <kfs/unistd.h>
 #include <kfs/wait.h>
 
@@ -16,7 +18,7 @@ static void putstr(void *s)
  *        exit()で終了し，親のwait()によって揮発するまでの全過程が意図通りであることを確かめる．
  *        期待する出力: "-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_\n"
  */
-static void sched_ring3_main(void)
+void sched_ring3_main(void)
 {
 	setpgid(0, 0);
 	for (int i = 0; i < 20; i++)
@@ -46,9 +48,8 @@ static void sched_ring3_main(void)
 	exit(0);
 }
 
-void cmd_sched(void)
+void cmd_sched(const char *args, int foreground)
 {
-	/* ring-0 → ring-3 へ降りてスケジューリングループを実行し、終了を待つ */
-	do_fork((unsigned long)sched_ring3_main);
-	do_wait(NULL, 0);
+	(void)args;
+	shell_launch_ring3_job("sched_ring3_main", sched_ring3_main, foreground);
 }

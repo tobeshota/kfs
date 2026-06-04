@@ -6,8 +6,10 @@
  * ch0 (メロディ) + ch1 (ベース) を 1 プロセスで同時再生する。
  */
 
-#include <kfs/printk.h>
+#include <kfs/shell.h>
 #include <kfs/stdint.h>
+#include <kfs/string.h>
+#include <kfs/sys.h>
 #include <kfs/unistd.h> /* psg_note(), psg_stop(), msleep(), exit() */
 #include <kfs/wait.h>
 
@@ -74,9 +76,12 @@ static const struct bar score[] = {
  * 各音符末尾に GAP ms の無音を挿入することで連続する同音（DD, BB など）を
  * 明確に分離する。音符長 - GAP だけ発音し、GAP だけ無音にする。
  */
-void daiku_main(void *arg)
+void daiku_ring3_main(void)
 {
-	(void)arg;
+	/* 再生開始メッセージは builtin 内部で出す */
+	const char *message = "daiku: playing Ode to Joy (Beethoven 9th, public domain) on PSG ch0+ch1...\n";
+	write(1, message, strlen(message));
+	setpgid(0, 0);
 
 	for (int b = 0; b < N_BARS; b++)
 	{
@@ -111,20 +116,11 @@ void daiku_main(void *arg)
 		psg_stop(0);
 		psg_stop(1);
 	}
+	exit(0);
 }
 
-static void daiku_bg_entry(void)
+void cmd_daiku(const char *args, int foreground)
 {
-	setpgid(0, 0);
-	exec_fn(daiku_main, NULL);
-}
-
-void cmd_daiku(void)
-{
-	printk("daiku: playing Ode to Joy (Beethoven 9th, public domain) on PSG ch0+ch1...\n");
-
-	/** バックグラウンドでdaiku_mainを実行する
-	 * 子を作り，親は待たずに戻る
-	 * 子は終了後，親（PID 2）がshell_run内で定期的に呼ぶwait()により回収される */
-	do_fork((unsigned long)daiku_bg_entry);
+	(void)args;
+	shell_launch_ring3_job("daiku_ring3_main", daiku_ring3_main, foreground);
 }
