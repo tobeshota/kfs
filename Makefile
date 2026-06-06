@@ -17,6 +17,16 @@ else
     QEMU_AUDIO ?=
 endif
 
+# QEMU VNC設定（VNC_ADDRが定義され，かつパスワードファイルが存在するときのみ有効）
+ifneq ($(and $(strip $(VNC_ADDR)),$(strip $(VNC_PORT)),$(wildcard $(VNC_PASS_FILE))),)
+	QEMU_VNC := \
+	-object secret,id=vncpass,file=$(VNC_PASS_FILE) \
+	-display vnc=$(VNC_ADDR):$(VNC_PORT),password-secret=vncpass
+	QEMU_VNC_HINT := @printf "Connect to QEMU via VNC using the password in \"$(VNC_PASS_FILE)\":\n\e[32m$$ open vnc://$(VNC_ADDR):5901\e[m\n"
+else
+	QEMU_VNC :=
+endif
+
 # ===== Docker image settings =====
 IMAGE     ?= kfs-$(ISA)-toolchain
 FMT_IMAGE ?= kfs-fmt
@@ -145,24 +155,29 @@ re: fclean all
 run: run-iso-bios
 
 run-iso-bios: $(ISO_BIOS)
-	qemu-system-$(ISA) -cdrom $(ISO_BIOS) -serial stdio $(QEMU_AUDIO)
+	@ $(QEMU_VNC_HINT)
+	@ qemu-system-$(ISA) -cdrom $(ISO_BIOS) $(QEMU_VNC) -serial stdio $(QEMU_AUDIO)
 
 run-kernel: $(KERNEL)
-	qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio $(QEMU_AUDIO)
+	@ $(QEMU_VNC_HINT)
+	@ qemu-system-$(ISA) -kernel $(KERNEL) $(QEMU_VNC) -serial stdio $(QEMU_AUDIO)
 
 # ===== Fast dev loop (no ISO, no xz compression) =====
 # Image まで作って -kernel で直接起動．
 # grub-mkrescue --compress=xz をスキップするためmake runより速い．
 dev: $(KERNEL)
-	qemu-system-$(ISA) -kernel $(KERNEL) -serial stdio $(QEMU_AUDIO)
+	@ $(QEMU_VNC_HINT)
+	@ qemu-system-$(ISA) -kernel $(KERNEL) $(QEMU_VNC) -serial stdio $(QEMU_AUDIO)
 
 # QEMU上でUEFIで起動する
 # 備考: OVMFはQEMUパッケージ内に含まれる
 OVMF_FD ?= $(shell find /usr/share/ovmf /usr/share/OVMF /usr/share/qemu /opt/homebrew /usr/local \( -name "OVMF.fd" -o -name "edk2-x86_64-code.fd" \) 2>/dev/null | head -1)
 run-iso-uefi: $(ISO_UEFI)
-	qemu-system-x86_64 \
+	@ $(QEMU_VNC_HINT)
+	@ qemu-system-x86_64 \
 		-drive if=pflash,format=raw,readonly=on,file=$(OVMF_FD) \
 		-cdrom $(ISO_UEFI) \
+		$(QEMU_VNC) \
 		-serial stdio \
 		-display curses \
 
