@@ -16,7 +16,7 @@
 #define VGA_CURSOR_START 0x0A
 #define VGA_CURSOR_END 0x0B
 #define SCROLLBACK_LINES 100 /* スクロールバックバッファの行数 */
-#define ANSI_MAX_PARAMS 8	/* ANSIエスケープシーケンスの最大パラメータ数 */
+#define ANSI_MAX_PARAMS 8	 /* ANSIエスケープシーケンスの最大パラメータ数 */
 
 extern void kfs_io_outb(uint16_t port, uint8_t val);
 
@@ -30,11 +30,11 @@ struct kfs_console_state
 	size_t row;
 	size_t column;
 	uint8_t color;
-	uint8_t ansi_state;		/* ANSIエスケープシーケンスのパーサ状態 */
-	int ansi_params[ANSI_MAX_PARAMS];	/* ANSIエスケープシーケンスのパラメータ配列 */
-	int ansi_param_count;	/* 現在解析中のパラメータ数 */
-	int ansi_current;		/* 現在解析中の数値 */
-	int ansi_has_current;	/* 現在解析中の数値があるかどうか */
+	uint8_t ansi_state;				  /* ANSIエスケープシーケンスのパーサ状態 */
+	int ansi_params[ANSI_MAX_PARAMS]; /* ANSIエスケープシーケンスのパラメータ配列 */
+	int ansi_param_count;			  /* 現在解析中のパラメータ数 */
+	int ansi_current;				  /* 現在解析中の数値 */
+	int ansi_has_current;			  /* 現在解析中の数値があるかどうか */
 	uint16_t shadow[VGA_WIDTH * VGA_HEIGHT];
 	uint16_t scrollback[SCROLLBACK_LINES * VGA_WIDTH]; /* スクロールバックバッファ */
 	size_t scrollback_pos;	 /* スクロールバックバッファ内の現在位置（リングバッファ） */
@@ -61,9 +61,9 @@ static int console_is_active(const struct kfs_console_state *con)
 
 enum ansi_parse_state
 {
-	ANSI_STATE_TEXT = 0,	/* 通常のテキスト状態 */
-	ANSI_STATE_ESC,			/* ESC文字を受け取った状態 */
-	ANSI_STATE_CSI,			/* CSIシーケンスを受け取った状態 */
+	ANSI_STATE_TEXT = 0, /* 通常のテキスト状態 */
+	ANSI_STATE_ESC,		 /* ESC文字を受け取った状態 */
+	ANSI_STATE_CSI,		 /* CSIシーケンスを受け取った状態 */
 };
 
 /** デフォルトの端末色を返す
@@ -137,14 +137,14 @@ static void ansi_apply_sgr(struct kfs_console_state *con, const int *params, int
 	{
 		int p = params[i];
 
-		if (p == 0)	/* リセット */
+		if (p == 0) /* リセット */
 		{
 			fg = VGA_COLOR_LIGHT_GREY;
 			bg = VGA_COLOR_BLACK;
 			bright_fg = 0;
 			continue;
 		}
-		if (p == 1)	/* 太字（明るい色） */
+		if (p == 1) /* 太字（明るい色） */
 		{
 			bright_fg = 1;
 			if (fg <= VGA_COLOR_LIGHT_GREY)
@@ -153,7 +153,7 @@ static void ansi_apply_sgr(struct kfs_console_state *con, const int *params, int
 			}
 			continue;
 		}
-		if (p == 22)	/* 太字（明るい色）を解除 */
+		if (p == 22) /* 太字（明るい色）を解除 */
 		{
 			bright_fg = 0;
 			if (fg >= VGA_COLOR_DARK_GREY)
@@ -162,7 +162,7 @@ static void ansi_apply_sgr(struct kfs_console_state *con, const int *params, int
 			}
 			continue;
 		}
-		if (p == 39)	/* 文字色をデフォルトに戻す */
+		if (p == 39) /* 文字色をデフォルトに戻す */
 		{
 			/* 文字色だけデフォルトに戻す。 */
 			fg = VGA_COLOR_LIGHT_GREY;
@@ -172,13 +172,13 @@ static void ansi_apply_sgr(struct kfs_console_state *con, const int *params, int
 			}
 			continue;
 		}
-		if (p == 49)	/* 背景色をデフォルトに戻す */
+		if (p == 49) /* 背景色をデフォルトに戻す */
 		{
 			/* 背景色だけデフォルトに戻す。 */
 			bg = VGA_COLOR_BLACK;
 			continue;
 		}
-		if (p >= 30 && p <= 37)	/* 文字色を設定 */
+		if (p >= 30 && p <= 37) /* 文字色を設定 */
 		{
 			fg = ansi_basic_color_to_vga(p - 30);
 			if (bright_fg)
@@ -187,18 +187,18 @@ static void ansi_apply_sgr(struct kfs_console_state *con, const int *params, int
 			}
 			continue;
 		}
-		if (p >= 40 && p <= 47)	/* 背景色を設定 */
+		if (p >= 40 && p <= 47) /* 背景色を設定 */
 		{
 			bg = ansi_basic_color_to_vga(p - 40);
 			continue;
 		}
-		if (p >= 90 && p <= 97)	/* 明るい文字色を設定 */
+		if (p >= 90 && p <= 97) /* 明るい文字色を設定 */
 		{
 			fg = (enum vga_color)(ansi_basic_color_to_vga(p - 90) + 8);
 			bright_fg = 1;
 			continue;
 		}
-		if (p >= 100 && p <= 107)	/* 明るい背景色を設定 */
+		if (p >= 100 && p <= 107) /* 明るい背景色を設定 */
 		{
 			bg = (enum vga_color)(ansi_basic_color_to_vga(p - 100) + 8);
 			continue;
@@ -243,7 +243,8 @@ static int ansi_push_current_param(struct kfs_console_state *con)
  * @param con コンソール状態
  * @param c   入力文字（ESC[...m のうち ...の部分の1文字）
  * @return ANSIエスケープシーケンスの一部として処理した場合は1、そうでなければ0
- * @note SGR以外のシーケンスは解釈せずにリセットする（ESC[...m のうち ...の部分の1文字目が数字でも';'でも'm'でもない場合はリセットする）
+ * @note SGR以外のシーケンスは解釈せずにリセットする（ESC[...m のうち
+ * ...の部分の1文字目が数字でも';'でも'm'でもない場合はリセットする）
  * @example
  * conが"ESC[31m"を受け取ると，
  * c='3'のときにパラメータ31を解析し，
