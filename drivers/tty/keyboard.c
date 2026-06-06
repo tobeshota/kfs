@@ -47,18 +47,18 @@ static kbd_layout_t current_layout = KBD_LAYOUT_QWERTY;
 #define KEYBOARD_RAW_QUEUE_SIZE 64
 
 /* user-space shell から read(0, ...) で受け取る1行入力バッファ */
-static char keyboard_input_line[KEYBOARD_LINE_MAX];
-static unsigned int keyboard_input_line_len;
-static unsigned int keyboard_input_cursor;
-static char keyboard_ready_line[KEYBOARD_LINE_MAX];
-static int keyboard_line_ready;
-static struct task_struct *keyboard_line_waiter;
-static struct kfs_keyboard_raw_event keyboard_raw_queue[KEYBOARD_RAW_QUEUE_SIZE];
-static unsigned int keyboard_raw_head;
-static unsigned int keyboard_raw_tail;
-static unsigned int keyboard_raw_count;
-static struct task_struct *keyboard_raw_waiter;
-static int keyboard_raw_mode;
+static char keyboard_input_line[KEYBOARD_LINE_MAX]; /* 入力中の1行分のバッファ */
+static unsigned int keyboard_input_line_len;		/* 入力中の行の長さ */
+static unsigned int keyboard_input_cursor;			/* 入力中の行のカーソル位置 */
+static char keyboard_ready_line[KEYBOARD_LINE_MAX]; /* ユーザ空間に渡す準備ができた行のバッファ */
+static int keyboard_line_ready;						/* ユーザ空間に渡す準備ができた行があるか */
+static struct task_struct *keyboard_line_waiter;	/* 行入力待ちのタスク */
+static struct kfs_keyboard_raw_event keyboard_raw_queue[KEYBOARD_RAW_QUEUE_SIZE]; /* RAWイベントのリングバッファ */
+static unsigned int keyboard_raw_head;			/* RAWイベントキューの先頭インデックス */
+static unsigned int keyboard_raw_tail;			/* RAWイベントキューの末尾インデックス */
+static unsigned int keyboard_raw_count;			/* RAWイベントキュー内のイベント数 */
+static struct task_struct *keyboard_raw_waiter; /* RAWイベント待ちのタスク */
+static int keyboard_raw_mode; /* RAWモードフラグ。1のときraw_handlerにイベントを送る */
 
 extern uint8_t kfs_io_inb(uint16_t port);
 
@@ -675,6 +675,21 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 				{
 					pid_t fgprg = (foreground_pgrp != 0) ? foreground_pgrp : current->pgrp;
 					(void)kill_pg(fgprg, SIGINT);
+
+					/* シェルが read(0, ...) で入力待ち中なら、^C を表示して
+					 * 現在の入力行を破棄し、空行を publish して即座にプロンプトへ戻す。 */
+					if (!custom_handler)
+					{
+						printk("^C\n");
+						keyboard_input_line_len = 0;
+						keyboard_input_cursor = 0;
+						keyboard_input_line[0] = '\0';
+						if (keyboard_line_waiter)
+						{
+							keyboard_publish_line();
+						}
+					}
+
 					extended_prefix = 0;
 					return;
 				}
