@@ -1,10 +1,10 @@
-#include <kfs/printk.h>
 #include <kfs/shell.h>
+#include <kfs/stdio.h>
+#include <kfs/unistd.h>
 
-void cmd_help(const char *args, int foreground)
+void cmd_help(void *arg)
 {
-	(void)args;
-	(void)foreground;
-	printk("Built-in commands:\n");
+	(void)arg;
+	printf("Built-in commands:\n");
 	shell_builtin_list();
 }

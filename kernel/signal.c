@@ -182,6 +182,9 @@ int send_signal(int sig, struct task_struct *p)
 	/* 対象プロセスの保留シグナルビットマスクにセット */
 	p->pending.signal |= (1UL << sig);
 
+	/* シグナル到来時は割り込み可能スリープ中のプロセスを起床させる */
+	wake_up_process(p);
+
 	return 0;
 }
 

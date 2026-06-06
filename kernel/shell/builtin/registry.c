@@ -1,6 +1,7 @@
-#include <kfs/printk.h>
 #include <kfs/shell.h>
+#include <kfs/stdio.h>
 #include <kfs/string.h>
+#include <kfs/unistd.h>
 
 struct shell_builtin_entry
 {
@@ -49,27 +50,26 @@ void shell_builtin_list(void)
 {
 	for (size_t i = 0; i < builtin_count; i++)
 	{
-		printk("  %s\n", builtin_table[i].name);
+		printf("  %s\n", builtin_table[i].name);
 	}
 }
 
 void shell_builtins_init(void)
 {
 	builtin_count = 0;
-	extern void cmd_halt(const char *args, int foreground);
-	extern void cmd_reboot(const char *args, int foreground);
-	extern void cmd_panic(const char *args, int foreground);
-	extern void cmd_loadkeys(const char *args, int foreground);
-	extern void cmd_ps(const char *args, int foreground);
-	extern void cmd_kill(const char *args, int foreground);
-	extern void cmd_piano(const char *args, int foreground);
-	extern void cmd_neofetch(const char *args, int foreground);
-	extern void cmd_sched(const char *args, int foreground);
-	extern void cmd_beep(const char *args, int foreground);
-	extern void cmd_sleep(const char *args, int foreground);
-	extern void cmd_daiku(const char *args, int foreground);
-	extern void cmd_help(const char *args, int foreground);
-	extern void sched_ring3_main(void);
+	extern void cmd_halt(void *args);
+	extern void cmd_reboot(void *args);
+	extern void cmd_panic(void *args);
+	extern void cmd_loadkeys(void *args);
+	extern void cmd_ps(void *args);
+	extern void cmd_kill(void *args);
+	extern void cmd_piano(void *args);
+	extern void cmd_neofetch(void *args);
+	extern void cmd_sched(void *args);
+	extern void cmd_beep(void *args);
+	extern void cmd_sleep(void *args);
+	extern void cmd_daiku(void *args);
+	extern void cmd_help(void *args);
 
 	builtin_register("halt", cmd_halt);
 	builtin_register("reboot", cmd_reboot);

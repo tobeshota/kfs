@@ -1,6 +1,7 @@
 #include <kfs/panic.h>
 #include <kfs/printk.h>
 #include <kfs/stdarg.h>
+#include <kfs/stdio.h>
 
 /* スタックトレース表示（arch/i386/kernel/stacktrace.c） */
 extern void show_stack(unsigned long *esp);

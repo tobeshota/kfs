@@ -3,8 +3,11 @@
 #include <kfs/irq.h>
 #include <kfs/keyboard.h>
 #include <kfs/printk.h>
+#include <kfs/sched.h>
+#include <kfs/signal.h>
 #include <kfs/stddef.h>
 #include <kfs/stdint.h>
+#include <kfs/string.h>
 
 /* @see https://wiki.osdev.org/I8042_PS/2_Controller */
 #define PS2_STATUS_PORT 0x64 /* PS/2 コントローラのペリフェラルから受け取るステータスレジスタのポート番号 */
@@ -39,6 +42,23 @@ static keyboard_raw_handler_t raw_handler = NULL;
 
 /* 現在のキーボードレイアウト */
 static kbd_layout_t current_layout = KBD_LAYOUT_QWERTY;
+
+#define KEYBOARD_LINE_MAX 256
+#define KEYBOARD_RAW_QUEUE_SIZE 64
+
+/* user-space shell から read(0, ...) で受け取る1行入力バッファ */
+static char keyboard_input_line[KEYBOARD_LINE_MAX];
+static unsigned int keyboard_input_line_len;
+static unsigned int keyboard_input_cursor;
+static char keyboard_ready_line[KEYBOARD_LINE_MAX];
+static int keyboard_line_ready;
+static struct task_struct *keyboard_line_waiter;
+static struct kfs_keyboard_raw_event keyboard_raw_queue[KEYBOARD_RAW_QUEUE_SIZE];
+static unsigned int keyboard_raw_head;
+static unsigned int keyboard_raw_tail;
+static unsigned int keyboard_raw_count;
+static struct task_struct *keyboard_raw_waiter;
+static int keyboard_raw_mode;
 
 extern uint8_t kfs_io_inb(uint16_t port);
 
@@ -129,23 +149,186 @@ static char translate_scancode(uint8_t code)
 	return base;
 }
 
-/* バックスペース処理：カーソルを左に移動して文字を削除 */
-static void handle_backspace(void)
+/* 行バッファのカーソル位置に文字を挿入する */
+static void keyboard_insert_char_at_cursor(char ch)
 {
-	size_t row = 0;
-	size_t col = 0;
-	kfs_terminal_get_cursor(&row, &col);
-	if (col > 0)
+	if (keyboard_input_line_len + 1 >= KEYBOARD_LINE_MAX)
 	{
-		/* カーソルを1つ左に移動してから削除 */
-		kfs_terminal_move_cursor(row, col - 1);
-		terminal_delete_char(); /* 挿入モード対応: 文字を削除して左シフト */
+		return;
 	}
-	else if (row > 0)
+
+	if (keyboard_input_cursor < keyboard_input_line_len)
 	{
-		/* 前の行の末尾に移動してから削除 */
-		kfs_terminal_move_cursor(row - 1, KFS_VGA_WIDTH - 1);
-		terminal_delete_char(); /* 挿入モード対応: 文字を削除して左シフト */
+		memmove(&keyboard_input_line[keyboard_input_cursor + 1], &keyboard_input_line[keyboard_input_cursor],
+				keyboard_input_line_len - keyboard_input_cursor + 1);
+		keyboard_input_line[keyboard_input_cursor] = ch;
+	}
+	else
+	{
+		keyboard_input_line[keyboard_input_cursor] = ch;
+		keyboard_input_line[keyboard_input_cursor + 1] = '\0';
+	}
+
+	keyboard_input_line_len++;
+	keyboard_input_cursor++;
+}
+
+/* 行バッファのカーソル直前1文字を削除する */
+static int keyboard_delete_char_before_cursor(void)
+{
+	if (keyboard_input_cursor == 0 || keyboard_input_line_len == 0)
+	{
+		return 0;
+	}
+
+	memmove(&keyboard_input_line[keyboard_input_cursor - 1], &keyboard_input_line[keyboard_input_cursor],
+			keyboard_input_line_len - keyboard_input_cursor + 1);
+	keyboard_input_cursor--;
+	keyboard_input_line_len--;
+	return 1;
+}
+
+/* バックスペース処理：プロンプト左側へは移動・削除させない */
+static void handle_backspace_default(void)
+{
+	if (!keyboard_delete_char_before_cursor())
+	{
+		return;
+	}
+
+	/* カーソルを1つ左に移動してから削除（右側は terminal_delete_char が左シフト） */
+	kfs_terminal_cursor_left();
+	terminal_delete_char();
+}
+
+/* いま入力中の1行を read() 側へ渡せる状態にして，待機中の shell を起こす */
+static void keyboard_publish_line(void)
+{
+	unsigned int i;
+
+	for (i = 0; i < keyboard_input_line_len && i + 1 < KEYBOARD_LINE_MAX; i++)
+	{
+		keyboard_ready_line[i] = keyboard_input_line[i];
+	}
+	keyboard_ready_line[i] = '\0';
+	keyboard_line_ready = 1;
+	keyboard_input_line_len = 0;
+	keyboard_input_cursor = 0;
+	keyboard_input_line[0] = '\0';
+
+	/* keyboard_read_line()で待機中のプロセスを起こす */
+	if (keyboard_line_waiter)
+	{
+		wake_up_process(keyboard_line_waiter);
+		keyboard_line_waiter = NULL;
+	}
+}
+
+static void keyboard_publish_raw_event(uint8_t code, int release)
+{
+	if (keyboard_raw_count < KEYBOARD_RAW_QUEUE_SIZE)
+	{
+		keyboard_raw_queue[keyboard_raw_tail].code = code;
+		keyboard_raw_queue[keyboard_raw_tail].release = (uint8_t)(release ? 1 : 0);
+		keyboard_raw_tail = (keyboard_raw_tail + 1) % KEYBOARD_RAW_QUEUE_SIZE;
+		keyboard_raw_count++;
+	}
+
+	if (keyboard_raw_waiter)
+	{
+		wake_up_process(keyboard_raw_waiter);
+		keyboard_raw_waiter = NULL;
+	}
+}
+
+static long keyboard_read_line(char *buf, unsigned int size)
+{
+	if (size == 0)
+	{
+		return 0;
+	}
+
+	while (1)
+	{
+		/* まだ Enter 済みの行がなければ、入力が来るまでスリープする */
+		__asm__ volatile("cli");
+
+		/* keyboard_publish_line() から keyboard_line_ready がセットされたとき，
+		 * keyboard_ready_line の内容を buf にコピーし帰る */
+		if (keyboard_line_ready)
+		{
+			unsigned int copy_len = 0;
+
+			while (copy_len + 1 < size && keyboard_ready_line[copy_len] != '\0')
+			{
+				buf[copy_len] = keyboard_ready_line[copy_len];
+				copy_len++;
+			}
+			buf[copy_len] = '\0';
+			keyboard_line_ready = 0;
+			__asm__ volatile("sti");
+			return (long)copy_len;
+		}
+
+		/* keyboard_publish_line() から起こしてもらうため，自分を待機状態にする */
+		keyboard_line_waiter = current;
+		current->__state = TASK_INTERRUPTIBLE;
+		__asm__ volatile("sti");
+		schedule();
+	}
+}
+
+long kfs_keyboard_read_line(char *buf, unsigned int size)
+{
+	return keyboard_read_line(buf, size);
+}
+
+static long keyboard_read_raw_event(struct kfs_keyboard_raw_event *event)
+{
+	if (!event)
+	{
+		return -1;
+	}
+
+	while (1)
+	{
+		__asm__ volatile("cli");
+		if (keyboard_raw_count > 0)
+		{
+			*event = keyboard_raw_queue[keyboard_raw_head];
+			keyboard_raw_head = (keyboard_raw_head + 1) % KEYBOARD_RAW_QUEUE_SIZE;
+			keyboard_raw_count--;
+			__asm__ volatile("sti");
+			return 1;
+		}
+
+		keyboard_raw_waiter = current;
+		current->__state = TASK_INTERRUPTIBLE;
+		__asm__ volatile("sti");
+		schedule();
+	}
+}
+
+long kfs_keyboard_read_event(struct kfs_keyboard_raw_event *event)
+{
+	return keyboard_read_raw_event(event);
+}
+
+void kfs_keyboard_clear_events(void)
+{
+	__asm__ volatile("cli");
+	keyboard_raw_head = 0;
+	keyboard_raw_tail = 0;
+	keyboard_raw_count = 0;
+	__asm__ volatile("sti");
+}
+
+void kfs_keyboard_set_raw_mode(int enabled)
+{
+	keyboard_raw_mode = enabled ? 1 : 0;
+	if (!keyboard_raw_mode)
+	{
+		kfs_keyboard_clear_events();
 	}
 }
 
@@ -175,6 +358,17 @@ void kfs_keyboard_reset(void)
 	custom_handler = NULL;
 	raw_handler = NULL;
 	current_layout = KBD_LAYOUT_QWERTY;
+	keyboard_input_line_len = 0;
+	keyboard_input_cursor = 0;
+	keyboard_input_line[0] = '\0';
+	keyboard_line_ready = 0;
+	keyboard_ready_line[0] = '\0';
+	keyboard_line_waiter = NULL;
+	keyboard_raw_head = 0;
+	keyboard_raw_tail = 0;
+	keyboard_raw_count = 0;
+	keyboard_raw_waiter = NULL;
+	keyboard_raw_mode = 0;
 }
 
 /** RAW スキャンコードハンドラを登録する
@@ -310,6 +504,10 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 
 	int release = (scancode & SCANCODE_RELEASE_BIT) != 0; /* 上位1ビットが1なら解放イベント */
 	uint8_t code = scancode & SCANCODE_KEY_MASK;		  /* 下位7ビットがキーコード本体 */
+	if (keyboard_raw_mode)
+	{
+		keyboard_publish_raw_event(code, release);
+	}
 
 	/* RAW ハンドラが登録されていれば先に呼ぶ (piano モードなど press/release 両方が必要な場合) */
 	if (raw_handler && raw_handler(code, release))
@@ -347,15 +545,14 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 	case 0x0E: /* バックスペース */
 		if (!release)
 		{
-			/* バックスペース: ハンドラに渡す */
-			if (custom_handler && custom_handler('\b'))
+			if (custom_handler)
 			{
-				/* ハンドラが処理した */
+				/* 互換性のため custom handler 経路では従来どおりイベントを渡す */
+				(void)custom_handler('\b');
 			}
 			else
 			{
-				/* ハンドラがないか、ハンドラが0を返した */
-				handle_backspace();
+				handle_backspace_default();
 			}
 		}
 		extended_prefix = 0;
@@ -373,6 +570,7 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 				/* 従来のEnter: 改行してカーソルを次行先頭へ */
 				printk("\n");
 			}
+			keyboard_publish_line();
 		}
 		extended_prefix = 0;
 		return;
@@ -399,6 +597,12 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		extended_prefix = 0;
 		return;
 	}
+
+	if (keyboard_raw_mode)
+	{
+		return;
+	}
+
 	/* 拡張コード（0xE0）の後の特殊キー処理 */
 	if (extended_prefix == 0xE0)
 	{
@@ -416,29 +620,35 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		}
 		else if (code == 0x4B) /* 左矢印 */
 		{
-			/* ハンドラがあれば特殊コード（例: '\x1B'=ESC + 'D'）として渡す
-			 * ここでは簡易的に制御文字 0x1C（左）を使う
-			 */
-			if (custom_handler && custom_handler('\x1C'))
+			if (custom_handler)
 			{
-				/* ハンドラが処理した */
+				/* 互換経路 */
+				(void)custom_handler('\x1C');
 			}
 			else
 			{
-				kfs_terminal_cursor_left(); /* 従来のカーソル移動 */
+				if (keyboard_input_cursor > 0)
+				{
+					kfs_terminal_cursor_left();
+					keyboard_input_cursor--;
+				}
 			}
 			return;
 		}
 		else if (code == 0x4D) /* 右矢印 */
 		{
-			/* 同様に制御文字 0x1D（右）を使う */
-			if (custom_handler && custom_handler('\x1D'))
+			if (custom_handler)
 			{
-				/* ハンドラが処理した */
+				/* 互換経路 */
+				(void)custom_handler('\x1D');
 			}
 			else
 			{
-				kfs_terminal_cursor_right();
+				if (keyboard_input_cursor < keyboard_input_line_len)
+				{
+					kfs_terminal_cursor_right();
+					keyboard_input_cursor++;
+				}
 			}
 			return;
 		}
@@ -458,6 +668,16 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 			char ctrl_char = translate_ctrl_char(ch);
 			if (ctrl_char)
 			{
+				/* 端末がCtrl-Cを受け取ったとき，
+				 * フォアグラウンドプロセスグループに属するプロセスに対して，
+				 * SIGINTを送信する */
+				if (ctrl_char == 0x03)
+				{
+					pid_t fgprg = (foreground_pgrp != 0) ? foreground_pgrp : current->pgrp;
+					(void)kill_pg(fgprg, SIGINT);
+					extended_prefix = 0;
+					return;
+				}
 				ch = ctrl_char;
 			}
 		}
@@ -467,7 +687,11 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		}
 		else
 		{
-			printk("%c", ch);
+			if (keyboard_input_line_len + 1 < KEYBOARD_LINE_MAX)
+			{
+				keyboard_insert_char_at_cursor(ch);
+				printk("%c", ch);
+			}
 		}
 	}
 }

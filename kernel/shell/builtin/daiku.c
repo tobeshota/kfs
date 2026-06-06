@@ -8,6 +8,7 @@
 
 #include <kfs/shell.h>
 #include <kfs/stdint.h>
+#include <kfs/stdio.h>
 #include <kfs/string.h>
 #include <kfs/sys.h>
 #include <kfs/unistd.h> /* psg_note(), psg_stop(), msleep(), exit() */
@@ -79,9 +80,7 @@ static const struct bar score[] = {
 void daiku_ring3_main(void)
 {
 	/* 再生開始メッセージは builtin 内部で出す */
-	const char *message = "daiku: playing Ode to Joy (Beethoven 9th, public domain) on PSG ch0+ch1...\n";
-	write(1, message, strlen(message));
-	setpgid(0, 0);
+	printf("daiku: playing Ode to Joy (Beethoven 9th, public domain) on PSG ch0+ch1...\n");
 
 	for (int b = 0; b < N_BARS; b++)
 	{
@@ -119,8 +118,8 @@ void daiku_ring3_main(void)
 	exit(0);
 }
 
-void cmd_daiku(const char *args, int foreground)
+void cmd_daiku(void *arg)
 {
-	(void)args;
-	shell_launch_ring3_job("daiku_ring3_main", daiku_ring3_main, foreground);
+	(void)arg;
+	daiku_ring3_main();
 }

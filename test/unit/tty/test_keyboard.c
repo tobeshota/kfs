@@ -3,6 +3,7 @@
 
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
+#include <kfs/sched.h>
 
 /* テスト用のカスタムハンドラで受け取った文字を記録 */
 static char last_char_received;
@@ -365,6 +366,32 @@ KFS_TEST(test_keyboard_symbol_keys)
 	KFS_ASSERT_EQ(last_char_received, '=');
 }
 
+/* Ctrl-C がフォアグラウンドプロセスグループに SIGINT を送ることを確認する */
+KFS_TEST(test_keyboard_ctrl_c_sends_sigint)
+{
+	kfs_keyboard_reset();
+	kfs_keyboard_init();
+
+	/* フォアグラウンドを current の pgrp に設定 */
+	/* Ensure current has a valid pgrp (may be 0 in test harness) */
+	if (current->pgrp == 0)
+	{
+		/* set to 1 so kill_pg can find a positive pgrp in task_list */
+		current->pgrp = 1;
+	}
+	foreground_pgrp = current->pgrp;
+
+	/* まず保留シグナルをクリア */
+	current->pending.signal = 0;
+
+	/* Ctrl 押下 */
+	kfs_keyboard_feed_scancode(0x1D);
+	/* 'c' 押下 -> Ctrl-C */
+	kfs_keyboard_feed_scancode(0x2E);
+
+	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGINT));
+}
+
 /* 0xE1プレフィックステスト (Pause/Break) */
 KFS_TEST(test_keyboard_e1_prefix)
 {
@@ -414,6 +441,7 @@ int register_unit_tests_keyboard(struct kfs_test_case **out_cases)
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_symbol_keys, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_e1_prefix, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_without_handler, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_ctrl_c_sends_sigint, setup_test, teardown_test),
 	};
 	*out_cases = cases;
 	return sizeof(cases) / sizeof(cases[0]);

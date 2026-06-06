@@ -1,6 +1,7 @@
 #include <kfs/errno.h>
 #include <kfs/printk.h>
 #include <kfs/shell.h>
+#include <kfs/stdio.h>
 #include <kfs/string.h>
 #include <kfs/unistd.h>
 
@@ -144,15 +145,15 @@ static int is_token_end(const char *cursor)
 
 static void print_kill_help(void)
 {
-	printk("Usage: kill [options] <pid>\n");
-	printk("Options:\n");
-	printk("  -l            list supported signals\n");
-	printk("  -<number>     send the specified signal number\n");
-	printk("  --help        show this help\n");
-	printk("Default signal: SIGTERM (15)\n");
-	printk("Examples:\n");
-	printk("  kill 1234\n");
-	printk("  kill -9 1234\n");
+	printf("Usage: kill [options] <pid>\n"
+		   "Options:\n"
+		   "  -l            list supported signals\n"
+		   "  -<number>     send the specified signal number\n"
+		   "  --help        show this help\n"
+		   "Default signal: SIGTERM (15)\n"
+		   "Examples:\n"
+		   "  kill 1234\n"
+		   "  kill -9 1234\n");
 }
 
 static void print_signal_list(void)
@@ -161,16 +162,8 @@ static void print_signal_list(void)
 	const int per_line = 5;
 	for (int i = 0; i < signal_name_count; i++)
 	{
-		/* index is 1-based */
-		printk("%2d) %-10s", signal_names[i].signo, signal_names[i].name);
-		if ((i % per_line) == (per_line - 1) || i == signal_name_count - 1)
-		{
-			printk("\n");
-		}
-		else
-		{
-			printk(" ");
-		}
+		printf("%2d) %10s%s", signal_names[i].signo, signal_names[i].name,
+			   ((i % per_line) == (per_line - 1) || i == signal_name_count - 1) ? "\n" : " ");
 	}
 }
 
@@ -180,30 +173,29 @@ static int send_kill_signal(int pid, int sig)
 
 	if (ret == 0)
 	{
-		printk("kill: sent signal %d to pid %d\n", sig, pid);
+		printf("kill: sent signal %d to pid %d\n", sig, pid);
 		return 0;
 	}
 	if (ret == -ESRCH)
 	{
-		printk("kill: no such process: %d\n", pid);
+		printf("kill: no such process: %d\n", pid);
 		return -1;
 	}
 	if (ret == -EINVAL)
 	{
-		printk("kill: invalid signal: %d\n", sig);
+		printf("kill: invalid signal: %d\n", sig);
 		return -1;
 	}
-	printk("kill: failed with error %d\n", ret);
+	printf("kill: failed with error %d\n", ret);
 	return -1;
 }
 
 /** kill コマンド
  * @brief `kill [options] <pid>` でプロセスにシグナルを送る
  */
-void cmd_kill(const char *args, int foreground)
+void cmd_kill(void *arg)
 {
-	(void)foreground;
-	const char *cursor = args;
+	const char *cursor = arg;
 	int sig = SIGTERM;
 	int pid;
 	int signal_token;

@@ -1,6 +1,7 @@
 #include "../test_reset.h"
 #include "../unit_test_framework.h"
 #include <kfs/printk.h>
+#include <kfs/stdio.h>
 #include <kfs/string.h>
 
 /* snprintf()のテスト */

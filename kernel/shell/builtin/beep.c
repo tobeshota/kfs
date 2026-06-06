@@ -4,6 +4,7 @@
 #include <kfs/sched.h>
 #include <kfs/shell.h>
 #include <kfs/stdint.h>
+#include <kfs/stdio.h>
 #include <kfs/string.h>
 #include <kfs/sys.h>
 #include <kfs/unistd.h>
@@ -55,7 +56,7 @@ void beep_ring3_main(void)
 
 	if (*s == '\0')
 	{
-		write(1, "Usage: beep <freq_hz>  (e.g. beep 440)\n", 40);
+		printf("Usage: beep <freq_hz>  (e.g. beep 440)\n");
 		exit(0);
 	}
 
@@ -67,17 +68,16 @@ void beep_ring3_main(void)
 		exit(0);
 	}
 
-	write(1, "beep: ", 6);
-	write(1, s, strlen(s));
-	write(1, " Hz\n", 4);
+	printf("beep: %d Hz\n", freq);
 	psg_note(0, (unsigned int)freq, 0);
 	msleep(1000);
 	psg_stop(0);
 	exit(0);
 }
 
-void cmd_beep(const char *args, int foreground)
+void cmd_beep(void *arg)
 {
+	const char *args = arg;
 	beep_set_args(args);
-	shell_launch_ring3_job("beep_ring3_main", beep_ring3_main, foreground);
+	beep_ring3_main();
 }

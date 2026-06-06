@@ -48,8 +48,8 @@ void sched_ring3_main(void)
 	exit(0);
 }
 
-void cmd_sched(const char *args, int foreground)
+void cmd_sched(void *arg)
 {
-	(void)args;
-	shell_launch_ring3_job("sched_ring3_main", sched_ring3_main, foreground);
+	(void)arg;
+	sched_ring3_main();
 }

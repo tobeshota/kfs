@@ -1,7 +1,10 @@
 #include <kfs/capability.h>
 #include <kfs/console.h>
 #include <kfs/errno.h>
+#include <kfs/keyboard.h>
 #include <kfs/list.h>
+#include <kfs/neofetch.h>
+#include <kfs/panic.h>
 #include <kfs/pid.h>
 #include <kfs/prctl.h>
 #include <kfs/ps.h>
@@ -10,6 +13,14 @@
 #include <kfs/string.h>
 #include <kfs/sys.h>
 #include <kfs/timer.h>
+
+#include <asm-i386/page.h>
+
+#define BYTES_PER_MIB (1024UL * 1024UL)
+
+extern unsigned long total_pages;
+extern unsigned long nr_free_pages;
+extern unsigned long kernel_end_pfn;
 
 /** @brief task_struct の状態から ps 表示用の1文字を返す
  * @param task 対象の task_struct
@@ -109,6 +120,20 @@ long sys_ps_snapshot(struct kfs_ps_entry *entries, size_t max_entries)
 	}
 
 	return (long)ctx.count;
+}
+
+int sys_neofetch_info(struct kfs_neofetch_info *info)
+{
+	if (!info)
+	{
+		return -EINVAL;
+	}
+
+	info->total_mem_mib = (total_pages * PAGE_SIZE) / BYTES_PER_MIB;
+	info->free_mem_mib = (nr_free_pages * PAGE_SIZE) / BYTES_PER_MIB;
+	info->used_mem_mib = info->total_mem_mib - info->free_mem_mib;
+	info->kernel_mem_mib = (kernel_end_pfn * PAGE_SIZE) / BYTES_PER_MIB;
+	return 0;
 }
 
 /* 現在のプロセスの実ユーザー ID を返す */
@@ -260,7 +285,7 @@ long sys_msleep(uint32_t ms)
  * setpgid(0, 0);  // 自身をプロセスグループPID番のプロセスグループリーダーにする
  *                 // （自身のPGIDを PGID == PID となるように設定する）
  *
- * @note 現時点では最小実装として自分自身の pgrp のみ変更を許可する（pid == current->pid）
+ * @note 現時点では最小実装として呼び出し元がタスク自体，または対象タスクの親である場合のみ変更を許可する
  */
 int sys_setpgid(pid_t pid, pid_t pgid)
 {
@@ -273,12 +298,6 @@ int sys_setpgid(pid_t pid, pid_t pgid)
 		pgid = pid;
 	}
 
-	/* 現時点では最小実装として自分自身の pgrp のみ変更を許可する */
-	if (pid != current->pid)
-	{
-		return -ESRCH;
-	}
-
 	struct task_struct *tsk = find_task_by_pid(pid);
 	if (!tsk)
 	{
@@ -288,6 +307,12 @@ int sys_setpgid(pid_t pid, pid_t pgid)
 	if (pgid <= 0)
 	{
 		return -EINVAL;
+	}
+
+	/* 呼び出し元がタスク自体，または対象タスクの親である場合のみ変更を許可する */
+	if (pid != current->pid && tsk->parent != current)
+	{
+		return -ESRCH;
 	}
 
 	tsk->pgrp = pgid;
@@ -357,8 +382,6 @@ int sys_tcsetpgrp(int fd, pid_t pgrp)
  */
 long sys_write(int fd, const char *buf, size_t count)
 {
-	size_t i;
-
 	if (fd != 1 && fd != 2 && fd != 4)
 	{
 		return -EBADF;
@@ -370,10 +393,7 @@ long sys_write(int fd, const char *buf, size_t count)
 	if (fd == 1 || fd == 2)
 	{
 		/* stdout/stderr: VGA端末 と COM1 の両方に出力（tee） */
-		for (i = 0; i < count; i++)
-		{
-			terminal_putchar(buf[i]);
-		}
+		terminal_write(buf, count);
 		serial_write(buf, count);
 	}
 	else
@@ -382,4 +402,40 @@ long sys_write(int fd, const char *buf, size_t count)
 		serial_write(buf, count);
 	}
 	return (long)count;
+}
+
+int sys_kbd_set_layout(kbd_layout_t layout)
+{
+	if (layout != KBD_LAYOUT_QWERTY && layout != KBD_LAYOUT_AZERTY)
+	{
+		return -EINVAL;
+	}
+	kfs_keyboard_set_layout(layout);
+	return 0;
+}
+
+long sys_kbd_read_event(struct kfs_keyboard_raw_event *event)
+{
+	if (!event)
+	{
+		return -EINVAL;
+	}
+	return kfs_keyboard_read_event(event);
+}
+
+int sys_kbd_clear_events(void)
+{
+	kfs_keyboard_clear_events();
+	return 0;
+}
+
+int sys_kbd_set_raw_mode(int enabled)
+{
+	kfs_keyboard_set_raw_mode(enabled);
+	return 0;
+}
+
+void sys_panic(void)
+{
+	panic("panic requested from user space");
 }
