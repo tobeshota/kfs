@@ -1,26 +1,24 @@
-#include <kfs/panic.h>
-#include <kfs/printk.h>
-#include <kfs/reboot.h>
+#include <kfs/shell.h>
+#include <kfs/unistd.h>
 
 /** システムを停止する（halt組み込みコマンド）
  *
- * @details 割り込みを無効化し、汎用レジスタをクリアしてからCPUを停止する。
- *          汎用レジスタをクリアする理由は，hlt後に物理アクセスによる
- *          メモリダンプで機密情報が漏洩することを防ぐため．
+ * @details ring-3 プロセスが halt() syscall を呼ぶことで kernel 側で実行される。
  */
-void cmd_halt(void)
+void cmd_halt(void *arg)
 {
-	printk("System halted.\n");
+	(void)arg;
+	halt();
+}
 
-	/* 割り込みを無効化（これ以降は割り込み不可） */
-	__asm__ __volatile__("cli");
+void cmd_reboot(void *arg)
+{
+	(void)arg;
+	reboot();
+}
 
-	/* 汎用レジスタをクリアする（機密情報の漏洩を防ぐため） */
-	clear_gp_registers();
-
-	/* CPUを停止する */
-	for (;;)
-	{
-		__asm__ __volatile__("hlt");
-	}
+void cmd_panic(void *arg)
+{
+	(void)arg;
+	trigger_panic();
 }

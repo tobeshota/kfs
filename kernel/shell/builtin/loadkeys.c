@@ -1,14 +1,15 @@
-#include <kfs/keyboard.h>
-#include <kfs/printk.h>
+#include <kfs/shell.h>
+#include <kfs/stdio.h>
 #include <kfs/string.h>
+#include <kfs/unistd.h>
 
 /** キーボードレイアウトを変更する（loadkeys組み込みコマンド）
  * @param args コマンド引数（レイアウト名）
  * @note テスト用にstaticを外している
  */
-void cmd_loadkeys(const char *args)
+void cmd_loadkeys(void *arg)
 {
-	const char *layout = args;
+	const char *layout = arg;
 
 	/* 先頭の空白をスキップ */
 	while (*layout == ' ')
@@ -18,21 +19,18 @@ void cmd_loadkeys(const char *args)
 
 	if (strcmp(layout, "us") == 0 || strcmp(layout, "qwerty") == 0)
 	{
-		kfs_keyboard_set_layout(KBD_LAYOUT_QWERTY);
-		printk("Keyboard layout set to QWERTY (US)\n");
+		kbd_set_layout(KBD_LAYOUT_QWERTY);
 	}
 	else if (strcmp(layout, "fr") == 0 || strcmp(layout, "azerty") == 0)
 	{
-		kfs_keyboard_set_layout(KBD_LAYOUT_AZERTY);
-		printk("Keyboard layout set to AZERTY (FR)\n");
+		kbd_set_layout(KBD_LAYOUT_AZERTY);
 	}
 	else if (*layout == '\0')
 	{
-		printk("Usage: loadkeys <us|fr|qwerty|azerty>\n");
+		printf("Usage: loadkeys <us|fr|qwerty|azerty>\n");
 	}
 	else
 	{
-		printk("loadkeys: unknown keymap '%s'\n", layout);
-		printk("Available keymaps: us, fr, qwerty, azerty\n");
+		printf("loadkeys: unknown keymap\nAvailable keymaps: us, fr, qwerty, azerty\n");
 	}
 }

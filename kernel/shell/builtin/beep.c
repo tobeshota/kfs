@@ -2,8 +2,11 @@
 #include <kfs/printk.h>
 #include <kfs/psg.h>
 #include <kfs/sched.h>
+#include <kfs/shell.h>
 #include <kfs/stdint.h>
+#include <kfs/stdio.h>
 #include <kfs/string.h>
+#include <kfs/sys.h>
 #include <kfs/unistd.h>
 #include <kfs/wait.h>
 
@@ -21,34 +24,60 @@
  *   beep 494      494 Hz    B4（シ）
  *   beep 523      523 Hz    C5（高いド）
  */
-static void beep_ring3_main(void)
+static char g_beep_args[32];
+
+void beep_set_args(const char *args)
+{
+	size_t i = 0;
+	if (!args)
+	{
+		g_beep_args[0] = '\0';
+		return;
+	}
+	/* コピー（先頭の空白は許容し、builtin 内で解析する） */
+	while (i + 1 < sizeof(g_beep_args) && args[i] != '\0')
+	{
+		g_beep_args[i] = args[i];
+		i++;
+	}
+	g_beep_args[i] = '\0';
+}
+
+void beep_ring3_main(void)
 {
 	setpgid(0, 0);
+
+	/* args を解析する（builtin 内で処理する） */
+	const char *s = g_beep_args;
+	while (*s == ' ')
+	{
+		s++;
+	}
+
+	if (*s == '\0')
+	{
+		printf("Usage: beep <freq_hz>  (e.g. beep 440)\n");
+		exit(0);
+	}
+
+	int freq = atoi(s);
+	if (freq <= 0)
+	{
+		/* 0 や負の値は停止扱い */
+		psg_stop(0);
+		exit(0);
+	}
+
+	printf("beep: %d Hz\n", freq);
+	psg_note(0, (unsigned int)freq, 0);
 	msleep(1000);
+	psg_stop(0);
 	exit(0);
 }
 
-void cmd_beep(const char *args)
+void cmd_beep(void *arg)
 {
-	while (*args == ' ')
-	{
-		args++;
-	}
-	if (*args == '\0')
-	{
-		printk("Usage: beep <freq_hz>  (e.g. beep 440)\n");
-		return;
-	}
-	int freq = atoi(args);
-	if (freq <= 0)
-	{
-		do_psg_stop(0);
-		printk("beep: stopped\n");
-		return;
-	}
-	printk("beep: %d Hz\n", freq);
-	do_psg_note(0, (uint32_t)freq, 0);
-	do_fork((unsigned long)beep_ring3_main);
-	do_wait(NULL, 0);
-	do_psg_stop(0);
+	const char *args = arg;
+	beep_set_args(args);
+	beep_ring3_main();
 }

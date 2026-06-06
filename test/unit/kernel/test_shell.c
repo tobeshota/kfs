@@ -1,13 +1,29 @@
+#include "../support/run_in_ring3.h"
 #include "../test_reset.h"
 #include "unit_test_framework.h"
 #include <kfs/keyboard.h>
 #include <kfs/shell.h>
 #include <kfs/string.h>
+#include <kfs/unistd.h>
 
 /* シェルの内部関数を外部から呼び出せるように宣言 */
 extern int shell_keyboard_handler(char c);
 extern void shell_init(void);
-extern void cmd_loadkeys(const char *args);
+extern void cmd_loadkeys(void *args);
+
+static const char *g_loadkeys_args;
+
+static void run_loadkeys_in_ring3(void)
+{
+	cmd_loadkeys((void *)g_loadkeys_args);
+	exit(0);
+}
+
+static void run_loadkeys_cmd(const char *args)
+{
+	g_loadkeys_args = args;
+	run_in_ring3(run_loadkeys_in_ring3);
+}
 
 /* 全テストで共通のセットアップ関数 */
 static void setup_test(void)
@@ -320,42 +336,42 @@ KFS_TEST(test_shell_buffer_overflow)
 /* loadkeys us */
 KFS_TEST(test_cmd_loadkeys_us)
 {
-	cmd_loadkeys("us");
+	run_loadkeys_cmd("us");
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
 }
 
 /* loadkeys qwerty */
 KFS_TEST(test_cmd_loadkeys_qwerty)
 {
-	cmd_loadkeys("qwerty");
+	run_loadkeys_cmd("qwerty");
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
 }
 
 /* loadkeys fr */
 KFS_TEST(test_cmd_loadkeys_fr)
 {
-	cmd_loadkeys("fr");
+	run_loadkeys_cmd("fr");
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_AZERTY);
 }
 
 /* loadkeys azerty */
 KFS_TEST(test_cmd_loadkeys_azerty)
 {
-	cmd_loadkeys("azerty");
+	run_loadkeys_cmd("azerty");
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_AZERTY);
 }
 
 /* loadkeys with leading spaces */
 KFS_TEST(test_cmd_loadkeys_with_spaces)
 {
-	cmd_loadkeys("   us");
+	run_loadkeys_cmd("   us");
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
 }
 
 /* loadkeys without argument */
 KFS_TEST(test_cmd_loadkeys_no_argument)
 {
-	cmd_loadkeys("");
+	run_loadkeys_cmd("");
 	/* Usage メッセージが出力される（エラーなし） */
 	KFS_ASSERT_TRUE(1);
 }
@@ -363,7 +379,7 @@ KFS_TEST(test_cmd_loadkeys_no_argument)
 /* loadkeys with spaces only */
 KFS_TEST(test_cmd_loadkeys_spaces_only)
 {
-	cmd_loadkeys("   ");
+	run_loadkeys_cmd("   ");
 	/* Usage メッセージが出力される */
 	KFS_ASSERT_TRUE(1);
 }
@@ -372,7 +388,7 @@ KFS_TEST(test_cmd_loadkeys_spaces_only)
 KFS_TEST(test_cmd_loadkeys_invalid)
 {
 	kbd_layout_t before = kfs_keyboard_get_layout();
-	cmd_loadkeys("invalid");
+	run_loadkeys_cmd("invalid");
 	/* レイアウトは変更されない */
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), before);
 }
@@ -381,13 +397,13 @@ KFS_TEST(test_cmd_loadkeys_invalid)
 KFS_TEST(test_cmd_loadkeys_switch_layouts)
 {
 	/* US → FR → US */
-	cmd_loadkeys("us");
+	run_loadkeys_cmd("us");
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
 
-	cmd_loadkeys("fr");
+	run_loadkeys_cmd("fr");
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_AZERTY);
 
-	cmd_loadkeys("qwerty");
+	run_loadkeys_cmd("qwerty");
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
 }
 

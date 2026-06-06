@@ -18,7 +18,7 @@
  *     do_wait(NULL, 0);
  * }
  */
-#define exec_fn(fn, arg) __exec_fn(#fn, (void (*)(void *))(fn), arg)
+#define exec_fn(fn, arg) __exec_fn(#fn, fn, (void *)(arg))
 
 void __attribute__((noreturn)) __exec_fn(const char *fn_name, void (*fn)(void *), void *arg);
 

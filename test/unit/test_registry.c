@@ -2,6 +2,7 @@
 
 // 各テストファイルで提供される register_* 関数
 int register_unit_tests_terminal_scroll(struct kfs_test_case **out);
+int register_unit_tests_terminal_ansi(struct kfs_test_case **out);
 int register_unit_tests_string(struct kfs_test_case **out);
 int register_unit_tests_page_alloc(struct kfs_test_case **out);
 int register_unit_tests_shell(struct kfs_test_case **out);
@@ -48,6 +49,8 @@ int register_unit_tests(struct kfs_test_case **out)
 	{
 		struct kfs_test_case *cases_term_scroll = 0;
 		int count_term_scroll = register_unit_tests_terminal_scroll(&cases_term_scroll);
+		struct kfs_test_case *cases_term_ansi = 0;
+		int count_term_ansi = register_unit_tests_terminal_ansi(&cases_term_ansi);
 		struct kfs_test_case *cases_printk = 0;
 		int count_printk = register_unit_tests_printk(&cases_printk);
 		struct kfs_test_case *cases_keyboard = 0;
@@ -118,6 +121,10 @@ int register_unit_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_term_scroll && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_term_scroll[i];
+		}
+		for (int i = 0; i < count_term_ansi && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_term_ansi[i];
 		}
 		for (int i = 0; i < count_printk && idx < KFS_MAX_TESTS; i++)
 		{

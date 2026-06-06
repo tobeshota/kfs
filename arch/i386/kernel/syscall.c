@@ -1,7 +1,11 @@
+#include <asm-i386/ptrace.h>
 #include <kfs/errno.h>
+#include <kfs/keyboard.h>
 #include <kfs/mman.h>
+#include <kfs/panic.h>
 #include <kfs/printk.h>
 #include <kfs/psg.h>
+#include <kfs/reboot.h>
 #include <kfs/signal.h>
 #include <kfs/stddef.h>
 #include <kfs/sys.h>
@@ -9,6 +13,9 @@
 #include <kfs/wait.h>
 
 extern pid_t do_fork(unsigned long user_eip);
+extern long kfs_keyboard_read_line(char *buf, unsigned int size);
+extern long kfs_keyboard_read_event(struct kfs_keyboard_raw_event *event);
+extern void kfs_keyboard_clear_events(void);
 extern void sys_exit(int error_code);
 
 /**　未実装のシステムコール用のスタブ
@@ -59,6 +66,46 @@ static long do_sys_write(long arg1, long arg2, long arg3, long arg4, long arg5)
 	(void)arg4;
 	(void)arg5;
 	return sys_write((int)arg1, (const char *)arg2, (size_t)arg3);
+}
+
+/* read(fd, buf, count) システムコール */
+static long do_sys_read(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg4;
+	(void)arg5;
+	if (arg1 != 0)
+	{
+		return -EBADF;
+	}
+	return kfs_keyboard_read_line((char *)arg2, (unsigned int)arg3);
+}
+
+static long do_sys_kbd_read_event(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return sys_kbd_read_event((struct kfs_keyboard_raw_event *)arg1);
+}
+
+static long do_sys_kbd_clear_events(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_kbd_clear_events();
+}
+
+static long do_sys_kbd_set_raw_mode(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_kbd_set_raw_mode((int)arg1);
 }
 
 /** fork() システムコール
@@ -228,6 +275,15 @@ static long do_sys_ps_snapshot(long arg1, long arg2, long arg3, long arg4, long 
 	return (long)sys_ps_snapshot((struct kfs_ps_entry *)arg1, (size_t)arg2);
 }
 
+static long do_sys_neofetch_info(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_neofetch_info((struct kfs_neofetch_info *)arg1);
+}
+
 /** sigreturn() システムコール
  * @brief ring-3 シグナルハンドラが return した後、sigreturn()（lib/unistd.c）から呼ばれる
  * @return 元のプロセスの eax 値（entry.S が pt_regs->eax に書く）
@@ -278,9 +334,61 @@ static long do_sys_munmap(long addr, long len, long a3, long a4, long a5)
 	return (long)sys_munmap((unsigned long)addr, (unsigned long)len);
 }
 
+/* reboot() システムコール */
+static long do_sys_reboot(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	machine_restart();
+	__builtin_unreachable();
+}
+
+/* halt() システムコール */
+static long do_sys_halt(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	__asm__ __volatile__("cli");
+	clear_gp_registers();
+	for (;;)
+	{
+		__asm__ __volatile__("hlt");
+	}
+	__builtin_unreachable();
+}
+
+/* kbd_set_layout(layout) システムコール */
+static long do_sys_kbd_set_layout(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_kbd_set_layout((kbd_layout_t)arg1);
+}
+
+/* panic() システムコール */
+static long __attribute__((noreturn)) do_sys_panic(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	sys_panic();
+	__builtin_unreachable();
+}
+
 static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_exit] = (syscall_fn_t)do_sys_exit,
 	[__NR_fork] = do_sys_fork,
+	[__NR_read] = do_sys_read,
 	[__NR_write] = do_sys_write,
 	[__NR_wait] = do_sys_wait,
 	[__NR_getuid] = do_sys_getuid,
@@ -302,6 +410,14 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_getpgrp] = do_sys_getpgrp,
 	[__NR_tcgetpgrp] = do_sys_tcgetpgrp,
 	[__NR_tcsetpgrp] = do_sys_tcsetpgrp,
+	[__NR_reboot] = do_sys_reboot,
+	[__NR_halt] = do_sys_halt,
+	[__NR_kbd_set_layout] = do_sys_kbd_set_layout,
+	[__NR_panic] = (syscall_fn_t)do_sys_panic,
+	[__NR_kbd_read_event] = do_sys_kbd_read_event,
+	[__NR_kbd_clear_events] = do_sys_kbd_clear_events,
+	[__NR_kbd_set_raw_mode] = do_sys_kbd_set_raw_mode,
+	[__NR_neofetch_info] = do_sys_neofetch_info,
 };
 
 /** システムコールディスパッチャ

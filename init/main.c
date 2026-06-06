@@ -36,7 +36,10 @@ static void kernel_init(void)
 {
 	/* PID 2: シェルを起動 */
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK));
-	kernel_thread(shell_run, "kthreadd");
+	if (do_fork((unsigned long)shell_run) < 0)
+	{
+		printk("Failed to start shell process\n");
+	}
 
 	/* 孤児プロセス（バックグラウンド再生等）を回収するループ
 	 * do_wait() はEXIT_ZOMBIEの孤児が現れるまでブロックし、回収後にまたブロックする。 */

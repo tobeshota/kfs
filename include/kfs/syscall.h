@@ -4,6 +4,7 @@
 /* システムコール番号 */
 #define __NR_exit 1
 #define __NR_fork 2
+#define __NR_read 3
 #define __NR_write 4
 #define __NR_wait 7					/* Linux i386 互換番号 */
 #define __NR_getuid 24				/* Linux i386 互換番号 */
@@ -25,9 +26,17 @@
 #define __NR_getpgrp 250
 #define __NR_tcgetpgrp 251
 #define __NR_tcsetpgrp 252
+#define __NR_reboot 253
+#define __NR_halt 254
+#define __NR_kbd_set_layout 255
+#define __NR_panic 256
+#define __NR_kbd_read_event 257
+#define __NR_kbd_clear_events 258
+#define __NR_kbd_set_raw_mode 259
+#define __NR_neofetch_info 260
 
 /* サポートするシステムコールの数 */
-#define NR_syscalls 256
+#define NR_syscalls 261
 
 /* システムコールのエントリポイント(entry.Sで定義) */
 extern void system_call(void);

@@ -1,33 +1,10 @@
-#include <asm-i386/pgtable.h>
-#include <kfs/console.h>
 #include <kfs/exec.h>
-#include <kfs/keyboard.h>
-#include <kfs/neofetch.h>
-#include <kfs/panic.h>
-#include <kfs/piano.h>
-#include <kfs/printk.h>
-#include <kfs/psg.h>
-#include <kfs/reboot.h>
-#include <kfs/sched.h>
-#include <kfs/serial.h>
+#include <kfs/prctl.h>
 #include <kfs/shell.h>
-#include <kfs/signal.h>
-#include <kfs/stdint.h>
+#include <kfs/stdio.h>
 #include <kfs/string.h>
-#include <kfs/timer.h>
 #include <kfs/unistd.h>
 #include <kfs/wait.h>
-
-/* 外部コマンド: kernel/shell/builtin/ 以下に実装されるコマンド関数のプロトタイプ */
-/* cmd_ps は引数文字列を受け取る。空文字列が渡されることがある。 */
-extern void cmd_halt(void);
-extern void cmd_loadkeys(const char *args);
-extern void cmd_sched(void);
-extern void cmd_beep(const char *args);
-extern void cmd_daiku(void);
-extern void cmd_sleep(const char *args);
-extern void cmd_ps(const char *args);
-extern void cmd_kill(const char *args);
 
 #define SHELL_PROMPT "kfs $ " /* シェルプロンプト文字列 */
 #define CMD_BUFFER_SIZE 256	  /* コマンドバッファのサイズ */
@@ -37,22 +14,10 @@ extern void cmd_kill(const char *args);
 /* シェルの状態を保持する構造体 */
 static struct
 {
-	char cmd_buffer[CMD_BUFFER_SIZE];  /* 入力されたコマンド文字列を格納 */
-	size_t cmd_len;					   /* 現在のコマンド長 */
-	size_t prompt_row;				   /* プロンプトが表示されている行 */
-	size_t prompt_col;				   /* プロンプト終了後のカーソル位置（入力開始位置） */
-	int initialized;				   /* 初期化済みフラグ */
-	int cmd_ready;					   /* コマンド実行待ちフラグ（IRQ外で処理するため） */
-	char pending_cmd[CMD_BUFFER_SIZE]; /* 実行待ちコマンド文字列 */
+	char cmd_buffer[CMD_BUFFER_SIZE]; /* 入力されたコマンド文字列を格納 */
+	size_t cmd_len;					  /* 現在のコマンド長 */
+	int initialized;				  /* 初期化済みフラグ */
 } shell_state;
-
-/* プロンプトを表示する。ユーザに入力待機状態を示すために必要 */
-static void show_prompt(void)
-{
-	printk(SHELL_PROMPT);
-	/* プロンプト表示後のカーソル位置を記録（入力領域の開始位置） */
-	kfs_terminal_get_cursor(&shell_state.prompt_row, &shell_state.prompt_col);
-}
 
 /* コマンドバッファをクリアする。次のコマンド入力の準備をするために必要 */
 static void clear_command_buffer(void)
@@ -61,271 +26,115 @@ static void clear_command_buffer(void)
 	shell_state.cmd_buffer[0] = '\0';
 }
 
-/* コマンドを実行する。入力された文字列を解析して対応する処理を行う */
-static void execute_command(const char *cmd)
+/** 入力行の末尾にある空白と `&` を解釈して正規化する。
+ * @param input 元の入力行
+ * @param output 正規化後のコマンド列
+ * @param output_size output のサイズ
+ * @param foreground 1=foreground, 0=background
+ * @example
+ * inputが "  cmd arg1 arg2  " の場合，
+ * output に "cmd arg1 arg2" をセットし，
+ * foreground には 1 をセットする。
+ * @example
+ * inputが "  cmd arg1 arg2 &  " の場合，
+ * output に "cmd arg1 arg2" をセットし，
+ * foreground には 0 をセットする。
+ */
+static void shell_parse_command_line(const char *input, char *output, size_t output_size, int *foreground)
 {
-	/* 空コマンドは無視 */
+	size_t len;
+
+	*foreground = 1;
+	len = strlen(input);
+	while (len > 0 && input[len - 1] == ' ')
+	{
+		len--;
+	}
+	if (len > 0 && input[len - 1] == '&')
+	{
+		*foreground = 0;
+		len--;
+		while (len > 0 && input[len - 1] == ' ')
+		{
+			len--;
+		}
+	}
+	if (len >= output_size)
+	{
+		len = output_size - 1;
+	}
+	memcpy(output, input, len);
+	output[len] = '\0';
+}
+
+static void execute_command(const char *line)
+{
+	char normalized_cmd[CMD_BUFFER_SIZE];
+	int foreground;
+
+	shell_parse_command_line(line, normalized_cmd, sizeof(normalized_cmd), &foreground);
+	const char *cmd = normalized_cmd;
+
 	if (cmd[0] == '\0')
 	{
 		return;
 	}
 
-	/* halt コマンド */
-	if (strcmp(cmd, "halt") == 0)
+	shell_builtin_fn fn;
+	const char *args;
+	if (lookup_builtin(cmd, &fn, &args))
 	{
-		cmd_halt();
-		return; /* この行には到達しないが、明示的に記載 */
-	}
-
-	/* reboot コマンド */
-	if (strcmp(cmd, "reboot") == 0)
-	{
-		machine_restart();
-		return; /* この行には到達しないが、明示的に記載 */
-	}
-
-	/* カーネルスタックダンプ */
-	if (strcmp(cmd, "dkstack") == 0)
-	{
-		extern void dump_stack(void);
-		dump_stack();
-		return;
-	}
-
-	/* カーネルパニックテスト */
-	if (strcmp(cmd, "panic") == 0)
-	{
-		extern void panic(const char *fmt, ...);
-		panic("Test panic from shell command");
-		return; /* この行には到達しない */
-	}
-
-	/* メモリ情報表示 */
-	if (strcmp(cmd, "meminfo") == 0)
-	{
-		extern void show_mem_info(void);
-		show_mem_info();
-		return;
-	}
-
-	/* kmalloc/kfreeテスト */
-	if (strcmp(cmd, "malloc") == 0)
-	{
-		extern void *kmalloc(size_t size);
-		extern void kfree(void *ptr);
-		extern size_t ksize(void *ptr);
-
-		/* 各サイズでテスト */
-		void *ptr32 = kmalloc(32);
-		void *ptr128 = kmalloc(128);
-		void *ptr1024 = kmalloc(1024);
-
-		printk("kmalloc test:\n");
-		printk("  32 bytes:   ptr=%p, ksize=%lu\n", ptr32, (unsigned long)ksize(ptr32));
-		printk("  128 bytes:  ptr=%p, ksize=%lu\n", ptr128, (unsigned long)ksize(ptr128));
-		printk("  1024 bytes: ptr=%p, ksize=%lu\n", ptr1024, (unsigned long)ksize(ptr1024));
-
-		/* 解放 */
-		kfree(ptr32);
-		kfree(ptr128);
-		kfree(ptr1024);
-		printk("kfree completed\n");
-		return;
-	}
-
-	/* kbrkテスト */
-	if (strcmp(cmd, "brk") == 0)
-	{
-		extern void *kbrk(intptr_t increment);
-		void *brk1, *brk2, *brk3;
-
-		printk("kbrk test:\n");
-		/* 1KB増加 */
-		brk1 = kbrk(1024);
-		printk("  kbrk(+1024):  %p\n", brk1);
-
-		/* さらに2KB増加 */
-		brk2 = kbrk(2048);
-		printk("  kbrk(+2048):  %p\n", brk2);
-
-		/* 1KB減少 */
-		brk3 = kbrk(-1024);
-		printk("  kbrk(-1024):  %p\n", brk3);
-
-		return;
-	}
-
-	/* vmalloc/vfreeテスト */
-	if (strcmp(cmd, "vmalloc") == 0)
-	{
-		extern void *vmalloc(unsigned long size);
-		extern void vfree(void *addr);
-		extern size_t vsize(void *addr);
-
-		/* 各サイズでテスト */
-		void *ptr1 = vmalloc(4096);	 /* 1ページ */
-		void *ptr2 = vmalloc(8192);	 /* 2ページ */
-		void *ptr3 = vmalloc(16384); /* 4ページ */
-
-		printk("vmalloc test:\n");
-		printk("  4096 bytes:  ptr=%p, vsize=%lu\n", ptr1, (unsigned long)vsize(ptr1));
-		printk("  8192 bytes:  ptr=%p, vsize=%lu\n", ptr2, (unsigned long)vsize(ptr2));
-		printk("  16384 bytes: ptr=%p, vsize=%lu\n", ptr3, (unsigned long)vsize(ptr3));
-
-		/* 解放 */
-		vfree(ptr1);
-		vfree(ptr2);
-		vfree(ptr3);
-		printk("vfree completed\n");
-		return;
-	}
-
-	/* ページ情報表示コマンド */
-	if (strcmp(cmd, "pginfo") == 0)
-	{
-		extern pte_t *get_pte(unsigned long vaddr);
-
-		/* いくつかの仮想アドレスのページ情報を表示 */
-		unsigned long test_addrs[] = {
-			0x00001000, /* Identity mapping領域（boot時のみ使用） */
-			0xC0200000, /* カーネルコード領域 */
-			0xC0000000, /* vmalloc開始アドレス付近 */
-		};
-
-		printk("Page Table Entry Information:\n");
-		for (size_t i = 0; i < sizeof(test_addrs) / sizeof(test_addrs[0]); i++)
+		pid_t pid = fork();
+		if (pid < 0)
 		{
-			unsigned long vaddr = test_addrs[i];
-			pte_t *pte = get_pte(vaddr);
+			printf("Failed to fork process\n");
+			return;
+		}
+		else if (pid == 0)
+		{
+			__exec_fn(cmd, fn, (void *)args);
+		}
+		else
+		{
+			/* 親が子をプロセスグループリーダーにする */
+			setpgid(pid, pid);
 
-			if (pte == NULL || !pte_present(*pte))
+			if (foreground)
 			{
-				printk("  0x%08lx: NOT PRESENT\n", vaddr);
-				continue;
-			}
+				/* 端末のフォアグラウンドプロセスグループを子プロセスグループに移す */
+				tcsetpgrp(0, pid);
+				waitpid(pid, NULL, 0);
 
-			printk("  0x%08lx: phys=0x%08lx flags=", vaddr, pte_page(*pte));
-
-			if (pte_present(*pte))
-			{
-				printk("P");
+				/* 終了後は shell に foreground を戻す */
+				tcsetpgrp(0, getpgrp());
 			}
-			if (pte_write(*pte))
-			{
-				printk("W");
-			}
-			if (pte_user(*pte))
-			{
-				printk("U");
-			}
-			if (pte_accessed(*pte))
-			{
-				printk("A");
-			}
-			if (pte_dirty(*pte))
-			{
-				printk("D");
-			}
-
-			printk("\n");
 		}
 		return;
 	}
 
-	/* loadkeys コマンド */
-	if (strncmp(cmd, "loadkeys ", 9) == 0)
-	{
-		cmd_loadkeys(cmd + 9);
-		return;
-	}
-
-	/* neofetch コマンド */
-	if (strncmp(cmd, "neofetch", 8) == 0)
-	{
-		print_neofetch();
-		return;
-	}
-
-	/* sched コマンド: ring-3 プロセスのスケジューリング実証 */
-	if (strcmp(cmd, "sched") == 0)
-	{
-		cmd_sched();
-		return;
-	}
-
-	/* beep コマンド: 指定周波数の矩形波を 1 秒間鳴らす */
-	if (strncmp(cmd, "beep", 4) == 0 && (cmd[4] == ' ' || cmd[4] == '\0'))
-	{
-		cmd_beep(cmd + 4);
-		return;
-	}
-
-	/* daiku コマンド: よろこびの歌 (PD) をバックグラウンド再生 */
-	if (strcmp(cmd, "daiku") == 0)
-	{
-		cmd_daiku();
-		return;
-	}
-
-	/* glitch コマンド: PSG 音切れ統計を表示 / リセット */
-	if (strcmp(cmd, "glitch reset") == 0)
-	{
-		psg_glitch_reset();
-		return;
-	}
-	if (strcmp(cmd, "glitch") == 0)
-	{
-		psg_glitch_stat();
-		return;
-	}
-
-	/* sleep コマンド: 指定秒数だけ CPU を手放して待機する */
-	if (strncmp(cmd, "sleep", 5) == 0 && (cmd[5] == ' ' || cmd[5] == '\0'))
-	{
-		cmd_sleep(cmd + 5);
-		return;
-	}
-
-	/* kill コマンド: 指定 PID にシグナルを送信する */
-	if (strncmp(cmd, "kill", 4) == 0 && (cmd[4] == ' ' || cmd[4] == '\0'))
-	{
-		cmd_kill(cmd + 4);
-		return;
-	}
-
-	/* jiffies コマンド: 現在の jiffies 値を表示する（デバッグ・テスト用） */
-	if (strcmp(cmd, "jiffies") == 0)
-	{
-		printk("jiffies=%u\n", jiffies);
-		return;
-	}
-
-	/* piano コマンド: PSG エミュレータをピアノとして演奏する */
-	if (strcmp(cmd, "piano") == 0)
-	{
-		cmd_piano();
-		return;
-	}
-
-	/* ps コマンド: プロセス一覧表示 */
-	if (strcmp(cmd, "ps") == 0)
-	{
-		cmd_ps("");
-		return;
-	}
-	if (strncmp(cmd, "ps ", 3) == 0)
-	{
-		cmd_ps(cmd + 3);
-		return;
-	}
-
-	/* TODO: 将来的にコマンドテーブルを使った実装に拡張 */
-	printk("Unknown command: %s\n", cmd);
+	printf("Unknown command: %s\n", cmd);
 }
 
-/** キーボードハンドラ：キーボードドライバから呼ばれる
+/* 非ブロッキングでゾンビ子プロセスを回収する。 */
+static void reap_zombie_children(void)
+{
+	int reap_status;
+
+	while (1)
+	{
+		pid_t r = waitpid(-1, &reap_status, WNOHANG);
+		if (r <= 0)
+		{
+			break;
+		}
+	}
+}
+
+/** 旧 keyboard handler 互換 shim
  * @param c 入力された文字（通常文字、'\n', '\b', 制御文字など）
  * @return 処理した場合は1、処理しなかった場合は0
+ * @note 現在の実行経路は shell_run() の read(0, ...) であり、この関数は
+ *       主に旧 unit test 互換のために最小限の行バッファ更新だけを行う。
  */
 int shell_keyboard_handler(char c)
 {
@@ -335,59 +144,17 @@ int shell_keyboard_handler(char c)
 		return 0;
 	}
 
-	/* 左矢印キー (0x1C) */
-	if (c == '\x1C')
+	/* 旧 line editor の矢印入力は現在 no-op とする */
+	if (c == '\x1C' || c == '\x1D')
 	{
-		size_t row, col;
-		kfs_terminal_get_cursor(&row, &col);
-
-		/* プロンプト開始位置より左には移動させない */
-		if (row < shell_state.prompt_row || (row == shell_state.prompt_row && col <= shell_state.prompt_col))
-		{
-			return 1; /* 処理済み扱い */
-		}
-
-		/* 通常のカーソル左移動 */
-		kfs_terminal_cursor_left();
-		return 1; /* 処理した */
+		return 1;
 	}
 
-	/* 右矢印キー (0x1D) */
-	if (c == '\x1D')
-	{
-		size_t row, col;
-		kfs_terminal_get_cursor(&row, &col);
-
-		/* 入力済み文字列の末尾より右には移動させない */
-		size_t input_end_col = shell_state.prompt_col + shell_state.cmd_len;
-
-		/* 同じ行で、かつ入力末尾より右には移動しない */
-		if (row == shell_state.prompt_row && col >= input_end_col)
-		{
-			return 1; /* 処理済み扱い */
-		}
-
-		/* 通常のカーソル右移動 */
-		kfs_terminal_cursor_right();
-		return 1; /* 処理した */
-	}
-
-	/* 改行の場合はコマンド実行フラグを立てる。
-	 * keyboard IRQ コンテキスト外で execute_command を呼ぶことで、
-	 * beep/sleep など do_fork + do_wait を使うコマンドが
-	 * IRQ ハンドラ内でブロックして EOI が送れなくなる問題を防ぐ。 */
+	/* 互換 shim では Enter で入力行を確定し、バッファだけクリアする。 */
 	if (c == '\n' || c == '\r')
 	{
-		printk("\n");
-		shell_state.cmd_buffer[shell_state.cmd_len] = '\0';
-		/* pending_cmd にコピーしてフラグを立てる */
-		for (size_t i = 0; i <= shell_state.cmd_len; i++)
-		{
-			shell_state.pending_cmd[i] = shell_state.cmd_buffer[i];
-		}
 		clear_command_buffer();
-		shell_state.cmd_ready = 1;
-		return 1; /* 処理した */
+		return 1;
 	}
 
 	/* バックスペースの処理 */
@@ -395,57 +162,23 @@ int shell_keyboard_handler(char c)
 	{
 		if (shell_state.cmd_len > 0)
 		{
-			/* 現在のカーソル位置を取得 */
-			size_t row, col;
-			kfs_terminal_get_cursor(&row, &col);
-
-			/* プロンプト開始位置より左には移動させない */
-			if (row < shell_state.prompt_row || (row == shell_state.prompt_row && col <= shell_state.prompt_col))
-			{
-				return 1; /* 処理済み扱い */
-			}
-
-			/* カーソル位置に対応するバッファ内のインデックスを計算 */
-			size_t cursor_index = col - shell_state.prompt_col;
-
-			/* カーソルより左の文字を削除 */
-			if (cursor_index > 0 && cursor_index <= shell_state.cmd_len)
-			{
-				/* バッファ内で文字を左にシフト */
-				for (size_t i = cursor_index - 1; i < shell_state.cmd_len - 1; i++)
-				{
-					shell_state.cmd_buffer[i] = shell_state.cmd_buffer[i + 1];
-				}
-				shell_state.cmd_len--;
-				shell_state.cmd_buffer[shell_state.cmd_len] = '\0';
-
-				/* 画面上でカーソルを左に移動 */
-				kfs_terminal_move_cursor(row, col - 1);
-				/* 右側の文字を左にシフト（terminal_delete_char使用） */
-				terminal_delete_char();
-			}
+			shell_state.cmd_len--;
+			shell_state.cmd_buffer[shell_state.cmd_len] = '\0';
 		}
-		return 1; /* 処理した */
+		return 1;
 	}
 
 	/* バッファオーバーフローを防ぐ */
 	if (shell_state.cmd_len >= CMD_BUFFER_SIZE - 1)
 	{
-		printk("\nCommand too long!\n");
 		clear_command_buffer();
-		show_prompt();
-		return 1; /* 処理した */
+		return 1;
 	}
 
-	/* Ctrl+C: 端末の foreground pgrp に SIGINT を送る (簡易実装) */
+	/* Ctrl+C は現在の shim では入力行を破棄するだけにする。 */
 	if (c == '\x03')
 	{
-		pid_t fg = foreground_pgrp;
-		if (fg == 0)
-		{
-			fg = current->pgrp;
-		}
-		kill_pg(fg, SIGINT);
+		clear_command_buffer();
 		return 1;
 	}
 
@@ -455,10 +188,10 @@ int shell_keyboard_handler(char c)
 		return 1; /* 処理した（無視） */
 	}
 
-	/* 通常文字をバッファに追加して画面に表示 */
+	/* 通常文字をバッファに追加する */
 	shell_state.cmd_buffer[shell_state.cmd_len++] = c;
-	printk("%c", c);
-	return 1; /* 処理した */
+	shell_state.cmd_buffer[shell_state.cmd_len] = '\0';
+	return 1;
 }
 
 /** プロンプト表示とキーボードハンドラ登録を行う
@@ -472,16 +205,8 @@ void shell_init(void)
 		return;
 	}
 
-	clear_command_buffer();
 	shell_state.initialized = 1;
-
-	/* キーボードハンドラを登録（依存性の注入） */
-	kfs_keyboard_set_handler(shell_keyboard_handler);
-
-	/* neofetch風のシステム情報画面を表示する */
-	print_neofetch();
-
-	show_prompt();
+	shell_builtins_init();
 }
 
 /** シェルのメインループ
@@ -492,49 +217,30 @@ void shell_init(void)
  */
 __attribute__((weak)) void shell_run(void)
 {
-	shell_init();
+	char line[CMD_BUFFER_SIZE];
+	int line_len;
 
-	/* メインループ: 割り込みでキーボード入力を処理 */
+	shell_init();
+	prctl(PR_SET_NAME, (unsigned long)"shell_run", 0, 0, 0);
+
+	/* neofetchを出す */
+	extern void cmd_neofetch(void *args);
+	cmd_neofetch(NULL);
+
 	while (1)
 	{
-		/** シリアルポート入力を確認
-		 * @note シリアルI/Oはデバッグ用途のためIRQラインではなくポーリング方式を用いる
-		 */
-		int c = serial_read();
-		if (c != -1)
+		printf("%s", SHELL_PROMPT);
+		line_len = read(0, line, sizeof(line) - 1);
+		if (line_len < 0)
 		{
-			/* シリアルからの入力を処理（キーボードハンドラを再利用） */
-			shell_keyboard_handler((char)c);
+			continue;
 		}
+		line[line_len] = '\0';
 
-		/*
-		 * keyboard IRQ コンテキストの外でコマンドを実行する。
-		 * shell_keyboard_handler が '\n' を受け取ると cmd_ready = 1 にして
-		 * すぐに return する（IRQ ハンドラを解放して EOI を送信させる）。
-		 * do_fork + do_wait を使うコマンドは
-		 * IRQ コンテキストでブロックすると次の keyboard IRQ が届かなくなるため、
-		 * schedule() で一度 CPU を譲ってからこのメインループで実行する。
-		 */
-		if (shell_state.cmd_ready)
-		{
-			shell_state.cmd_ready = 0;
-			execute_command(shell_state.pending_cmd);
-			show_prompt();
-		}
-
-		/* シェルの子プロセスがゾンビとして残らないよう、
-		 * 定期的に非ブロッキングで回収する */
-		while (1)
-		{
-			pid_t r = do_wait(NULL, WNOHANG);
-			if (r <= 0)
-			{
-				break;
-			}
-		}
-
-		/* CPU を他タスクへ譲る（hlt は cpu_idle_loop() で行う） */
-		schedule();
+		/* 入力待ち中にゾンビ化した子を、次コマンド実行前に先に回収する。 */
+		reap_zombie_children();
+		execute_command(line);
+		reap_zombie_children();
 	}
 }
 

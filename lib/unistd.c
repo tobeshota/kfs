@@ -1,3 +1,5 @@
+#include <kfs/keyboard.h>
+#include <kfs/neofetch.h>
 #include <kfs/pid.h>	 /* pid_t */
 #include <kfs/ps.h>		 /* struct kfs_ps_entry */
 #include <kfs/sched.h>	 /* uid_t */
@@ -31,6 +33,14 @@ pid_t fork(void)
 	long ret;
 	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_fork) : "memory");
 	return (pid_t)ret;
+}
+
+/* fd からデータを読み取る */
+int read(int fd, void *buf, unsigned int count)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_read), "b"(fd), "c"(buf), "d"(count) : "memory");
+	return (int)ret;
 }
 
 /* プロセスを終了する */
@@ -173,6 +183,65 @@ long ps_snapshot(struct kfs_ps_entry *entries, size_t max_entries)
 						 : "0"(__NR_ps_snapshot), "b"(entries), "c"((long)max_entries)
 						 : "memory");
 	return ret;
+}
+
+int neofetch_info(struct kfs_neofetch_info *info)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_neofetch_info), "b"((long)info) : "memory");
+	return (int)ret;
+}
+
+/* システムを再起動する */
+int reboot(void)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_reboot) : "memory");
+	return (int)ret;
+}
+
+/* システムを停止する */
+int halt(void)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_halt) : "memory");
+	return (int)ret;
+}
+
+/* キーボードレイアウトを変更する */
+int kbd_set_layout(kbd_layout_t layout)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_kbd_set_layout), "b"((long)layout) : "memory");
+	return (int)ret;
+}
+
+int kbd_read_event(struct kfs_keyboard_raw_event *event)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_kbd_read_event), "b"((long)event) : "memory");
+	return (int)ret;
+}
+
+int kbd_clear_events(void)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_kbd_clear_events) : "memory");
+	return (int)ret;
+}
+
+int kbd_set_raw_mode(int enabled)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_kbd_set_raw_mode), "b"((long)enabled) : "memory");
+	return (int)ret;
+}
+
+/* カーネルパニックを発生させる */
+void __attribute__((noreturn)) trigger_panic(void)
+{
+	__asm__ __volatile__("int $0x80" : : "a"(__NR_panic) : "memory");
+	__builtin_unreachable();
 }
 
 /* mmap2 システムコールを呼び出す（MAP_ANONYMOUS のみサポート） */
