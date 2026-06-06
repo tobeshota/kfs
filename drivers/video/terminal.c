@@ -16,6 +16,7 @@
 #define VGA_CURSOR_START 0x0A
 #define VGA_CURSOR_END 0x0B
 #define SCROLLBACK_LINES 100 /* スクロールバックバッファの行数 */
+#define ANSI_MAX_PARAMS 8	/* ANSIエスケープシーケンスの最大パラメータ数 */
 
 extern void kfs_io_outb(uint16_t port, uint8_t val);
 
@@ -29,6 +30,11 @@ struct kfs_console_state
 	size_t row;
 	size_t column;
 	uint8_t color;
+	uint8_t ansi_state;		/* ANSIエスケープシーケンスのパーサ状態 */
+	int ansi_params[ANSI_MAX_PARAMS];	/* ANSIエスケープシーケンスのパラメータ配列 */
+	int ansi_param_count;	/* 現在解析中のパラメータ数 */
+	int ansi_current;		/* 現在解析中の数値 */
+	int ansi_has_current;	/* 現在解析中の数値があるかどうか */
 	uint16_t shadow[VGA_WIDTH * VGA_HEIGHT];
 	uint16_t scrollback[SCROLLBACK_LINES * VGA_WIDTH]; /* スクロールバックバッファ */
 	size_t scrollback_pos;	 /* スクロールバックバッファ内の現在位置（リングバッファ） */
@@ -51,6 +57,279 @@ static struct kfs_console_state *active_console(void)
 static int console_is_active(const struct kfs_console_state *con)
 {
 	return con == &kfs_console_states[kfs_console_active];
+}
+
+enum ansi_parse_state
+{
+	ANSI_STATE_TEXT = 0,	/* 通常のテキスト状態 */
+	ANSI_STATE_ESC,			/* ESC文字を受け取った状態 */
+	ANSI_STATE_CSI,			/* CSIシーケンスを受け取った状態 */
+};
+
+/** デフォルトの端末色を返す
+ * @brief 文字色をライトグレー、背景色を黒に初期化するための色属性を生成する
+ * @return VGA色属性（fg=VGA_COLOR_LIGHT_GREY, bg=VGA_COLOR_BLACK）
+ */
+static uint8_t terminal_default_color(void)
+{
+	/* デフォルトは「明るい灰色の文字 + 黒背景」。 */
+	return kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+}
+
+/** ANSIエスケープシーケンスのパーサ状態を初期化する
+ * @param con コンソール状態
+ * @brief ESC解析状態・パラメータ配列の進捗・現在値をすべて初期状態に戻す
+ */
+static void ansi_reset_parser(struct kfs_console_state *con)
+{
+	/* ESC シーケンス解析状態を初期状態へ戻す。 */
+	con->ansi_state = ANSI_STATE_TEXT;
+	con->ansi_param_count = 0;
+	con->ansi_current = 0;
+	con->ansi_has_current = 0;
+}
+
+/** ANSI基本8色インデックスをVGA色定数へ変換する
+ * @param idx ANSI基本色インデックス（0-7）
+ * @return 対応するVGA色（範囲外はVGA_COLOR_LIGHT_GREY）
+ * @note 0=black, 1=red, 2=green, 3=brown, 4=blue, 5=magenta, 6=cyan, 7=light grey
+ */
+static enum vga_color ansi_basic_color_to_vga(int idx)
+{
+	/* ANSI 基本8色(0-7)を VGA 色定数へ写像する。 */
+	switch (idx)
+	{
+	case 0:
+		return VGA_COLOR_BLACK;
+	case 1:
+		return VGA_COLOR_RED;
+	case 2:
+		return VGA_COLOR_GREEN;
+	case 3:
+		return VGA_COLOR_BROWN;
+	case 4:
+		return VGA_COLOR_BLUE;
+	case 5:
+		return VGA_COLOR_MAGENTA;
+	case 6:
+		return VGA_COLOR_CYAN;
+	default:
+		return VGA_COLOR_LIGHT_GREY;
+	}
+}
+
+/** SGRパラメータ列を現在コンソールの色状態へ適用する
+ * @param con コンソール状態
+ * @param params 解析済みSGRパラメータ配列
+ * @param count paramsの要素数
+ * @brief ESC[...m で渡された属性（太字/前景色/背景色/リセット）を順次反映する
+ * @note 対応コード: 0,1,22,39,49,30-37,40-47,90-97,100-107
+ * @ref https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
+ */
+static void ansi_apply_sgr(struct kfs_console_state *con, const int *params, int count)
+{
+	/* 現在色を基準に SGR パラメータを順に適用する。 */
+	enum vga_color fg = (enum vga_color)(con->color & 0x0F);
+	enum vga_color bg = (enum vga_color)((con->color >> 4) & 0x0F);
+	int bright_fg = (fg >= VGA_COLOR_DARK_GREY);
+
+	for (int i = 0; i < count; i++)
+	{
+		int p = params[i];
+
+		if (p == 0)	/* リセット */
+		{
+			fg = VGA_COLOR_LIGHT_GREY;
+			bg = VGA_COLOR_BLACK;
+			bright_fg = 0;
+			continue;
+		}
+		if (p == 1)	/* 太字（明るい色） */
+		{
+			bright_fg = 1;
+			if (fg <= VGA_COLOR_LIGHT_GREY)
+			{
+				fg = (enum vga_color)(fg + 8);
+			}
+			continue;
+		}
+		if (p == 22)	/* 太字（明るい色）を解除 */
+		{
+			bright_fg = 0;
+			if (fg >= VGA_COLOR_DARK_GREY)
+			{
+				fg = (enum vga_color)(fg - 8);
+			}
+			continue;
+		}
+		if (p == 39)	/* 文字色をデフォルトに戻す */
+		{
+			/* 文字色だけデフォルトに戻す。 */
+			fg = VGA_COLOR_LIGHT_GREY;
+			if (bright_fg && fg <= VGA_COLOR_LIGHT_GREY)
+			{
+				fg = (enum vga_color)(fg + 8);
+			}
+			continue;
+		}
+		if (p == 49)	/* 背景色をデフォルトに戻す */
+		{
+			/* 背景色だけデフォルトに戻す。 */
+			bg = VGA_COLOR_BLACK;
+			continue;
+		}
+		if (p >= 30 && p <= 37)	/* 文字色を設定 */
+		{
+			fg = ansi_basic_color_to_vga(p - 30);
+			if (bright_fg)
+			{
+				fg = (enum vga_color)(fg + 8);
+			}
+			continue;
+		}
+		if (p >= 40 && p <= 47)	/* 背景色を設定 */
+		{
+			bg = ansi_basic_color_to_vga(p - 40);
+			continue;
+		}
+		if (p >= 90 && p <= 97)	/* 明るい文字色を設定 */
+		{
+			fg = (enum vga_color)(ansi_basic_color_to_vga(p - 90) + 8);
+			bright_fg = 1;
+			continue;
+		}
+		if (p >= 100 && p <= 107)	/* 明るい背景色を設定 */
+		{
+			bg = (enum vga_color)(ansi_basic_color_to_vga(p - 100) + 8);
+			continue;
+		}
+	}
+
+	con->color = kfs_vga_make_color(fg, bg);
+	kfs_terminal_color = con->color;
+}
+
+/** 現在解析中のCSIパラメータを配列へ確定する
+ * @brief con->ansi_currentに現在解析中の数値があれば
+ *        con->ansi_paramsへ追加し、解析状態をリセットする
+ * @param con コンソール状態
+ * @return 0: 成功，-1: パラメータ上限超過
+ */
+static int ansi_push_current_param(struct kfs_console_state *con)
+{
+	/* パラメータ上限を超えた場合はエラーを返す */
+	if (con->ansi_param_count >= ANSI_MAX_PARAMS)
+	{
+		return -1;
+	}
+
+	if (con->ansi_has_current)
+	{
+		/* 現在解析中の数値があれば配列へ追加する */
+		con->ansi_params[con->ansi_param_count++] = con->ansi_current;
+	}
+	else
+	{
+		/* 現在解析中の数値がなければデフォルト値0を追加する */
+		con->ansi_params[con->ansi_param_count++] = 0;
+	}
+
+	con->ansi_current = 0;
+	con->ansi_has_current = 0;
+	return 0;
+}
+
+/** ESC[...m のうち SGR（色）を最小実装で解釈する
+ * @param con コンソール状態
+ * @param c   入力文字（ESC[...m のうち ...の部分の1文字）
+ * @return ANSIエスケープシーケンスの一部として処理した場合は1、そうでなければ0
+ * @note SGR以外のシーケンスは解釈せずにリセットする（ESC[...m のうち ...の部分の1文字目が数字でも';'でも'm'でもない場合はリセットする）
+ * @example
+ * conが"ESC[31m"を受け取ると，
+ * c='3'のときにパラメータ31を解析し，
+ * c='1'のときにパラメータ1を解析し，
+ * c='m'のときにSGRを適用して文字色を赤にする
+ */
+static int terminal_try_handle_escape(struct kfs_console_state *con, char c)
+{
+	/* コンソールがテキスト状態である場合 */
+	if (con->ansi_state == ANSI_STATE_TEXT)
+	{
+		/* cがESC文字(0x1B)の場合 */
+		if ((unsigned char)c == 0x1B)
+		{
+			/* コンソールの状態をESCに変更する */
+			con->ansi_state = ANSI_STATE_ESC;
+			return 1;
+		}
+		return 0;
+	}
+
+	/* コンソールの状態がESCである場合 */
+	if (con->ansi_state == ANSI_STATE_ESC)
+	{
+		if (c == '[')
+		{
+			/** コンソールの状態をCSIに変更する．
+			 * @brief CSI[Control Sequence Introducer]とは，
+			 *        ESC[で始まるANSIエスケープシーケンスのうち，
+			 *        パラメータを取るものの開始を示す文字である
+			 *        たとえば，"ESC[31m"における"ESC["をCSIと呼ぶ．
+			 */
+			con->ansi_state = ANSI_STATE_CSI;
+			con->ansi_param_count = 0;
+			con->ansi_current = 0;
+			con->ansi_has_current = 0;
+			return 1;
+		}
+		ansi_reset_parser(con);
+		return 0;
+	}
+
+	/* コンソールの状態がCSIである場合 */
+	if (c >= '0' && c <= '9')
+	{
+		/** パラメータの数字を解析する
+		 * @example "ESC[31m"において，'3'を受け取ったときにansi_currentを3にし，
+		 *          次に'1'を受け取ったときにansi_currentを31にする
+		 */
+		con->ansi_current = con->ansi_current * 10 + (c - '0');
+		con->ansi_has_current = 1;
+		return 1;
+	}
+
+	/* パラメータ区切り文字 ';' を処理する */
+	if (c == ';')
+	{
+		if (ansi_push_current_param(con) < 0)
+		{
+			ansi_reset_parser(con);
+		}
+		return 1;
+	}
+
+	/* SGR（Select Graphic Rendition）シーケンスを処理する */
+	if (c == 'm')
+	{
+		if (con->ansi_has_current)
+		{
+			if (ansi_push_current_param(con) < 0)
+			{
+				ansi_reset_parser(con);
+				return 1;
+			}
+		}
+		else if (con->ansi_param_count == 0)
+		{
+			con->ansi_params[con->ansi_param_count++] = 0;
+		}
+		ansi_apply_sgr(con, con->ansi_params, con->ansi_param_count);
+		ansi_reset_parser(con);
+		return 1;
+	}
+
+	ansi_reset_parser(con);
+	return 0;
 }
 
 /** カーソルの形状
@@ -170,6 +449,7 @@ static void ensure_console_bootstrap(void)
 		con->row = 0;
 		con->column = 0;
 		con->color = default_color;
+		ansi_reset_parser(con);
 		con->scrollback_pos = 0;
 		con->scrollback_lines = 0;
 		con->scroll_offset = 0;
@@ -213,7 +493,8 @@ static void console_activate_if_needed(struct kfs_console_state *con)
 	{
 		con->row = 0;
 		con->column = 0;
-		con->color = kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+		con->color = terminal_default_color();
+		ansi_reset_parser(con);
 		con->initialized = 1;
 		console_fill_blank(con);
 		if (console_is_active(con))
@@ -230,9 +511,10 @@ void terminal_initialize(void)
 
 	/* 現在使用してるコンソールを取得 */
 	struct kfs_console_state *con = active_console();
-	con->color = kfs_vga_make_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+	con->color = terminal_default_color();
 	con->row = 0;	 /* 0行目(直感的には画面最上部)から記述を開始する */
 	con->column = 0; /* 0列目(直感的には画面最左部)から記述を開始する */
+	ansi_reset_parser(con);
 	con->initialized = 1;
 	con->scrollback_pos = 0; /* スクロールバックバッファもリセット */
 	con->scrollback_lines = 0;
@@ -428,9 +710,16 @@ void terminal_delete_char(void)
 /* メモリに値dataをsizeだけ書き込む(MMIO) */
 void terminal_write(const char *data, size_t size)
 {
+	ensure_console_bootstrap();
+	struct kfs_console_state *con = active_console();
+	console_activate_if_needed(con);
+
 	for (size_t i = 0; i < size; i++)
 	{
-		terminal_putchar(data[i]);
+		if (!terminal_try_handle_escape(con, data[i]))
+		{
+			terminal_putchar(data[i]);
+		}
 	}
 }
 
