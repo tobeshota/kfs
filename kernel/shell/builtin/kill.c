@@ -145,15 +145,15 @@ static int is_token_end(const char *cursor)
 
 static void print_kill_help(void)
 {
-	printf("Usage: kill [options] <pid>\n"
-		   "Options:\n"
-		   "  -l            list supported signals\n"
-		   "  -<number>     send the specified signal number\n"
-		   "  --help        show this help\n"
-		   "Default signal: SIGTERM (15)\n"
-		   "Examples:\n"
-		   "  kill 1234\n"
-		   "  kill -9 1234\n");
+	printf("Usage: kill [options] <pid>\n");
+	printf("Options:\n");
+	printf("  -l            list supported signals\n");
+	printf("  -<number>     send the specified signal number\n");
+	printf("  --help        show this help\n");
+	printf("Default signal: SIGTERM (15)\n");
+	printf("Examples:\n");
+	printf("  kill 1234\n");
+	printf("  kill -9 1234\n");
 }
 
 static void print_signal_list(void)
