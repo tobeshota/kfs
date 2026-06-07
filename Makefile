@@ -5,6 +5,7 @@
 # - make run         : qemu-system-$(ISA) -cdrom kfs.iso を実行
 # - make run-kernel  : qemu-system-$(ISA) -kernel Image を実行
 
+$(shell [ -f .env ] || cp -a .env.sample .env)
 include .env
 export
 
