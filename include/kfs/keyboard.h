@@ -1,6 +1,7 @@
 #ifndef KFS_KEYBOARD_H
 #define KFS_KEYBOARD_H
 
+#include <kfs/stddef.h>
 #include <kfs/stdint.h>
 
 /* キーボードIRQ番号 */
@@ -43,6 +44,7 @@ void kfs_keyboard_set_raw_handler(keyboard_raw_handler_t handler);
 void kfs_keyboard_set_layout(kbd_layout_t layout);
 kbd_layout_t kfs_keyboard_get_layout(void);
 long kfs_keyboard_read_line(char *buf, unsigned int size);
+long kfs_keyboard_read_line_for_console(size_t console_index, char *buf, unsigned int size);
 long kfs_keyboard_read_event(struct kfs_keyboard_raw_event *event);
 void kfs_keyboard_clear_events(void);
 void kfs_keyboard_set_raw_mode(int enabled);
