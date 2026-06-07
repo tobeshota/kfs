@@ -6,6 +6,7 @@
 #include <kfs/printk.h>
 #include <kfs/psg.h>
 #include <kfs/reboot.h>
+#include <kfs/sched.h>
 #include <kfs/signal.h>
 #include <kfs/stddef.h>
 #include <kfs/sys.h>
@@ -13,7 +14,6 @@
 #include <kfs/wait.h>
 
 extern pid_t do_fork(unsigned long user_eip);
-extern long kfs_keyboard_read_line(char *buf, unsigned int size);
 extern long kfs_keyboard_read_event(struct kfs_keyboard_raw_event *event);
 extern void kfs_keyboard_clear_events(void);
 extern void sys_exit(int error_code);
@@ -77,7 +77,7 @@ static long do_sys_read(long arg1, long arg2, long arg3, long arg4, long arg5)
 	{
 		return -EBADF;
 	}
-	return kfs_keyboard_read_line((char *)arg2, (unsigned int)arg3);
+	return kfs_keyboard_read_line_for_console(current->tty_console, (char *)arg2, (unsigned int)arg3);
 }
 
 static long do_sys_kbd_read_event(long arg1, long arg2, long arg3, long arg4, long arg5)
@@ -317,6 +317,17 @@ static long do_sys_tcsetpgrp(long arg1, long arg2, long arg3, long arg4, long ar
 	return (long)sys_tcsetpgrp((int)arg1, (pid_t)arg2);
 }
 
+/* ttynr() のラッパー */
+static long do_sys_ttynr(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_ttynr();
+}
+
 /* mmap2(addr, len, prot, flags, fd) システムコール
  * @note pgoff は MAP_ANONYMOUS では不要なため省略（syscall_fn_t は5引数）
  */
@@ -418,6 +429,7 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_kbd_clear_events] = do_sys_kbd_clear_events,
 	[__NR_kbd_set_raw_mode] = do_sys_kbd_set_raw_mode,
 	[__NR_neofetch_info] = do_sys_neofetch_info,
+	[__NR_ttynr] = do_sys_ttynr,
 };
 
 /** システムコールディスパッチャ

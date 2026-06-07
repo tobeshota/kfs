@@ -98,6 +98,14 @@ int tcsetpgrp(int fd, pid_t pgrp)
 	return (int)ret;
 }
 
+/* 呼び出しプロセスの所属仮想コンソール番号を返す（0始まり） */
+int ttynr(void)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_ttynr) : "memory");
+	return (int)ret;
+}
+
 /* fd にバイト列を書き込む（1=stdout, 2=stderr, 4=COM1シリアル） */
 int write(int fd, const void *buf, unsigned int count)
 {

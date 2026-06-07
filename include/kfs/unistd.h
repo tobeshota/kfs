@@ -18,6 +18,7 @@ pid_t getpgid(pid_t pid);
 pid_t getpgrp(void);
 pid_t tcgetpgrp(int fd);
 int tcsetpgrp(int fd, pid_t pgrp);
+int ttynr(void);
 int write(int fd, const void *buf, unsigned int count);
 int kill(pid_t pid, int sig);
 int prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5);
