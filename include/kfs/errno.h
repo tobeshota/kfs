@@ -6,6 +6,7 @@
 #define EAGAIN 11 /* Try again (リソース一時的に利用不可) */
 #define ENOMEM 12 /* Out of memory */
 #define EINVAL 22 /* Invalid argument */
+#define ENOTTY 25 /* Inappropriate ioctl for device */
 #define ESRCH 3	  /* No such process */
 #define EBADF 9	  /* Bad file number */
 #define ENOSYS 38 /* Function not implemented */

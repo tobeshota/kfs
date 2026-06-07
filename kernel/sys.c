@@ -346,6 +346,9 @@ static int find_matching_pgrp_in_session(struct task_struct *task, void *ctx)
 	return 0;
 }
 
+/** 指定session内にプロセスグループpgrpが存在するか確認する
+ * @return 存在する場合は1、存在しない場合は0
+ */
 static int process_group_exists_in_session(pid_t session, pid_t pgrp)
 {
 	struct pgrp_scan_ctx scan = {
@@ -476,6 +479,10 @@ pid_t sys_setsid(void)
 pid_t sys_tcgetpgrp(int fd)
 {
 	(void)fd;
+	if (current->tty_console >= kfs_terminal_console_count())
+	{
+		return -ENOTTY;
+	}
 	return kfs_terminal_get_foreground_pgrp_for_console(current->tty_console);
 }
 
@@ -491,6 +498,14 @@ int sys_tcsetpgrp(int fd, pid_t pgrp)
 	if (pgrp <= 0)
 	{
 		return -EINVAL;
+	}
+	if (current->tty_console >= kfs_terminal_console_count())
+	{
+		return -ENOTTY;
+	}
+	if (!process_group_exists_in_session(current->session, pgrp))
+	{
+		return -EPERM;
 	}
 	return kfs_terminal_set_foreground_pgrp_for_console(current->tty_console, pgrp);
 }
