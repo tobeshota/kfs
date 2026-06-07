@@ -1,3 +1,4 @@
+$(shell [ -f ../../.env ] || cp -a ../../.env.sample ../../.env)
 include ../../.env
 export
 
