@@ -8,6 +8,7 @@
 #include <kfs/pcspkr.h>
 #include <kfs/printk.h>
 #include <kfs/psg.h>
+#include <kfs/pty.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/shell.h>
@@ -95,6 +96,7 @@ void start_kernel(void)
 
 	/* PIT タイマー初期化（IRQ0 → scheduler_tick() を毎 1ms 呼び出し） */
 	timer_init();
+	pty_reset();
 
 	/* PS/2キーボードドライバを初期化する */
 	kfs_keyboard_init();

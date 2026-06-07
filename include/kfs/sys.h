@@ -30,6 +30,7 @@ int sys_kbd_set_layout(kbd_layout_t layout);
 long sys_kbd_read_event(struct kfs_keyboard_raw_event *event);
 int sys_kbd_clear_events(void);
 int sys_kbd_set_raw_mode(int enabled);
+long sys_openpty(int *master_fd, int *slave_fd);
 void sys_panic(void) __attribute__((noreturn));
 
 #endif /* _KFS_SYS_H */

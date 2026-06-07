@@ -253,6 +253,16 @@ int kbd_set_raw_mode(int enabled)
 	return (int)ret;
 }
 
+int openpty(int *master_fd, int *slave_fd)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80"
+						 : "=a"(ret)
+						 : "0"(__NR_openpty), "b"((long)master_fd), "c"((long)slave_fd)
+						 : "memory");
+	return (int)ret;
+}
+
 /* カーネルパニックを発生させる */
 void __attribute__((noreturn)) trigger_panic(void)
 {

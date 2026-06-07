@@ -5,6 +5,7 @@
 #include <kfs/panic.h>
 #include <kfs/printk.h>
 #include <kfs/psg.h>
+#include <kfs/pty.h>
 #include <kfs/reboot.h>
 #include <kfs/sched.h>
 #include <kfs/signal.h>
@@ -74,11 +75,15 @@ static long do_sys_read(long arg1, long arg2, long arg3, long arg4, long arg5)
 {
 	(void)arg4;
 	(void)arg5;
-	if (arg1 != 0)
+	if (arg1 == 0)
 	{
-		return -EBADF;
+		return tty_read_line_for_console(current->tty_console, (char *)arg2, (unsigned int)arg3);
 	}
-	return tty_read_line_for_console(current->tty_console, (char *)arg2, (unsigned int)arg3);
+	if (pty_is_fd((int)arg1))
+	{
+		return pty_read((int)arg1, (char *)arg2, (unsigned int)arg3);
+	}
+	return -EBADF;
 }
 
 static long do_sys_kbd_read_event(long arg1, long arg2, long arg3, long arg4, long arg5)
@@ -340,6 +345,15 @@ static long do_sys_ttynr(long arg1, long arg2, long arg3, long arg4, long arg5)
 	return (long)sys_ttynr();
 }
 
+/* openpty(master_fd, slave_fd) のラッパー */
+static long do_sys_openpty(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return sys_openpty((int *)arg1, (int *)arg2);
+}
+
 /* mmap2(addr, len, prot, flags, fd) システムコール
  * @note pgoff は MAP_ANONYMOUS では不要なため省略（syscall_fn_t は5引数）
  */
@@ -443,6 +457,7 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_kbd_set_raw_mode] = do_sys_kbd_set_raw_mode,
 	[__NR_neofetch_info] = do_sys_neofetch_info,
 	[__NR_ttynr] = do_sys_ttynr,
+	[__NR_openpty] = do_sys_openpty,
 };
 
 /** システムコールディスパッチャ

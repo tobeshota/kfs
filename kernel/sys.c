@@ -8,6 +8,7 @@
 #include <kfs/pid.h>
 #include <kfs/prctl.h>
 #include <kfs/ps.h>
+#include <kfs/pty.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/string.h>
@@ -478,12 +479,21 @@ pid_t sys_setsid(void)
  */
 pid_t sys_tcgetpgrp(int fd)
 {
-	(void)fd;
-	if (current->tty_console >= kfs_terminal_console_count())
+	if (fd == 0)
 	{
-		return -ENOTTY;
+		if (current->tty_console >= kfs_terminal_console_count())
+		{
+			return -ENOTTY;
+		}
+		return kfs_terminal_get_foreground_pgrp_for_console(current->tty_console);
 	}
-	return kfs_terminal_get_foreground_pgrp_for_console(current->tty_console);
+
+	if (pty_is_slave_fd(fd))
+	{
+		return pty_get_foreground_pgrp_for_slave_fd(fd);
+	}
+
+	return -ENOTTY;
 }
 
 /** 現在の端末のフォアグラウンドプロセスグループIDをpgrpに設定する
@@ -494,20 +504,30 @@ pid_t sys_tcgetpgrp(int fd)
  */
 int sys_tcsetpgrp(int fd, pid_t pgrp)
 {
-	(void)fd;
 	if (pgrp <= 0)
 	{
 		return -EINVAL;
-	}
-	if (current->tty_console >= kfs_terminal_console_count())
-	{
-		return -ENOTTY;
 	}
 	if (!process_group_exists_in_session(current->session, pgrp))
 	{
 		return -EPERM;
 	}
-	return kfs_terminal_set_foreground_pgrp_for_console(current->tty_console, pgrp);
+
+	if (fd == 0)
+	{
+		if (current->tty_console >= kfs_terminal_console_count())
+		{
+			return -ENOTTY;
+		}
+		return kfs_terminal_set_foreground_pgrp_for_console(current->tty_console, pgrp);
+	}
+
+	if (pty_is_slave_fd(fd))
+	{
+		return pty_set_foreground_pgrp_for_slave_fd(fd, pgrp);
+	}
+
+	return -ENOTTY;
 }
 
 /* 呼び出しプロセスの所属仮想コンソール番号を返す（0始まり） */
@@ -524,6 +544,11 @@ int sys_ttynr(void)
  */
 long sys_write(int fd, const char *buf, size_t count)
 {
+	if (pty_is_fd(fd))
+	{
+		return pty_write(fd, buf, (unsigned int)count);
+	}
+
 	if (fd != 1 && fd != 2 && fd != 4)
 	{
 		return -EBADF;
@@ -544,6 +569,11 @@ long sys_write(int fd, const char *buf, size_t count)
 		serial_write(buf, count);
 	}
 	return (long)count;
+}
+
+long sys_openpty(int *master_fd, int *slave_fd)
+{
+	return (long)pty_open(master_fd, slave_fd);
 }
 
 int sys_kbd_set_layout(kbd_layout_t layout)

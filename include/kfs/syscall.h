@@ -36,9 +36,10 @@
 #define __NR_kbd_set_raw_mode 259
 #define __NR_neofetch_info 260
 #define __NR_ttynr 261
+#define __NR_openpty 262
 
 /* サポートするシステムコールの数 */
-#define NR_syscalls 262
+#define NR_syscalls 263
 
 /* システムコールのエントリポイント(entry.Sで定義) */
 extern void system_call(void);
