@@ -34,11 +34,27 @@ extern void page_alloc_init(unsigned long mbi_ptr, uint32_t magic);
  */
 static void kernel_init(void)
 {
-	/* PID 2: シェルを起動 */
+	/* 各仮想コンソールごとにシェルを1つ起動する */
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK));
-	if (do_fork((unsigned long)shell_run) < 0)
+	for (size_t i = 0; i < kfs_terminal_console_count(); ++i)
 	{
-		printk("Failed to start shell process\n");
+		pid_t pid = do_fork((unsigned long)shell_run);
+		if (pid < 0)
+		{
+			printk("Failed to start shell process on console %d\n", (int)i);
+			continue;
+		}
+
+		struct task_struct *shell_task = find_task_by_pid(pid);
+		if (!shell_task)
+		{
+			continue;
+		}
+
+		shell_task->tty_console = i;
+		shell_task->pgrp = pid;
+		shell_task->session = pid;
+		(void)kfs_terminal_set_foreground_pgrp_for_console(i, pid);
 	}
 
 	/* 孤児プロセス（バックグラウンド再生等）を回収するループ

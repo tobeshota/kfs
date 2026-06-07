@@ -145,8 +145,9 @@ struct task_struct
 	pid_t pid; /* プロセスID */
 
 	/* プロセスグループ／セッション */
-	pid_t pgrp;	   /* プロセスグループID */
-	pid_t session; /* セッションID（セッションリーダの PID） */
+	pid_t pgrp;			/* プロセスグループID */
+	pid_t session;		/* セッションID（セッションリーダの PID） */
+	size_t tty_console; /* 所属仮想コンソール番号 */
 
 	/* プロセス階層 */
 	struct task_struct *parent; /* 親プロセス */
