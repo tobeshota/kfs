@@ -1,6 +1,7 @@
 #include <kfs/console.h>
 #include <kfs/errno.h>
 #include <kfs/sched.h>
+#include <kfs/serial.h>
 #include <kfs/string.h>
 #include <kfs/tty.h>
 
@@ -174,6 +175,7 @@ void tty_input_char_for_console(size_t console_index, char ch)
 	if (state->echo_enabled && tty_console_is_active(console_index))
 	{
 		terminal_write_console(console_index, &ch, 1);
+		serial_write(&ch, 1);
 	}
 }
 
@@ -198,6 +200,7 @@ void tty_handle_backspace_for_console(size_t console_index)
 	{
 		kfs_terminal_cursor_left();
 		terminal_delete_char();
+		serial_write("\b \b", 3);
 	}
 }
 
@@ -211,6 +214,7 @@ void tty_handle_enter_for_console(size_t console_index)
 	if (state->echo_enabled && tty_console_is_active(console_index))
 	{
 		terminal_write_console(console_index, "\n", 1);
+		serial_write("\n", 1);
 	}
 	tty_publish_line(state);
 }
