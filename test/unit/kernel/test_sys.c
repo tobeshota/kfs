@@ -222,10 +222,24 @@ KFS_TEST(test_sys_tcgetpgrp_returns_foreground_pgrp)
 /* sys_tcsetpgrp が foreground_pgrp を更新することを確かめる */
 KFS_TEST(test_sys_tcsetpgrp_updates_foreground_pgrp)
 {
+	struct task_struct child = init_task;
+
 	(void)kfs_terminal_set_foreground_pgrp_for_console(0, 12);
+	current->session = 42;
+
+	child.pid = 99;
+	child.parent = current;
+	child.session = 42;
+	child.pgrp = 99;
+	INIT_LIST_HEAD(&child.children);
+	INIT_LIST_HEAD(&child.sibling);
+	INIT_LIST_HEAD(&child.run_list);
+	list_add_tail(&child.tasks, &task_list);
 
 	KFS_ASSERT_EQ(0, sys_tcsetpgrp(123, 99));
 	KFS_ASSERT_EQ(99, kfs_terminal_get_foreground_pgrp_for_console(0));
+
+	list_del(&child.tasks);
 }
 
 /* sys_tcsetpgrp が不正な pgrp を拒否することを確かめる */
@@ -235,6 +249,43 @@ KFS_TEST(test_sys_tcsetpgrp_invalid_pgrp_returns_einval)
 
 	KFS_ASSERT_EQ(-EINVAL, sys_tcsetpgrp(0, 0));
 	KFS_ASSERT_EQ(12, kfs_terminal_get_foreground_pgrp_for_console(0));
+}
+
+/* ctty 未設定時に sys_tcgetpgrp が -ENOTTY を返すことを確かめる */
+KFS_TEST(test_sys_tcgetpgrp_without_ctty_returns_enotty)
+{
+	current->tty_console = kfs_terminal_console_count();
+	KFS_ASSERT_EQ(-ENOTTY, sys_tcgetpgrp(0));
+}
+
+/* ctty 未設定時に sys_tcsetpgrp が -ENOTTY を返すことを確かめる */
+KFS_TEST(test_sys_tcsetpgrp_without_ctty_returns_enotty)
+{
+	current->tty_console = kfs_terminal_console_count();
+	KFS_ASSERT_EQ(-ENOTTY, sys_tcsetpgrp(0, 42));
+}
+
+/* 別 session の pgrp への tcsetpgrp を拒否することを確かめる */
+KFS_TEST(test_sys_tcsetpgrp_rejects_pgrp_from_other_session)
+{
+	struct task_struct child = init_task;
+
+	(void)kfs_terminal_set_foreground_pgrp_for_console(0, 12);
+	current->session = 42;
+
+	child.pid = 99;
+	child.parent = current;
+	child.session = 99;
+	child.pgrp = 99;
+	INIT_LIST_HEAD(&child.children);
+	INIT_LIST_HEAD(&child.sibling);
+	INIT_LIST_HEAD(&child.run_list);
+	list_add_tail(&child.tasks, &task_list);
+
+	KFS_ASSERT_EQ(-EPERM, sys_tcsetpgrp(0, 99));
+	KFS_ASSERT_EQ(12, kfs_terminal_get_foreground_pgrp_for_console(0));
+
+	list_del(&child.tasks);
 }
 
 /** sys_msleep(0) は schedule_timeout を呼ばずに即座に 0 を返すはず
@@ -269,6 +320,9 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcgetpgrp_returns_foreground_pgrp, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_updates_foreground_pgrp, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_invalid_pgrp_returns_einval, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcgetpgrp_without_ctty_returns_enotty, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_without_ctty_returns_enotty, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_rejects_pgrp_from_other_session, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_msleep_zero_returns_immediately, setup_test, teardown_test),
 };
 
