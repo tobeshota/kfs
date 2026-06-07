@@ -379,7 +379,7 @@ KFS_TEST(test_keyboard_ctrl_c_sends_sigint)
 		/* set to 1 so kill_pg can find a positive pgrp in task_list */
 		current->pgrp = 1;
 	}
-	foreground_pgrp = current->pgrp;
+	(void)kfs_terminal_set_foreground_pgrp_for_console(kfs_terminal_active_console(), current->pgrp);
 
 	/* まず保留シグナルをクリア */
 	current->pending.signal = 0;

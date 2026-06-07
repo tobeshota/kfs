@@ -25,6 +25,7 @@ struct task_struct init_task = {
 	/* プロセスグループ／セッション */
 	.pgrp = 0,
 	.session = 0,
+	.tty_console = 0,
 
 	/* プロセス階層 */
 	.parent = &init_task,							/* 自分自身が親 */

@@ -66,6 +66,57 @@ struct ps_snapshot_ctx
 	size_t count;
 };
 
+/* task の所属コンソール番号を ps 表示用TTY文字列へ変換する。 */
+static void ps_fill_tty(char *dst, size_t dst_len, size_t tty_console)
+{
+	if (!dst || dst_len == 0)
+	{
+		return;
+	}
+
+	if (tty_console >= kfs_terminal_console_count())
+	{
+		dst[0] = '-';
+		if (dst_len > 1)
+		{
+			dst[1] = '\0';
+		}
+		return;
+	}
+
+	/* 端末番号はユーザー表示で 1 始まりにする（tty1, tty2, ...）。 */
+	size_t n = tty_console + 1;
+	char digits[20];
+	size_t digits_len = 0;
+
+	while (n > 0 && digits_len < sizeof(digits))
+	{
+		digits[digits_len++] = (char)('0' + (n % 10));
+		n /= 10;
+	}
+
+	if (dst_len < 5)
+	{
+		dst[0] = '-';
+		if (dst_len > 1)
+		{
+			dst[1] = '\0';
+		}
+		return;
+	}
+
+	dst[0] = 't';
+	dst[1] = 't';
+	dst[2] = 'y';
+
+	size_t pos = 3;
+	while (digits_len > 0 && pos + 1 < dst_len)
+	{
+		dst[pos++] = digits[--digits_len];
+	}
+	dst[pos] = '\0';
+}
+
 /** @brief タスク走査コールバック — 各タスク情報を `kfs_ps_entry` に詰める
  * @param task 現在のタスク
  * @param ctx  `struct ps_snapshot_ctx *` にキャスト可能なコンテキスト
@@ -86,8 +137,7 @@ static int ps_snapshot_collect(struct task_struct *task, void *ctx)
 	entry = &snapshot->entries[snapshot->count++];
 	entry->pid = task->pid;
 	entry->ppid = task->parent ? task->parent->pid : 0;
-	entry->tty[0] = '-';
-	entry->tty[1] = '\0';
+	ps_fill_tty(entry->tty, sizeof(entry->tty), task->tty_console);
 	/* 現在はダミーの TIME 表示。将来 jiffies -> hh:mm:ss 変換を入れる */
 	entry->time[0] = '0';
 	entry->time[1] = ':';
@@ -354,7 +404,7 @@ pid_t sys_getpgrp(void)
 pid_t sys_tcgetpgrp(int fd)
 {
 	(void)fd;
-	return foreground_pgrp;
+	return kfs_terminal_get_foreground_pgrp_for_console(current->tty_console);
 }
 
 /** 現在の端末のフォアグラウンドプロセスグループIDをpgrpに設定する
@@ -370,8 +420,13 @@ int sys_tcsetpgrp(int fd, pid_t pgrp)
 	{
 		return -EINVAL;
 	}
-	foreground_pgrp = pgrp;
-	return 0;
+	return kfs_terminal_set_foreground_pgrp_for_console(current->tty_console, pgrp);
+}
+
+/* 呼び出しプロセスの所属仮想コンソール番号を返す（0始まり） */
+int sys_ttynr(void)
+{
+	return (int)current->tty_console;
 }
 
 /** stdout/stderr への書き込みを VGA + COM1 の両方に tee する
@@ -393,7 +448,7 @@ long sys_write(int fd, const char *buf, size_t count)
 	if (fd == 1 || fd == 2)
 	{
 		/* stdout/stderr: VGA端末 と COM1 の両方に出力（tee） */
-		terminal_write(buf, count);
+		terminal_write_console(current->tty_console, buf, count);
 		serial_write(buf, count);
 	}
 	else

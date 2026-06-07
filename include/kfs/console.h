@@ -21,6 +21,7 @@ void terminal_putchar(char c);
 void terminal_putchar_overwrite(char c);
 void terminal_delete_char(void);
 void terminal_write(const char *data, size_t size);
+void terminal_write_console(size_t index, const char *data, size_t size);
 void terminal_writestring(const char *s);
 
 void kfs_terminal_move_cursor(size_t row, size_t column);
@@ -39,6 +40,9 @@ void kfs_terminal_scroll_down(void);
 /* カーソル移動（左右の矢印キー用） */
 void kfs_terminal_cursor_left(void);
 void kfs_terminal_cursor_right(void);
+
+pid_t kfs_terminal_get_foreground_pgrp_for_console(size_t index);
+int kfs_terminal_set_foreground_pgrp_for_console(size_t index, pid_t pgrp);
 
 extern pid_t foreground_pgrp;
 

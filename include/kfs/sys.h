@@ -24,6 +24,7 @@ pid_t sys_getpgid(pid_t pid);
 pid_t sys_getpgrp(void);
 pid_t sys_tcgetpgrp(int fd);
 int sys_tcsetpgrp(int fd, pid_t pgrp);
+int sys_ttynr(void);
 int sys_kbd_set_layout(kbd_layout_t layout);
 long sys_kbd_read_event(struct kfs_keyboard_raw_event *event);
 int sys_kbd_clear_events(void);
