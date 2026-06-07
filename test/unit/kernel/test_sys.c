@@ -13,16 +13,16 @@
 
 extern struct task_struct *current;
 extern struct task_struct init_task;
-extern pid_t foreground_pgrp;
 
 static void setup_test(void)
 {
 	reset_all_state_for_test();
 	current = &init_task;
+	current->tty_console = 0;
 	current->uid.val = 0;
 	current->euid.val = 0;
 	current->cap_effective = CAP_FULL_SET;
-	foreground_pgrp = 0;
+	(void)kfs_terminal_set_foreground_pgrp_for_console(0, 0);
 }
 
 static void teardown_test(void)
@@ -165,7 +165,7 @@ KFS_TEST(test_sys_getpgrp_returns_current_pgrp)
 /* sys_tcgetpgrp が foreground_pgrp を返すことを確かめる */
 KFS_TEST(test_sys_tcgetpgrp_returns_foreground_pgrp)
 {
-	foreground_pgrp = 77;
+	(void)kfs_terminal_set_foreground_pgrp_for_console(0, 77);
 
 	KFS_ASSERT_EQ(77, sys_tcgetpgrp(0));
 }
@@ -173,19 +173,19 @@ KFS_TEST(test_sys_tcgetpgrp_returns_foreground_pgrp)
 /* sys_tcsetpgrp が foreground_pgrp を更新することを確かめる */
 KFS_TEST(test_sys_tcsetpgrp_updates_foreground_pgrp)
 {
-	foreground_pgrp = 12;
+	(void)kfs_terminal_set_foreground_pgrp_for_console(0, 12);
 
 	KFS_ASSERT_EQ(0, sys_tcsetpgrp(123, 99));
-	KFS_ASSERT_EQ(99, foreground_pgrp);
+	KFS_ASSERT_EQ(99, kfs_terminal_get_foreground_pgrp_for_console(0));
 }
 
 /* sys_tcsetpgrp が不正な pgrp を拒否することを確かめる */
 KFS_TEST(test_sys_tcsetpgrp_invalid_pgrp_returns_einval)
 {
-	foreground_pgrp = 12;
+	(void)kfs_terminal_set_foreground_pgrp_for_console(0, 12);
 
 	KFS_ASSERT_EQ(-EINVAL, sys_tcsetpgrp(0, 0));
-	KFS_ASSERT_EQ(12, foreground_pgrp);
+	KFS_ASSERT_EQ(12, kfs_terminal_get_foreground_pgrp_for_console(0));
 }
 
 /** sys_msleep(0) は schedule_timeout を呼ばずに即座に 0 を返すはず
