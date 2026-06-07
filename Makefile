@@ -197,7 +197,7 @@ coverage:
 
 fmt:
 	@ docker build --quiet -f fmt.dockerfile -t $(FMT_IMAGE) .
-	@ docker run --rm -v "$(PWD)":/work -w /work $(FMT_IMAGE) bash -c \
+	@ docker run --rm -u $(shell id -u):$(shell id -g) -v "$(PWD)":/work -w /work $(FMT_IMAGE) bash -c \
 		'clang-format -i -style="{BasedOnStyle: Microsoft, IndentWidth: 4, TabWidth: 4, UseTab: Always, InsertBraces: true}" $(KERNEL_SRCS_C) $(TEST_SRCS_C) $(KERNEL_SRCS_H) $(TEST_SRCS_H) \
 		&& shfmt -w $(TEST_SRCS_SH)'
 

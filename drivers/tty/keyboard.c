@@ -8,6 +8,7 @@
 #include <kfs/stddef.h>
 #include <kfs/stdint.h>
 #include <kfs/string.h>
+#include <kfs/tty.h>
 
 /* @see https://wiki.osdev.org/I8042_PS/2_Controller */
 #define PS2_STATUS_PORT 0x64 /* PS/2 コントローラのペリフェラルから受け取るステータスレジスタのポート番号 */
@@ -43,40 +44,13 @@ static keyboard_raw_handler_t raw_handler = NULL;
 /* 現在のキーボードレイアウト */
 static kbd_layout_t current_layout = KBD_LAYOUT_QWERTY;
 
-#define KEYBOARD_LINE_MAX 256
 #define KEYBOARD_RAW_QUEUE_SIZE 64
-
-struct keyboard_console_line_state
-{
-	char input_line[KEYBOARD_LINE_MAX]; /* 入力中の1行分のバッファ */
-	unsigned int input_line_len;		/* 入力中の行の長さ */
-	unsigned int input_cursor;			/* 入力中の行のカーソル位置 */
-	char ready_line[KEYBOARD_LINE_MAX]; /* ユーザ空間に渡す準備ができた行のバッファ */
-	int line_ready;						/* ユーザ空間に渡す準備ができた行があるか */
-	struct task_struct *line_waiter;	/* 行入力待ちのタスク */
-};
-
-static struct keyboard_console_line_state keyboard_console_line_states[KFS_VIRTUAL_CONSOLE_COUNT];
 static struct kfs_keyboard_raw_event keyboard_raw_queue[KEYBOARD_RAW_QUEUE_SIZE]; /* RAWイベントのリングバッファ */
 static unsigned int keyboard_raw_head;			/* RAWイベントキューの先頭インデックス */
 static unsigned int keyboard_raw_tail;			/* RAWイベントキューの末尾インデックス */
 static unsigned int keyboard_raw_count;			/* RAWイベントキュー内のイベント数 */
 static struct task_struct *keyboard_raw_waiter; /* RAWイベント待ちのタスク */
 static int keyboard_raw_mode; /* RAWモードフラグ。1のときraw_handlerにイベントを送る */
-
-static struct keyboard_console_line_state *keyboard_line_state_for_console(size_t console_index)
-{
-	if (console_index >= KFS_VIRTUAL_CONSOLE_COUNT)
-	{
-		return &keyboard_console_line_states[0];
-	}
-	return &keyboard_console_line_states[console_index];
-}
-
-static struct keyboard_console_line_state *active_keyboard_line_state(void)
-{
-	return keyboard_line_state_for_console(kfs_terminal_active_console());
-}
 
 extern uint8_t kfs_io_inb(uint16_t port);
 
@@ -167,86 +141,6 @@ static char translate_scancode(uint8_t code)
 	return base;
 }
 
-/* 行バッファのカーソル位置に文字を挿入する */
-static void keyboard_insert_char_at_cursor(char ch)
-{
-	struct keyboard_console_line_state *state = active_keyboard_line_state();
-
-	if (state->input_line_len + 1 >= KEYBOARD_LINE_MAX)
-	{
-		return;
-	}
-
-	if (state->input_cursor < state->input_line_len)
-	{
-		memmove(&state->input_line[state->input_cursor + 1], &state->input_line[state->input_cursor],
-				state->input_line_len - state->input_cursor + 1);
-		state->input_line[state->input_cursor] = ch;
-	}
-	else
-	{
-		state->input_line[state->input_cursor] = ch;
-		state->input_line[state->input_cursor + 1] = '\0';
-	}
-
-	state->input_line_len++;
-	state->input_cursor++;
-}
-
-/* 行バッファのカーソル直前1文字を削除する */
-static int keyboard_delete_char_before_cursor(void)
-{
-	struct keyboard_console_line_state *state = active_keyboard_line_state();
-
-	if (state->input_cursor == 0 || state->input_line_len == 0)
-	{
-		return 0;
-	}
-
-	memmove(&state->input_line[state->input_cursor - 1], &state->input_line[state->input_cursor],
-			state->input_line_len - state->input_cursor + 1);
-	state->input_cursor--;
-	state->input_line_len--;
-	return 1;
-}
-
-/* バックスペース処理：プロンプト左側へは移動・削除させない */
-static void handle_backspace_default(void)
-{
-	if (!keyboard_delete_char_before_cursor())
-	{
-		return;
-	}
-
-	/* カーソルを1つ左に移動してから削除（右側は terminal_delete_char が左シフト） */
-	kfs_terminal_cursor_left();
-	terminal_delete_char();
-}
-
-/* いま入力中の1行を read() 側へ渡せる状態にして，待機中の shell を起こす */
-static void keyboard_publish_line(void)
-{
-	struct keyboard_console_line_state *state = active_keyboard_line_state();
-	unsigned int i;
-
-	for (i = 0; i < state->input_line_len && i + 1 < KEYBOARD_LINE_MAX; i++)
-	{
-		state->ready_line[i] = state->input_line[i];
-	}
-	state->ready_line[i] = '\0';
-	state->line_ready = 1;
-	state->input_line_len = 0;
-	state->input_cursor = 0;
-	state->input_line[0] = '\0';
-
-	/* keyboard_read_line()で待機中のプロセスを起こす */
-	if (state->line_waiter)
-	{
-		wake_up_process(state->line_waiter);
-		state->line_waiter = NULL;
-	}
-}
-
 static void keyboard_publish_raw_event(uint8_t code, int release)
 {
 	if (keyboard_raw_count < KEYBOARD_RAW_QUEUE_SIZE)
@@ -264,53 +158,14 @@ static void keyboard_publish_raw_event(uint8_t code, int release)
 	}
 }
 
-static long keyboard_read_line(size_t console_index, char *buf, unsigned int size)
-{
-	struct keyboard_console_line_state *state = keyboard_line_state_for_console(console_index);
-
-	if (size == 0)
-	{
-		return 0;
-	}
-
-	while (1)
-	{
-		/* まだ Enter 済みの行がなければ、入力が来るまでスリープする */
-		__asm__ volatile("cli");
-
-		/* keyboard_publish_line() から keyboard_line_ready がセットされたとき，
-		 * keyboard_ready_line の内容を buf にコピーし帰る */
-		if (state->line_ready)
-		{
-			unsigned int copy_len = 0;
-
-			while (copy_len + 1 < size && state->ready_line[copy_len] != '\0')
-			{
-				buf[copy_len] = state->ready_line[copy_len];
-				copy_len++;
-			}
-			buf[copy_len] = '\0';
-			state->line_ready = 0;
-			__asm__ volatile("sti");
-			return (long)copy_len;
-		}
-
-		/* keyboard_publish_line() から起こしてもらうため，自分を待機状態にする */
-		state->line_waiter = current;
-		current->__state = TASK_INTERRUPTIBLE;
-		__asm__ volatile("sti");
-		schedule();
-	}
-}
-
 long kfs_keyboard_read_line(char *buf, unsigned int size)
 {
-	return keyboard_read_line(current->tty_console, buf, size);
+	return tty_read_line_for_console(current->tty_console, buf, size);
 }
 
 long kfs_keyboard_read_line_for_console(size_t console_index, char *buf, unsigned int size)
 {
-	return keyboard_read_line(console_index, buf, size);
+	return tty_read_line_for_console(console_index, buf, size);
 }
 
 static long keyboard_read_raw_event(struct kfs_keyboard_raw_event *event)
@@ -388,15 +243,7 @@ void kfs_keyboard_reset(void)
 	custom_handler = NULL;
 	raw_handler = NULL;
 	current_layout = KBD_LAYOUT_QWERTY;
-	for (size_t i = 0; i < KFS_VIRTUAL_CONSOLE_COUNT; ++i)
-	{
-		keyboard_console_line_states[i].input_line_len = 0;
-		keyboard_console_line_states[i].input_cursor = 0;
-		keyboard_console_line_states[i].input_line[0] = '\0';
-		keyboard_console_line_states[i].line_ready = 0;
-		keyboard_console_line_states[i].ready_line[0] = '\0';
-		keyboard_console_line_states[i].line_waiter = NULL;
-	}
+	tty_reset();
 	keyboard_raw_head = 0;
 	keyboard_raw_tail = 0;
 	keyboard_raw_count = 0;
@@ -585,7 +432,7 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 			}
 			else
 			{
-				handle_backspace_default();
+				tty_handle_backspace_for_console(kfs_terminal_active_console());
 			}
 		}
 		extended_prefix = 0;
@@ -600,10 +447,8 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 			}
 			else
 			{
-				/* 従来のEnter: 改行してカーソルを次行先頭へ */
-				printk("\n");
+				tty_handle_enter_for_console(kfs_terminal_active_console());
 			}
-			keyboard_publish_line();
 		}
 		extended_prefix = 0;
 		return;
@@ -639,7 +484,6 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 	/* 拡張コード（0xE0）の後の特殊キー処理 */
 	if (extended_prefix == 0xE0)
 	{
-		struct keyboard_console_line_state *state = active_keyboard_line_state();
 		extended_prefix = 0;
 		/* 矢印キーの処理 */
 		if (code == 0x48) /* 上矢印 */
@@ -661,11 +505,7 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 			}
 			else
 			{
-				if (state->input_cursor > 0)
-				{
-					kfs_terminal_cursor_left();
-					state->input_cursor--;
-				}
+				tty_handle_cursor_left_for_console(kfs_terminal_active_console());
 			}
 			return;
 		}
@@ -678,11 +518,7 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 			}
 			else
 			{
-				if (state->input_cursor < state->input_line_len)
-				{
-					kfs_terminal_cursor_right();
-					state->input_cursor++;
-				}
+				tty_handle_cursor_right_for_console(kfs_terminal_active_console());
 			}
 			return;
 		}
@@ -721,15 +557,8 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 					 * 現在の入力行を破棄し、空行を publish して即座にプロンプトへ戻す。 */
 					if (!custom_handler)
 					{
-						struct keyboard_console_line_state *state = active_keyboard_line_state();
 						printk("^C\n");
-						state->input_line_len = 0;
-						state->input_cursor = 0;
-						state->input_line[0] = '\0';
-						if (state->line_waiter)
-						{
-							keyboard_publish_line();
-						}
+						tty_discard_input_for_console(kfs_terminal_active_console(), 1);
 					}
 
 					extended_prefix = 0;
@@ -744,11 +573,7 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		}
 		else
 		{
-			if (active_keyboard_line_state()->input_line_len + 1 < KEYBOARD_LINE_MAX)
-			{
-				keyboard_insert_char_at_cursor(ch);
-				printk("%c", ch);
-			}
+			tty_input_char_for_console(kfs_terminal_active_console(), ch);
 		}
 	}
 }
