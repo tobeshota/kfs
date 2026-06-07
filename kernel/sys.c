@@ -327,6 +327,37 @@ long sys_msleep(uint32_t ms)
 	return 0;
 }
 
+struct pgrp_scan_ctx
+{
+	pid_t pgrp;
+	pid_t session;
+	int found;
+};
+
+static int find_matching_pgrp_in_session(struct task_struct *task, void *ctx)
+{
+	struct pgrp_scan_ctx *scan = (struct pgrp_scan_ctx *)ctx;
+
+	if (task->pgrp == scan->pgrp && task->session == scan->session)
+	{
+		scan->found = 1;
+		return 1;
+	}
+	return 0;
+}
+
+static int process_group_exists_in_session(pid_t session, pid_t pgrp)
+{
+	struct pgrp_scan_ctx scan = {
+		.pgrp = pgrp,
+		.session = session,
+		.found = 0,
+	};
+
+	(void)task_for_each(find_matching_pgrp_in_session, &scan);
+	return scan.found;
+}
+
 /** 引数pidで指定されたプロセスのプロセスグループIDをgpidに設定する
  * @param pid 対象 PID（0の場合は current を意味する）
  * @param pgid 設定するプロセスグループID（0の場合は pgid = pid を意味する）
@@ -365,6 +396,21 @@ int sys_setpgid(pid_t pid, pid_t pgid)
 		return -ESRCH;
 	}
 
+	if (tsk->session != current->session)
+	{
+		return -EPERM;
+	}
+
+	if (tsk->pid == tsk->session)
+	{
+		return -EPERM;
+	}
+
+	if (pgid != pid && !process_group_exists_in_session(tsk->session, pgid))
+	{
+		return -EPERM;
+	}
+
 	tsk->pgrp = pgid;
 	return 0;
 }
@@ -389,11 +435,37 @@ pid_t sys_getpgid(pid_t pid)
 }
 
 /** 呼び出しプロセスのプロセスグループIDを返す
- * @note getgpid(0) と同じ動作
+ * @note getpgid(0) と同じ動作
  */
 pid_t sys_getpgrp(void)
 {
 	return current->pgrp;
+}
+
+/** セッションを作成し，呼び出し元プロセスをセッションリーダーかつプロセスグループリーダーにする
+ * @return 成功時: 新しい session ID (= pid)，失敗時: -EPERM
+ */
+pid_t sys_setsid(void)
+{
+	if (process_group_exists_in_session(current->session, current->pid))
+	{
+		/* セッションリーダーが既に存在する場合はエラー */
+		return -EPERM;
+	}
+
+	/** 新しいセッションを作成する
+	 * @brief 新しいセッションを作成するとは，task_structのsessionメンバに
+	 *        他のtask_structのsessionメンバには振られていない新しいID（ここではPIDと等しいID）を
+	 *        振ることである．
+	 * @note  PIDと等しいSIDのセッションを作成するため，
+	 *        呼び出し元プロセスはセッションリーダーになる．
+	 * @note  PIDと等しいPGIDのプロセスグループを作成するため，
+	 *        呼び出し元プロセスはプロセスグループリーダーになる．
+	 */
+	current->session = current->pid;
+	current->pgrp = current->pid;
+
+	return current->session;
 }
 
 /** 現在の端末のフォアグラウンドプロセスグループIDを返す

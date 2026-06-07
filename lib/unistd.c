@@ -82,6 +82,14 @@ pid_t getpgrp(void)
 	return (pid_t)ret;
 }
 
+/* セッションを作成し，呼び出し元プロセスをセッションリーダーかつプロセスグループリーダーにする */
+pid_t setsid(void)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_setsid) : "memory");
+	return (pid_t)ret;
+}
+
 /* 現在の端末のフォアグラウンドプロセスグループIDを返す */
 pid_t tcgetpgrp(int fd)
 {
