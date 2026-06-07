@@ -236,7 +236,7 @@ KFS_TEST(test_sys_tcsetpgrp_updates_foreground_pgrp)
 	INIT_LIST_HEAD(&child.run_list);
 	list_add_tail(&child.tasks, &task_list);
 
-	KFS_ASSERT_EQ(0, sys_tcsetpgrp(123, 99));
+	KFS_ASSERT_EQ(0, sys_tcsetpgrp(0, 99));
 	KFS_ASSERT_EQ(99, kfs_terminal_get_foreground_pgrp_for_console(0));
 
 	list_del(&child.tasks);

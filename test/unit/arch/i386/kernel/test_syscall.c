@@ -145,6 +145,16 @@ KFS_TEST(test_nr_setsid_value)
 }
 
 /**
+ * __NR_openpty 定数の検証
+ * 検証対象: __NR_openpty
+ * 検証項目: __NR_openpty が 262 であること
+ */
+KFS_TEST(test_nr_openpty_value)
+{
+	KFS_ASSERT_EQ(262, __NR_openpty);
+}
+
+/**
  * __NR_signal 定数の検証
  * 検証対象: __NR_signal
  * 検証項目: __NR_signal が 48 であること（Linux 互換）
@@ -507,6 +517,17 @@ KFS_TEST(test_do_syscall_write_invalid_fd)
 	KFS_ASSERT_EQ(-EBADF, result);
 }
 
+KFS_TEST(test_do_syscall_openpty_returns_fds)
+{
+	int master_fd = -1;
+	int slave_fd = -1;
+	long result = do_syscall(__NR_openpty, (long)&master_fd, (long)&slave_fd, 0, 0, 0);
+
+	KFS_ASSERT_EQ(0, result);
+	KFS_ASSERT_TRUE(master_fd >= 0);
+	KFS_ASSERT_TRUE(slave_fd >= 0);
+}
+
 static struct kfs_test_case cases[] = {
 	/* do_syscall境界チェックテスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_negative_nr, setup_test, teardown_test),
@@ -525,6 +546,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_kill_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_setpgid_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_setsid_value, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_nr_openpty_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_signal_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_getuid_registered, setup_test, teardown_test),
 	/* INT 0x80テスト */
@@ -550,6 +572,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_munmap_invalid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_stderr, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_invalid_fd, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_openpty_returns_fds, setup_test, teardown_test),
 };
 
 int register_unit_tests_syscall(struct kfs_test_case **out)
