@@ -19,4 +19,5 @@ Documentation/**/*.md
 *.gcno
 test/_artifacts/
 test/integration/_artifacts
+.env
 .vncpass
