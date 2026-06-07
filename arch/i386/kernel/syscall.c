@@ -11,6 +11,7 @@
 #include <kfs/stddef.h>
 #include <kfs/sys.h>
 #include <kfs/syscall.h>
+#include <kfs/tty.h>
 #include <kfs/wait.h>
 
 extern pid_t do_fork(unsigned long user_eip);
@@ -77,7 +78,7 @@ static long do_sys_read(long arg1, long arg2, long arg3, long arg4, long arg5)
 	{
 		return -EBADF;
 	}
-	return kfs_keyboard_read_line_for_console(current->tty_console, (char *)arg2, (unsigned int)arg3);
+	return tty_read_line_for_console(current->tty_console, (char *)arg2, (unsigned int)arg3);
 }
 
 static long do_sys_kbd_read_event(long arg1, long arg2, long arg3, long arg4, long arg5)
