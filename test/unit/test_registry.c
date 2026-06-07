@@ -7,6 +7,7 @@ int register_unit_tests_string(struct kfs_test_case **out);
 int register_unit_tests_page_alloc(struct kfs_test_case **out);
 int register_unit_tests_shell(struct kfs_test_case **out);
 int register_unit_tests_keyboard(struct kfs_test_case **out);
+int register_unit_tests_tty_core(struct kfs_test_case **out);
 int register_unit_tests_printk(struct kfs_test_case **out);
 int register_unit_tests_stacktrace(struct kfs_test_case **out);
 int register_unit_tests_memory(struct kfs_test_case **out);
@@ -55,6 +56,8 @@ int register_unit_tests(struct kfs_test_case **out)
 		int count_printk = register_unit_tests_printk(&cases_printk);
 		struct kfs_test_case *cases_keyboard = 0;
 		int count_keyboard = register_unit_tests_keyboard(&cases_keyboard);
+		struct kfs_test_case *cases_tty_core = 0;
+		int count_tty_core = register_unit_tests_tty_core(&cases_tty_core);
 		struct kfs_test_case *cases_string = 0;
 		int count_string = register_unit_tests_string(&cases_string);
 		struct kfs_test_case *cases_shell = 0;
@@ -133,6 +136,10 @@ int register_unit_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_keyboard && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_keyboard[i];
+		}
+		for (int i = 0; i < count_tty_core && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_tty_core[i];
 		}
 		for (int i = 0; i < count_string && idx < KFS_MAX_TESTS; i++)
 		{
