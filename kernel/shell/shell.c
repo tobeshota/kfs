@@ -219,9 +219,25 @@ __attribute__((weak)) void shell_run(void)
 {
 	char line[CMD_BUFFER_SIZE];
 	int line_len;
+	pid_t sid;
+	pid_t shell_pgrp;
 
 	shell_init();
 	prctl(PR_SET_NAME, (unsigned long)"shell_run", 0, 0, 0);
+
+	/* shell 自身で session/pgrp/foreground を確立する（Phase 5 最小導入） */
+	sid = setsid();
+	if (sid < 0)
+	{
+		/* 既にセッションリーダー等で失敗する場合があるため継続する */
+	}
+
+	/* shell のプロセスグループを取得してフォアグラウンドに設定する */
+	shell_pgrp = getpgrp();
+	if (shell_pgrp > 0)
+	{
+		(void)tcsetpgrp(0, shell_pgrp);
+	}
 
 	/* 接続されたTTYを表示する */
 	int tty = ttynr();

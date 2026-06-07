@@ -52,10 +52,8 @@ static void kernel_init(void)
 			continue;
 		}
 
+		/* controlling tty 識別子のみ親側で渡し、session/pgrp/fg は shell 側で syscall 初期化する */
 		shell_task->tty_console = i;
-		shell_task->pgrp = pid;
-		shell_task->session = pid;
-		(void)kfs_terminal_set_foreground_pgrp_for_console(i, pid);
 	}
 
 	/* 孤児プロセス（バックグラウンド再生等）を回収するループ
