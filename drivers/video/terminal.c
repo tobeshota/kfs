@@ -45,6 +45,7 @@ struct kfs_console_state
 
 static struct kfs_console_state kfs_console_states[KFS_VIRTUAL_CONSOLE_COUNT];
 static size_t kfs_console_active;
+static pid_t foreground_pgrp_per_console[KFS_VIRTUAL_CONSOLE_COUNT];
 pid_t foreground_pgrp; /* 端末のフォアグラウンドプロセスグループID（0=未設定） */
 static int kfs_console_bootstrap_completed;
 
@@ -462,9 +463,10 @@ static void ensure_console_bootstrap(void)
 		{
 			con->scrollback[j] = blank;
 		}
+		foreground_pgrp_per_console[i] = 0;
 	}
 	kfs_console_active = 0;
-	foreground_pgrp = 0;
+	foreground_pgrp = foreground_pgrp_per_console[kfs_console_active];
 	kfs_console_bootstrap_completed = 1;
 }
 
@@ -667,6 +669,43 @@ void terminal_putchar(char c)
 	sync_globals_from_console(con);
 }
 
+/* 値cをコンソールconに出力する(MMIO) */
+static void terminal_putchar_in_console(struct kfs_console_state *con, char c)
+{
+	if (c == '\n')
+	{
+		con->column = 0; /* キャリッジリターン */
+		con->row++;		 /* ラインフィード */
+		terminal_scroll_if_needed(con);
+		if (console_is_active(con))
+		{
+			sync_globals_from_console(con);
+		}
+		return;
+	}
+	if (c == '\r')
+	{
+		con->column = 0; /* キャリッジリターン */
+		if (console_is_active(con))
+		{
+			sync_globals_from_console(con);
+		}
+		return;
+	}
+	/* 挿入モード: カーソル位置に文字を挿入 */
+	terminal_insert_char_at(con, c, con->column, con->row);
+	if (++con->column == VGA_WIDTH)
+	{
+		con->column = 0;
+		con->row++;
+	}
+	terminal_scroll_if_needed(con);
+	if (console_is_active(con))
+	{
+		sync_globals_from_console(con);
+	}
+}
+
 /* 上書きモードで文字を出力（バックスペース用） */
 void terminal_putchar_overwrite(char c)
 {
@@ -719,7 +758,28 @@ void terminal_write(const char *data, size_t size)
 	{
 		if (!terminal_try_handle_escape(con, data[i]))
 		{
-			terminal_putchar(data[i]);
+			terminal_putchar_in_console(con, data[i]);
+		}
+	}
+}
+
+/* index指定のコンソールのメモリに値dataをsizeだけ書き込む(MMIO) */
+void terminal_write_console(size_t index, const char *data, size_t size)
+{
+	ensure_console_bootstrap();
+	if (index >= KFS_VIRTUAL_CONSOLE_COUNT)
+	{
+		return;
+	}
+
+	struct kfs_console_state *con = &kfs_console_states[index];
+	console_activate_if_needed(con);
+
+	for (size_t i = 0; i < size; i++)
+	{
+		if (!terminal_try_handle_escape(con, data[i]))
+		{
+			terminal_putchar_in_console(con, data[i]);
 		}
 	}
 }
@@ -806,6 +866,32 @@ void kfs_terminal_switch_console(size_t index)
 	console_activate_if_needed(next);
 	console_flush_to_hw(next);
 	sync_globals_from_console(next);
+	foreground_pgrp = foreground_pgrp_per_console[kfs_console_active];
+}
+
+pid_t kfs_terminal_get_foreground_pgrp_for_console(size_t index)
+{
+	ensure_console_bootstrap();
+	if (index >= KFS_VIRTUAL_CONSOLE_COUNT)
+	{
+		return 0;
+	}
+	return foreground_pgrp_per_console[index];
+}
+
+int kfs_terminal_set_foreground_pgrp_for_console(size_t index, pid_t pgrp)
+{
+	ensure_console_bootstrap();
+	if (index >= KFS_VIRTUAL_CONSOLE_COUNT)
+	{
+		return -EINVAL;
+	}
+	foreground_pgrp_per_console[index] = pgrp;
+	if (index == kfs_console_active)
+	{
+		foreground_pgrp = pgrp;
+	}
+	return 0;
 }
 
 /* スクロールバックバッファを使って画面を再描画 */
