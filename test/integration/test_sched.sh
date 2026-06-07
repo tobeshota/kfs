@@ -12,10 +12,11 @@ if [[ -z "${LOG_FILE:-}" ]]; then
 	exit 2
 fi
 
-# 期待出力と完全一致する行が存在すること
+# 期待出力と一致する行が存在すること
+# shell プロンプトが同一行に含まれるケース（"kfs $ ..."）も許容する。
 EXPECTED="-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_"
 
-if grep -Fxq -- "$EXPECTED" "$LOG_FILE"; then
+if grep -Fxq -- "$EXPECTED" "$LOG_FILE" || grep -Fq -- "kfs $ $EXPECTED" "$LOG_FILE"; then
 	echo "Found expected sched output: $EXPECTED"
 	exit 0
 else
