@@ -223,6 +223,13 @@ __attribute__((weak)) void shell_run(void)
 	shell_init();
 	prctl(PR_SET_NAME, (unsigned long)"shell_run", 0, 0, 0);
 
+	/* 接続されたTTYを表示する */
+	int tty = ttynr();
+	if (tty >= 0)
+	{
+		printf("Connected to tty%u\n", (unsigned int)(tty + 1));
+	}
+
 	/* neofetchを出す */
 	extern void cmd_neofetch(void *args);
 	cmd_neofetch(NULL);
