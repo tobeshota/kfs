@@ -16,6 +16,7 @@ pid_t waitpid(pid_t pid, int *wstatus, int options);
 int setpgid(pid_t pid, pid_t pgid);
 pid_t getpgid(pid_t pid);
 pid_t getpgrp(void);
+pid_t setsid(void);
 pid_t tcgetpgrp(int fd);
 int tcsetpgrp(int fd, pid_t pgrp);
 int ttynr(void);

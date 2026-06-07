@@ -236,6 +236,17 @@ static long do_sys_getpgrp(long arg1, long arg2, long arg3, long arg4, long arg5
 	return (long)sys_getpgrp();
 }
 
+/* setsid() のラッパー */
+static long do_sys_setsid(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_setsid();
+}
+
 /** msleep(ms) システムコール
  * @param arg1 スリープ時間 [ミリ秒]
  * @return 0: 成功
@@ -405,6 +416,7 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_getuid] = do_sys_getuid,
 	[__NR_kill] = do_sys_kill,
 	[__NR_signal] = do_sys_signal,
+	[__NR_setsid] = do_sys_setsid,
 	[__NR_sched_setscheduler] = do_sys_sched_setscheduler,
 	[__NR_sched_getscheduler] = do_sys_sched_getscheduler,
 	[__NR_prctl] = do_sys_prctl,

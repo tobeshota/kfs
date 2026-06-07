@@ -13,6 +13,7 @@
 
 extern struct task_struct *current;
 extern struct task_struct init_task;
+extern struct list_head task_list;
 
 static void setup_test(void)
 {
@@ -110,14 +111,15 @@ KFS_TEST(test_sys_capset_invalid_pid_returns_esrch)
 	KFS_ASSERT_EQ(-ESRCH, sys_capset(-42, &new_cap, NULL, NULL));
 }
 
-/* sys_setpgid(0, pgid) が current の pgrp を指定値に更新することを確かめる */
+/* sys_setpgid(0, 0) が current を自身の pgrp leader にすることを確かめる */
 KFS_TEST(test_sys_setpgid_pid0_updates_current_pgrp)
 {
 	current->pid = 42;
 	current->pgrp = 1;
+	current->session = 1;
 
-	KFS_ASSERT_EQ(0, sys_setpgid(0, 99));
-	KFS_ASSERT_EQ(99, current->pgrp);
+	KFS_ASSERT_EQ(0, sys_setpgid(0, 0));
+	KFS_ASSERT_EQ(42, current->pgrp);
 }
 
 /* sys_setpgid で pid != current->pid を指定すると -ESRCH を返すことを確かめる */
@@ -160,6 +162,53 @@ KFS_TEST(test_sys_getpgrp_returns_current_pgrp)
 	current->pgrp = 123;
 
 	KFS_ASSERT_EQ(123, sys_getpgrp());
+}
+
+/* sys_setsid が新しい session / pgrp を作ることを確かめる */
+KFS_TEST(test_sys_setsid_creates_new_session_and_pgrp)
+{
+	current->pid = 42;
+	current->pgrp = 7;
+	current->session = 7;
+
+	KFS_ASSERT_EQ(42, sys_setsid());
+	KFS_ASSERT_EQ(42, current->session);
+	KFS_ASSERT_EQ(42, current->pgrp);
+}
+
+/* process group leader は sys_setsid できないことを確かめる */
+KFS_TEST(test_sys_setsid_rejects_process_group_leader)
+{
+	current->pid = 42;
+	current->pgrp = 42;
+	current->session = 7;
+
+	KFS_ASSERT_EQ(-EPERM, sys_setsid());
+	KFS_ASSERT_EQ(7, current->session);
+	KFS_ASSERT_EQ(42, current->pgrp);
+}
+
+/* 別 session のタスクに対する sys_setpgid を拒否することを確かめる */
+KFS_TEST(test_sys_setpgid_rejects_target_in_other_session)
+{
+	struct task_struct child = init_task;
+
+	child.pid = 43;
+	child.parent = current;
+	child.session = 99;
+	child.pgrp = 99;
+	INIT_LIST_HEAD(&child.children);
+	INIT_LIST_HEAD(&child.sibling);
+	INIT_LIST_HEAD(&child.run_list);
+	list_add_tail(&child.tasks, &task_list);
+
+	current->pid = 42;
+	current->session = 42;
+	current->pgrp = 42;
+
+	KFS_ASSERT_EQ(-EPERM, sys_setpgid(43, 43));
+	KFS_ASSERT_EQ(99, child.pgrp);
+	list_del(&child.tasks);
 }
 
 /* sys_tcgetpgrp が foreground_pgrp を返すことを確かめる */
@@ -214,6 +263,9 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_getpgid_pid0_returns_current_pgrp, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_getpgid_invalid_pid_returns_esrch, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_getpgrp_returns_current_pgrp, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_setsid_creates_new_session_and_pgrp, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_setsid_rejects_process_group_leader, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_setpgid_rejects_target_in_other_session, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcgetpgrp_returns_foreground_pgrp, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_updates_foreground_pgrp, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_invalid_pgrp_returns_einval, setup_test, teardown_test),

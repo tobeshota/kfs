@@ -135,6 +135,16 @@ KFS_TEST(test_nr_setpgid_value)
 }
 
 /**
+ * __NR_setsid 定数の検証
+ * 検証対象: __NR_setsid
+ * 検証項目: __NR_setsid が 66 であること（Linux 互換）
+ */
+KFS_TEST(test_nr_setsid_value)
+{
+	KFS_ASSERT_EQ(66, __NR_setsid);
+}
+
+/**
  * __NR_signal 定数の検証
  * 検証対象: __NR_signal
  * 検証項目: __NR_signal が 48 であること（Linux 互換）
@@ -319,6 +329,12 @@ static void ring3_setpgid_worker(void)
 	exit(0);
 }
 
+static void ring3_setsid_worker(void)
+{
+	(void)setsid();
+	exit(0);
+}
+
 /**
  * setpgid(0, 0) が ring-3 から呼べて、子がそのまま終了できることを確認する
  * 検証対象: lib/unistd.c の setpgid/getpgrp ラッパーと kernel/sys.c の sys_setpgid/sys_getpgrp
@@ -332,6 +348,25 @@ KFS_TEST(test_int80_setpgid_ring3_calls_successfully)
 
 	current->pgrp = 12345;
 	child_pid = do_fork((unsigned long)ring3_setpgid_worker);
+	KFS_ASSERT_TRUE(child_pid > 0);
+
+	waited = do_wait(&wstatus, 0);
+	KFS_ASSERT_EQ((int)waited, (int)child_pid);
+	KFS_ASSERT_EQ(0, wstatus);
+}
+
+/**
+ * setsid() が ring-3 から呼べて、子がそのまま終了できることを確認する
+ */
+KFS_TEST(test_int80_setsid_ring3_calls_successfully)
+{
+	int wstatus = -1;
+	pid_t child_pid;
+	pid_t waited;
+
+	current->pgrp = 12345;
+	current->session = 12345;
+	child_pid = do_fork((unsigned long)ring3_setsid_worker);
 	KFS_ASSERT_TRUE(child_pid > 0);
 
 	waited = do_wait(&wstatus, 0);
@@ -489,6 +524,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_getuid_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_kill_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_setpgid_value, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_nr_setsid_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_nr_signal_value, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_getuid_registered, setup_test, teardown_test),
 	/* INT 0x80テスト */
@@ -498,6 +534,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_int80_signal_sigusr1_ign, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_int80_kill_sig0, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_int80_setpgid_ring3_calls_successfully, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_int80_setsid_ring3_calls_successfully, setup_test, teardown_test),
 	/* write パステスト */
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_stdout, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_syscall_write_serial, setup_test, teardown_test),

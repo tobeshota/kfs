@@ -22,6 +22,7 @@ long sys_write(int fd, const char *buf, size_t count);
 int sys_setpgid(pid_t pid, pid_t pgid);
 pid_t sys_getpgid(pid_t pid);
 pid_t sys_getpgrp(void);
+pid_t sys_setsid(void);
 pid_t sys_tcgetpgrp(int fd);
 int sys_tcsetpgrp(int fd, pid_t pgrp);
 int sys_ttynr(void);

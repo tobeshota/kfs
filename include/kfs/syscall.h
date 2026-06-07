@@ -10,6 +10,7 @@
 #define __NR_getuid 24				/* Linux i386 互換番号 */
 #define __NR_kill 37				/* Linux i386 互換番号 */
 #define __NR_signal 48				/* Linux i386 互換番号 */
+#define __NR_setsid 66				/* Linux i386 互換番号 */
 #define __NR_sched_setscheduler 144 /* Linux i386 互換番号 */
 #define __NR_sched_getscheduler 145 /* Linux i386 互換番号 */
 #define __NR_prctl 157
