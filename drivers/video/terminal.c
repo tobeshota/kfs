@@ -44,12 +44,12 @@ struct kfs_console_state
 };
 
 static struct kfs_console_state kfs_console_states[KFS_VIRTUAL_CONSOLE_COUNT];
-static size_t kfs_console_active;
+static size_t kfs_console_active; /* 現在アクティブなコンソールのインデックス */
 static pid_t foreground_pgrp_per_console[KFS_VIRTUAL_CONSOLE_COUNT];
 pid_t foreground_pgrp; /* 端末のフォアグラウンドプロセスグループID（0=未設定） */
 static int kfs_console_bootstrap_completed;
 
-/* 現在使用してるコンソールを取得 */
+/* 現在使用しているコンソールを取得 */
 static struct kfs_console_state *active_console(void)
 {
 	return &kfs_console_states[kfs_console_active];
@@ -836,6 +836,7 @@ uint8_t kfs_terminal_get_color(void)
 	return active_console()->color;
 }
 
+/* 現在アクティブなコンソールのインデックスを返す */
 size_t kfs_terminal_active_console(void)
 {
 	ensure_console_bootstrap();
@@ -852,23 +853,32 @@ size_t kfs_terminal_console_count(void)
 void kfs_terminal_switch_console(size_t index)
 {
 	ensure_console_bootstrap();
+
+	/* 指定されたインデックスが有効かどうかを確認 */
 	if (index >= KFS_VIRTUAL_CONSOLE_COUNT || index == kfs_console_active)
 	{
 		return;
 	}
+
+	/* 切り替え前（現在）のコンソールを取得する */
 	struct kfs_console_state *current = active_console();
 	if (current->initialized)
 	{
 		console_capture_from_hw(current);
 	}
+
+	/* 現在アクティブなコンソールを切り替える */
 	kfs_console_active = index;
 	struct kfs_console_state *next = active_console();
 	console_activate_if_needed(next);
 	console_flush_to_hw(next);
 	sync_globals_from_console(next);
+
+	/* アクティブなコンソールのフォアグラウンドプロセスグループを更新する */
 	foreground_pgrp = foreground_pgrp_per_console[kfs_console_active];
 }
 
+/* 指定したコンソールのフォアグラウンドプロセスグループを取得する */
 pid_t kfs_terminal_get_foreground_pgrp_for_console(size_t index)
 {
 	ensure_console_bootstrap();
@@ -879,18 +889,31 @@ pid_t kfs_terminal_get_foreground_pgrp_for_console(size_t index)
 	return foreground_pgrp_per_console[index];
 }
 
+/** 指定したコンソールのフォアグラウンドプロセスグループを設定する
+ * @param index コンソールのインデックス
+ * @param pgrp プロセスグループID
+ * @return 0: 成功, -EINVAL: indexが不正
+ */
 int kfs_terminal_set_foreground_pgrp_for_console(size_t index, pid_t pgrp)
 {
 	ensure_console_bootstrap();
+
 	if (index >= KFS_VIRTUAL_CONSOLE_COUNT)
 	{
 		return -EINVAL;
 	}
+
+	/* 指定したコンソールのフォアグラウンドプロセスグループを設定する．
+	 * これにより，Ctrl-Cなどのシグナルがそのプロセスグループに送られるようになる */
 	foreground_pgrp_per_console[index] = pgrp;
+
+	/* 指定したコンソールがアクティブな場合は，
+	 * グローバルのforeground_pgrpも更新する */
 	if (index == kfs_console_active)
 	{
 		foreground_pgrp = pgrp;
 	}
+
 	return 0;
 }
 

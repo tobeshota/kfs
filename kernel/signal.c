@@ -99,12 +99,36 @@ void do_signal_with_regs(struct pt_regs *regs)
 		/* SIG_DFL ならデフォルト動作 */
 		if (handler == SIG_DFL)
 		{
-			/* SIGKILL/SIGSEGV/SIGILL/SIGTERM/SIGFPE/SIGBUS など終了系はプロセスを終了 */
-			if (sig == SIGKILL || sig == SIGSEGV || sig == SIGILL || sig == SIGTERM || sig == SIGFPE || sig == SIGBUS)
+			/* SIGINT を含む終了系シグナルはデフォルトでプロセスを終了 */
+			if (sig == SIGINT || sig == SIGKILL || sig == SIGSEGV || sig == SIGILL || sig == SIGTERM || sig == SIGFPE ||
+				sig == SIGBUS)
 			{
 				extern __attribute__((noreturn)) void do_exit(int code);
 				/* 終了コードにシグナル番号を使う（POSIX 慣習） */
 				do_exit(sig);
+			}
+
+			/* 停止系シグナルのデフォルト動作: TASK_STOPPED へ遷移 */
+			if (sig == SIGTSTP || sig == SIGSTOP)
+			{
+				current->exit_signal = sig;				 /* 停止シグナルを設定 */
+				current->flags |= PF_WAIT_STOP_PENDING;	 /* 停止待ちフラグをセット */
+				current->flags &= ~PF_WAIT_CONT_PENDING; /* 再開待ちフラグをクリア */
+				current->__state = __TASK_STOPPED;		 /* プロセス状態を__TASK_STOPPEDにセット */
+
+				/* スケジューラを呼び出して他のプロセスに CPU を譲る */
+				schedule();
+
+				/* 復帰後は走査を先頭からやり直し，
+				 * 番号の小さい保留シグナルを取りこぼさない */
+				sig = 0;
+				continue;
+			}
+
+			/* SIGCONT のデフォルト動作は再開（send_signal 側で状態遷移済み） */
+			if (sig == SIGCONT)
+			{
+				continue;
 			}
 			continue;
 		}
@@ -181,6 +205,13 @@ int send_signal(int sig, struct task_struct *p)
 
 	/* 対象プロセスの保留シグナルビットマスクにセット */
 	p->pending.signal |= (1UL << sig);
+
+	/* SIGCONT の場合は停止中フラグをクリアして再開フラグをセット */
+	if (sig == SIGCONT)
+	{
+		p->flags |= PF_WAIT_CONT_PENDING;  /* 再開フラグをセット */
+		p->flags &= ~PF_WAIT_STOP_PENDING; /* 停止待ちフラグをクリア */
+	}
 
 	/* シグナル到来時は割り込み可能スリープ中のプロセスを起床させる */
 	wake_up_process(p);
@@ -267,6 +298,33 @@ int kill_pg(pid_t pgrp, int sig)
 int sys_kill(pid_t pid, int sig)
 {
 	struct task_struct *p;
+	pid_t pgrp;
+
+	if (!valid_signal(sig))
+	{
+		return -EINVAL;
+	}
+
+	/* pid < 0 はプロセスグループ -pid にシグナルを送る */
+	if (pid < 0)
+	{
+		pgrp = -pid;
+		if (pgrp <= 0)
+		{
+			return -EINVAL;
+		}
+		return kill_pg(pgrp, sig);
+	}
+
+	/* pid == 0 は呼び出し元のプロセスグループを意味する */
+	if (pid == 0)
+	{
+		if (current->pgrp <= 0)
+		{
+			return -ESRCH;
+		}
+		return kill_pg(current->pgrp, sig);
+	}
 
 	/* 送信先プロセスをPIDで検索 */
 	p = find_task_by_pid(pid);

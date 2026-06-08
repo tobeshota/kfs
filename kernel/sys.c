@@ -316,7 +316,7 @@ long sys_prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long
 
 /** ms ミリ秒スリープする
  * @param ms スリープ時間 [ミリ秒]（HZ=1000 なので ms == tick 数）
- * @return 0: 成功
+ * @return 残り tick 数（満了時 0、シグナル等で早期復帰時は正の値）
  */
 long sys_msleep(uint32_t ms)
 {
@@ -324,8 +324,7 @@ long sys_msleep(uint32_t ms)
 	{
 		return 0;
 	}
-	schedule_timeout((long)ms);
-	return 0;
+	return schedule_timeout((long)ms);
 }
 
 struct pgrp_scan_ctx
@@ -513,6 +512,9 @@ int sys_tcsetpgrp(int fd, pid_t pgrp)
 		return -EPERM;
 	}
 
+	/* fdが0の場合，
+	 * 呼び出し元プロセスの所属仮想コンソールの
+	 * フォアグラウンドプロセスグループを設定する */
 	if (fd == 0)
 	{
 		if (current->tty_console >= kfs_terminal_console_count())

@@ -459,7 +459,9 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 	case 0x3E: /* F4 */
 		if (!release && alt_pressed)
 		{
-			size_t target = (size_t)(code - 0x3B);
+			/* Alt + F1 - F4 で仮想コンソールを切り替える */
+			size_t target = (size_t)(code - 0x3B); /* 0x3B = F1 */
+
 			if (target < kfs_terminal_console_count())
 			{
 				kfs_terminal_switch_console(target);
@@ -558,6 +560,33 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 					if (!custom_handler)
 					{
 						printk("^C\n");
+						tty_discard_input_for_console(kfs_terminal_active_console(), 1);
+					}
+
+					extended_prefix = 0;
+					return;
+				}
+
+				/* 端末がCtrl-Zを受け取ったとき，
+				 * フォアグラウンドプロセスグループに属するプロセスに対して，
+				 * SIGTSTPを送信する */
+				if (ctrl_char == 0x1A)
+				{
+					pid_t fgprg = kfs_terminal_get_foreground_pgrp_for_console(kfs_terminal_active_console());
+					if (fgprg == 0)
+					{
+						/* フォアグラウンドプロセスグループが設定されていない場合は
+						 * 現在のプロセスのグループを使用する */
+						fgprg = current->pgrp;
+					}
+					if (fgprg > 0)
+					{
+						(void)kill_pg(fgprg, SIGTSTP);
+					}
+
+					if (!custom_handler)
+					{
+						printk("^Z\n");
 						tty_discard_input_for_console(kfs_terminal_active_console(), 1);
 					}
 
