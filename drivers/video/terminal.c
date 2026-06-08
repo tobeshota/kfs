@@ -836,6 +836,7 @@ uint8_t kfs_terminal_get_color(void)
 	return active_console()->color;
 }
 
+/* 現在アクティブなコンソールのインデックスを返す */
 size_t kfs_terminal_active_console(void)
 {
 	ensure_console_bootstrap();
@@ -869,6 +870,7 @@ void kfs_terminal_switch_console(size_t index)
 	foreground_pgrp = foreground_pgrp_per_console[kfs_console_active];
 }
 
+/* 指定したコンソールのフォアグラウンドプロセスグループを取得する */
 pid_t kfs_terminal_get_foreground_pgrp_for_console(size_t index)
 {
 	ensure_console_bootstrap();

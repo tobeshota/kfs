@@ -243,6 +243,21 @@ KFS_TEST(test_do_signal_multiple_signals)
 	KFS_ASSERT_EQ(0, signal_pending());
 }
 
+/* 停止シグナル処理で schedule() 復帰後も、番号の小さい保留シグナルを処理できることをテスト */
+KFS_TEST(test_do_signal_rescans_pending_after_stop)
+{
+	handler_count = 0;
+	sys_signal(SIGUSR1, counting_handler);
+
+	/* SIGTSTP(20) 処理中に schedule() へ入っても、SIGUSR1(10) を取りこぼさないこと */
+	send_signal(SIGTSTP, current);
+	send_signal(SIGUSR1, current);
+	do_signal();
+
+	KFS_ASSERT_EQ(1, handler_count);
+	KFS_ASSERT_EQ(0, signal_pending());
+}
+
 /* signal_pending()が保留シグナルを正しく報告することをテスト */
 KFS_TEST(test_signal_pending_reports_correctly)
 {
@@ -499,6 +514,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_ignores_sig_ign, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_handles_sig_dfl, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_multiple_signals, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_rescans_pending_after_stop, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_signal_pending_reports_correctly, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_sets_pending, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_null_process, setup_test, teardown_test),
