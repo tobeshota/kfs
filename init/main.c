@@ -36,7 +36,6 @@ extern void page_alloc_init(unsigned long mbi_ptr, uint32_t magic);
 static void kernel_init(void)
 {
 	/* 各仮想コンソールごとにシェルを1つ起動する */
-	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK));
 	for (size_t i = 0; i < kfs_terminal_console_count(); ++i)
 	{
 		pid_t pid = do_fork((unsigned long)shell_run);
