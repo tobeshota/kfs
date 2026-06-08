@@ -95,7 +95,8 @@ static void execute_external_command(const char *cmd, shell_cmd_fn fn, const cha
 			 * これにより，端末からの入力が子プロセスに届くようになる */
 			tcsetpgrp(0, pid);
 
-			/* 子プロセスの終了または停止を待つ */
+			/* フォアグラウンドの場合，
+			 * 子プロセスの終了または停止を待つ */
 			status = 0;
 			if (waitpid(pid, &status, WUNTRACED) > 0)
 			{
@@ -124,6 +125,10 @@ static void execute_external_command(const char *cmd, shell_cmd_fn fn, const cha
 			{
 				printf("[%d] %d\n", job_id, (int)pid);
 			}
+
+			/* バックグラウンドの場合，
+			 * 親プロセスは子プロセスの状態を待たずに次のコマンドを受け付ける．
+			 * 子プロセスの終了はシグナルハンドラで回収するため，ここでは何もしない． */
 		}
 	}
 }

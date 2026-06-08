@@ -114,7 +114,9 @@ void do_signal_with_regs(struct pt_regs *regs)
 				current->exit_signal = sig;				 /* 停止シグナルを設定 */
 				current->flags |= PF_WAIT_STOP_PENDING;	 /* 停止待ちフラグをセット */
 				current->flags &= ~PF_WAIT_CONT_PENDING; /* 再開待ちフラグをクリア */
-				current->__state = __TASK_STOPPED;
+				current->__state = __TASK_STOPPED;		 /* プロセス状態を__TASK_STOPPEDにセット */
+
+				/* スケジューラを呼び出して他のプロセスに CPU を譲る */
 				schedule();
 
 				/* 復帰後は走査を先頭からやり直し，
