@@ -108,7 +108,14 @@ static void execute_external_command(const char *cmd, shell_cmd_fn fn, const cha
 					int job_id = shell_jobs_add(pid, pid, cmd, 1);
 					if (job_id > 0)
 					{
+						/** 文字を出力する前に，shell に foreground を戻す
+						 * @brief バックグラウンド状態にあるシェルプロセスが文字列を出力しようとすると
+						 *        SIGTTOUが送信され，シェルが停止してしまうため．
+						 * @ref sys_write();
+						 */
+						tcsetpgrp(0, getpgrp());
 						printf("[%d] Stopped %s\n", job_id, cmd);
+						return;
 					}
 				}
 			}
