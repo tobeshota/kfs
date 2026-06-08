@@ -503,6 +503,36 @@ KFS_TEST(test_sys_sigreturn_restores_context)
 	KFS_ASSERT_EQ((long)fake_frame.saved_regs.eax, (long)fake_kstack.eax);
 }
 
+/* SIGTTIN のデフォルト動作はプロセスを停止させる */
+KFS_TEST(test_sigttin_default_stops_process)
+{
+	/* SIG_DFL のままの SIGTTIN を送信 */
+	send_signal(SIGTTIN, current);
+	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGTTIN));
+
+	/* do_signal を実行 → デフォルト動作でプロセスが停止状態へ */
+	do_signal();
+
+	KFS_ASSERT_EQ(__TASK_STOPPED, current->__state);
+	KFS_ASSERT_EQ(1, (int)((current->flags & PF_WAIT_STOP_PENDING) != 0));
+	KFS_ASSERT_EQ(SIGTTIN, current->exit_signal);
+}
+
+/* SIGTTOU のデフォルト動作はプロセスを停止させる */
+KFS_TEST(test_sigttou_default_stops_process)
+{
+	/* SIG_DFL のままの SIGTTOU を送信 */
+	send_signal(SIGTTOU, current);
+	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGTTOU));
+
+	/* do_signal を実行 → デフォルト動作でプロセスが停止状態へ */
+	do_signal();
+
+	KFS_ASSERT_EQ(__TASK_STOPPED, current->__state);
+	KFS_ASSERT_EQ(1, (int)((current->flags & PF_WAIT_STOP_PENDING) != 0));
+	KFS_ASSERT_EQ(SIGTTOU, current->exit_signal);
+}
+
 /* テスト登録 */
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_signal_register_handler, setup_test, teardown_test),
@@ -535,6 +565,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_with_regs_sets_eip_to_handler, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_with_regs_lowers_esp, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_sigreturn_restores_context, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sigttin_default_stops_process, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sigttou_default_stops_process, setup_test, teardown_test),
 };
 
 int register_unit_tests_signal(struct kfs_test_case **out)

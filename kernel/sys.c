@@ -11,6 +11,7 @@
 #include <kfs/pty.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
+#include <kfs/signal.h>
 #include <kfs/string.h>
 #include <kfs/sys.h>
 #include <kfs/timer.h>
@@ -538,6 +539,30 @@ int sys_ttynr(void)
 	return (int)current->tty_console;
 }
 
+/** プロセスが TTY に対してバックグラウンドで動作しているか判定する
+ * @return 1: バックグラウンドプロセス（fg pgrp と異なる）, 0: フォアグラウンドまたは ctty 未設定
+ * @note orphaned process group（fg pgrp = 0）は対象外とする
+ */
+static int is_background_tty_process(void)
+{
+	if (current->tty_console >= kfs_terminal_console_count())
+	{
+		return 0; /* ctty 未設定 */
+	}
+
+	/* 呼び出し元プロセスの所属する制御端末のフォアグラウンドプロセスグループを取得する */
+	pid_t fg = kfs_terminal_get_foreground_pgrp_for_console(current->tty_console);
+	if (fg == 0)
+	{
+		return 0; /* orphaned process group */
+	}
+
+	/* 呼び出し元プロセスのプロセスグループcurrent->pgrpが，
+	 * 呼び出し元プロセスの所属する制御端末のフォアグラウンドプロセスグループと
+	 * 異なることを確認する */
+	return current->pgrp != fg;
+}
+
 /** stdout/stderr への書き込みを VGA + COM1 の両方に tee する
  * @param fd    1=stdout/2=stderr → VGA端末 + COM1 両方、4=COM1 のみ
  * @param buf   書き込むバッファ
@@ -561,6 +586,17 @@ long sys_write(int fd, const char *buf, size_t count)
 	}
 	if (fd == 1 || fd == 2)
 	{
+		/** バックグラウンドプロセスが TTY へ書き込もうとした場合は SIGTTOU を送信する
+		 * @brief 呼び出し元プロセスのプロセスグループが
+		 *        フォアグラウンドプロセスグループでない場合，
+		 *        呼び出し元プロセスに対してSIGTTOUを送信する
+		 */
+		if (is_background_tty_process())
+		{
+			send_signal(SIGTTOU, current);
+			return -EINTR;
+		}
+
 		/* stdout/stderr: VGA端末 と COM1 の両方に出力（tee） */
 		terminal_write_console(current->tty_console, buf, count);
 		serial_write(buf, count);

@@ -109,7 +109,7 @@ void do_signal_with_regs(struct pt_regs *regs)
 			}
 
 			/* 停止系シグナルのデフォルト動作: TASK_STOPPED へ遷移 */
-			if (sig == SIGTSTP || sig == SIGSTOP)
+			if (sig == SIGTSTP || sig == SIGSTOP || sig == SIGTTIN || sig == SIGTTOU)
 			{
 				current->exit_signal = sig;				 /* 停止シグナルを設定 */
 				current->flags |= PF_WAIT_STOP_PENDING;	 /* 停止待ちフラグをセット */
