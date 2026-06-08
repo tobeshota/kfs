@@ -164,7 +164,10 @@ int shell_jobs_fg(int job_id)
 	 * 現在の端末のフォアグラウンドプロセスグループに設定する */
 	(void)tcsetpgrp(0, job->pgrp);
 
-	/* 子プロセスの終了または停止を待つ */
+	/** job_id指定プロセスの終了または停止を待つ．
+	 * @note バックグラウンド化shell_jobs_bg(); では，
+	 *       job_id指定プロセスの状態変化を待たない
+	 */
 	int status = 0;
 	if (waitpid(job->pid, &status, WUNTRACED) > 0)
 	{
@@ -197,6 +200,9 @@ int shell_jobs_bg(int job_id)
 		(void)kill(-job->pgrp, SIGCONT);
 		job->stopped = 0;
 	}
+
+	/* フォアグラウンド化shell_jobs_fg();と異なり，
+	 * バックグラウンド化では，job_id指定プロセスの状態変化をwaitpid)();等で待たない */
 
 	return 0;
 }
