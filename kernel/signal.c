@@ -111,12 +111,14 @@ void do_signal_with_regs(struct pt_regs *regs)
 			/* 停止系シグナルのデフォルト動作: TASK_STOPPED へ遷移 */
 			if (sig == SIGTSTP || sig == SIGSTOP)
 			{
-				current->exit_signal = sig;
-				current->flags |= PF_WAIT_STOP_PENDING;
-				current->flags &= ~PF_WAIT_CONT_PENDING;
+				current->exit_signal = sig;				 /* 停止シグナルを設定 */
+				current->flags |= PF_WAIT_STOP_PENDING;	 /* 停止待ちフラグをセット */
+				current->flags &= ~PF_WAIT_CONT_PENDING; /* 再開待ちフラグをクリア */
 				current->__state = __TASK_STOPPED;
 				schedule();
-				/* 復帰後は走査を先頭からやり直し、番号の小さい保留シグナルを取りこぼさない */
+
+				/* 復帰後は走査を先頭からやり直し，
+				 * 番号の小さい保留シグナルを取りこぼさない */
 				sig = 0;
 				continue;
 			}
