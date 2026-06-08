@@ -83,8 +83,10 @@ struct sched_entity
 #define EXIT_TRACE (EXIT_ZOMBIE | EXIT_DEAD)
 
 /* タスクフラグ(task_struct->flagsの値) */
-#define PF_EXITING 0x00000004 /* 終了中 */
-#define PF_KTHREAD 0x00200000 /* カーネルスレッド */
+#define PF_EXITING 0x00000004			/* 終了中 */
+#define PF_KTHREAD 0x00200000			/* カーネルスレッド */
+#define PF_WAIT_STOP_PENDING 0x00400000 /* waitpid(WUNTRACED) へ未通知の停止イベントあり */
+#define PF_WAIT_CONT_PENDING 0x00800000 /* waitpid(WCONTINUED) へ未通知の再開イベントあり */
 
 /* プロセス名の最大長（Linux 6.18互換） */
 #define TASK_COMM_LEN 16

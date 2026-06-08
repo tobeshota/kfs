@@ -119,6 +119,36 @@ pid_t do_waitpid(pid_t pid, int *wstatus, int options)
 				release_task(child);
 				return found_pid;
 			}
+
+			/* 停止中の子プロセスがある場合 */
+			if ((options & WUNTRACED) && (child->flags & PF_WAIT_STOP_PENDING))
+			{
+				if (wstatus)
+				{
+					/* 停止通知用 status を構築する */
+					*wstatus = W_STOPCODE(child->exit_signal);
+				}
+
+				/* 停止通知を処理済みにする */
+				child->flags &= ~PF_WAIT_STOP_PENDING;
+
+				return child->pid;
+			}
+
+			/* 継続中の子プロセスがある場合 */
+			if ((options & WCONTINUED) && (child->flags & PF_WAIT_CONT_PENDING))
+			{
+				if (wstatus)
+				{
+					/* 再開通知用 status を構築する */
+					*wstatus = __WSTATUS_CONTINUED;
+				}
+
+				/* 再開通知を処理済みにする */
+				child->flags &= ~PF_WAIT_CONT_PENDING;
+
+				return child->pid;
+			}
 		}
 
 		/* 指定 PID が存在しない場合は ECHILD */

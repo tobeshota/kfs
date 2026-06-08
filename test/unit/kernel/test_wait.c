@@ -3,6 +3,7 @@
 #include <kfs/errno.h>
 #include <kfs/pid.h>
 #include <kfs/sched.h>
+#include <kfs/signal.h>
 #include <kfs/slab.h>
 #include <kfs/wait.h>
 
@@ -129,11 +130,65 @@ KFS_TEST(test_sys_wait_basic)
 	printk("sys_wait basic test passed\n");
 }
 
+KFS_TEST(test_do_waitpid_wuntraced_reports_stopped)
+{
+	struct task_struct child = init_task;
+	int status = 0;
+	pid_t ret;
+
+	child.pid = 42;
+	child.parent = current;
+	child.exit_state = 0;
+	child.__state = __TASK_STOPPED;
+	child.flags |= PF_WAIT_STOP_PENDING;
+	child.exit_signal = SIGTSTP;
+	INIT_LIST_HEAD(&child.children);
+	INIT_LIST_HEAD(&child.sibling);
+	INIT_LIST_HEAD(&child.run_list);
+	list_add_tail(&child.sibling, &current->children);
+
+	ret = do_waitpid(42, &status, WNOHANG | WUNTRACED);
+
+	KFS_ASSERT_EQ((int)ret, 42);
+	KFS_ASSERT_TRUE(WIFSTOPPED(status));
+	KFS_ASSERT_EQ(WSTOPSIG(status), SIGTSTP);
+	KFS_ASSERT_TRUE((child.flags & PF_WAIT_STOP_PENDING) == 0);
+
+	list_del(&child.sibling);
+}
+
+KFS_TEST(test_do_waitpid_wcontinued_reports_resumed)
+{
+	struct task_struct child = init_task;
+	int status = 0;
+	pid_t ret;
+
+	child.pid = 43;
+	child.parent = current;
+	child.exit_state = 0;
+	child.__state = TASK_RUNNING;
+	child.flags |= PF_WAIT_CONT_PENDING;
+	INIT_LIST_HEAD(&child.children);
+	INIT_LIST_HEAD(&child.sibling);
+	INIT_LIST_HEAD(&child.run_list);
+	list_add_tail(&child.sibling, &current->children);
+
+	ret = do_waitpid(43, &status, WNOHANG | WCONTINUED);
+
+	KFS_ASSERT_EQ((int)ret, 43);
+	KFS_ASSERT_TRUE(WIFCONTINUED(status));
+	KFS_ASSERT_TRUE((child.flags & PF_WAIT_CONT_PENDING) == 0);
+
+	list_del(&child.sibling);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_wait_no_children, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_wait_zombie_child, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_wait_null_wstatus, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_wait_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_waitpid_wuntraced_reports_stopped, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_do_waitpid_wcontinued_reports_resumed, setup_test, teardown_test),
 };
 
 int register_unit_tests_wait(struct kfs_test_case **out)

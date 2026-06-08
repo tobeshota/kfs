@@ -42,6 +42,9 @@ struct sigframe
 #define SIGPIPE 13 /* 読み手のいないパイプへの書き込み */
 #define SIGALRM 14 /* リアルタイムクロック */
 #define SIGTERM 15 /* プロセスの終了 */
+#define SIGCONT 18 /* 停止したプロセスを再開 */
+#define SIGSTOP 19 /* プロセス停止（捕捉/無視不可） */
+#define SIGTSTP 20 /* 端末からの停止要求（Ctrl+Z） */
 
 /* シグナル数の上限 */
 #define _NSIG 32
