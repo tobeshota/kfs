@@ -90,13 +90,20 @@ static void execute_external_command(const char *cmd, shell_cmd_fn fn, const cha
 
 		if (foreground)
 		{
-			/* 端末のフォアグラウンドプロセスグループを子プロセスグループに移す */
+			/* 子プロセスをフォアグラウンドで実行する場合，
+			 * 端末のフォアグラウンドプロセスグループを子プロセスグループに移す．
+			 * これにより，端末からの入力が子プロセスに届くようになる */
 			tcsetpgrp(0, pid);
+
+			/* 子プロセスの終了または停止を待つ */
 			status = 0;
 			if (waitpid(pid, &status, WUNTRACED) > 0)
 			{
+				/* Ctrl-Z押下などの理由によって，
+				 * 子プロセスの状態がTASK_STOPPEDに遷移した場合 */
 				if (WIFSTOPPED(status))
 				{
+					/* TASK_STOPPEDの状態になったプロセスをジョブリストに追加する */
 					int job_id = shell_jobs_add(pid, pid, cmd, 1);
 					if (job_id > 0)
 					{
@@ -110,6 +117,8 @@ static void execute_external_command(const char *cmd, shell_cmd_fn fn, const cha
 		}
 		else
 		{
+			/* 子プロセスをバックグラウンドで実行する場合，
+			 * ジョブリストに追加する */
 			int job_id = shell_jobs_add(pid, pid, cmd, 0);
 			if (job_id > 0)
 			{

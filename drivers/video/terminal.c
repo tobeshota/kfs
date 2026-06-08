@@ -881,18 +881,31 @@ pid_t kfs_terminal_get_foreground_pgrp_for_console(size_t index)
 	return foreground_pgrp_per_console[index];
 }
 
+/** 指定したコンソールのフォアグラウンドプロセスグループを設定する
+ * @param index コンソールのインデックス
+ * @param pgrp プロセスグループID
+ * @return 0: 成功, -EINVAL: indexが不正
+ */
 int kfs_terminal_set_foreground_pgrp_for_console(size_t index, pid_t pgrp)
 {
 	ensure_console_bootstrap();
+
 	if (index >= KFS_VIRTUAL_CONSOLE_COUNT)
 	{
 		return -EINVAL;
 	}
+
+	/* 指定したコンソールのフォアグラウンドプロセスグループを設定する．
+	 * これにより，Ctrl-Cなどのシグナルがそのプロセスグループに送られるようになる */
 	foreground_pgrp_per_console[index] = pgrp;
+
+	/* 指定したコンソールがアクティブな場合は，
+	 * グローバルのforeground_pgrpも更新する */
 	if (index == kfs_console_active)
 	{
 		foreground_pgrp = pgrp;
 	}
+
 	return 0;
 }
 
