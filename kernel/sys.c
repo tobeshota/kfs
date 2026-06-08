@@ -512,7 +512,9 @@ int sys_tcsetpgrp(int fd, pid_t pgrp)
 		return -EPERM;
 	}
 
-	/* fd == 0: 現在の端末のフォアグラウンドプロセスグループを設定する */
+	/* fdが0の場合，
+	 * 呼び出し元プロセスの所属仮想コンソールの
+	 * フォアグラウンドプロセスグループを設定する */
 	if (fd == 0)
 	{
 		if (current->tty_console >= kfs_terminal_console_count())

@@ -160,8 +160,11 @@ int shell_jobs_fg(int job_id)
 		job->stopped = 0;
 	}
 
-	/* ジョブをフォアグラウンドに移す */
-	(void)tcsetpgrp(0, job->pgrp); /* 現在の端末の制御をジョブのプロセスグループに移す */
+	/* 指定ジョブのプロセスグループjob->pgrpを
+	 * 現在の端末のフォアグラウンドプロセスグループに設定する */
+	(void)tcsetpgrp(0, job->pgrp);
+
+	/* 子プロセスの終了または停止を待つ */
 	int status = 0;
 	if (waitpid(job->pid, &status, WUNTRACED) > 0)
 	{
@@ -169,7 +172,9 @@ int shell_jobs_fg(int job_id)
 		 * ジョブの状態を更新する */
 		shell_jobs_on_wait_event(job->pid, status);
 	}
-	(void)tcsetpgrp(0, getpgrp()); /* 現在の端末の制御を呼び出し元のプロセスグループに戻す */
+
+	/* 現在の端末の制御を呼び出し元のプロセスグループに戻す */
+	(void)tcsetpgrp(0, getpgrp());
 
 	return 0;
 }
