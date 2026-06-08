@@ -2,6 +2,7 @@
 #include <kfs/errno.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
+#include <kfs/signal.h>
 #include <kfs/string.h>
 #include <kfs/tty.h>
 
@@ -134,6 +135,18 @@ long tty_read_line_for_console(size_t console_index, char *buf, unsigned int siz
 
 	while (1)
 	{
+		/** バックグラウンドプロセスが TTY から読み取ろうとした場合は SIGTTIN を送信する
+		 * @brief 呼び出し元プロセスのプロセスグループが
+		 *        フォアグラウンドプロセスグループでない場合，
+		 *        呼び出し元プロセスに対してSIGTTINを送信する
+		 */
+		pid_t fg = kfs_terminal_get_foreground_pgrp_for_console(console_index);
+		if (fg != 0 && current->pgrp != fg)
+		{
+			send_signal(SIGTTIN, current);
+			return -EINTR;
+		}
+
 		__asm__ volatile("cli");
 
 		if (state->line_ready)

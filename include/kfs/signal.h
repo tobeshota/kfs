@@ -45,6 +45,8 @@ struct sigframe
 #define SIGCONT 18 /* 停止したプロセスを再開 */
 #define SIGSTOP 19 /* プロセス停止（捕捉/無視不可） */
 #define SIGTSTP 20 /* 端末からの停止要求（Ctrl+Z） */
+#define SIGTTIN 21 /* バックグラウンドプロセスが TTY から読み込み試行 */
+#define SIGTTOU 22 /* バックグラウンドプロセスが TTY へ書き込み試行 */
 
 /* シグナル数の上限 */
 #define _NSIG 32
