@@ -44,12 +44,12 @@ struct kfs_console_state
 };
 
 static struct kfs_console_state kfs_console_states[KFS_VIRTUAL_CONSOLE_COUNT];
-static size_t kfs_console_active;
+static size_t kfs_console_active; /* 現在アクティブなコンソールのインデックス */
 static pid_t foreground_pgrp_per_console[KFS_VIRTUAL_CONSOLE_COUNT];
 pid_t foreground_pgrp; /* 端末のフォアグラウンドプロセスグループID（0=未設定） */
 static int kfs_console_bootstrap_completed;
 
-/* 現在使用してるコンソールを取得 */
+/* 現在使用しているコンソールを取得 */
 static struct kfs_console_state *active_console(void)
 {
 	return &kfs_console_states[kfs_console_active];
@@ -853,20 +853,28 @@ size_t kfs_terminal_console_count(void)
 void kfs_terminal_switch_console(size_t index)
 {
 	ensure_console_bootstrap();
+
+	/* 指定されたインデックスが有効かどうかを確認 */
 	if (index >= KFS_VIRTUAL_CONSOLE_COUNT || index == kfs_console_active)
 	{
 		return;
 	}
+
+	/* 切り替え前（現在）のコンソールを取得する */
 	struct kfs_console_state *current = active_console();
 	if (current->initialized)
 	{
 		console_capture_from_hw(current);
 	}
+
+	/* 現在アクティブなコンソールを切り替える */
 	kfs_console_active = index;
 	struct kfs_console_state *next = active_console();
 	console_activate_if_needed(next);
 	console_flush_to_hw(next);
 	sync_globals_from_console(next);
+
+	/* アクティブなコンソールのフォアグラウンドプロセスグループを更新する */
 	foreground_pgrp = foreground_pgrp_per_console[kfs_console_active];
 }
 

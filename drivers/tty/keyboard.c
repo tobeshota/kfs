@@ -459,7 +459,9 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 	case 0x3E: /* F4 */
 		if (!release && alt_pressed)
 		{
-			size_t target = (size_t)(code - 0x3B);
+			/* Alt + F1 - F4 で仮想コンソールを切り替える */
+			size_t target = (size_t)(code - 0x3B); /* 0x3B = F1 */
+
 			if (target < kfs_terminal_console_count())
 			{
 				kfs_terminal_switch_console(target);
