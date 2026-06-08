@@ -6,5 +6,7 @@ void cmd_help(void *arg)
 {
 	(void)arg;
 	printf("Built-in commands:\n");
-	shell_builtin_list();
+	cmd_list(SHELL_CMD_BUILTIN);
+	printf("External commands:\n");
+	cmd_list(SHELL_CMD_EXTERNAL);
 }

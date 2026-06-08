@@ -17,8 +17,20 @@ void sleep_set_ms(unsigned int ms)
 
 void sleep_ring3_main(void)
 {
+	unsigned int remain;
+	int ret;
+
 	setpgid(0, 0);
-	msleep(g_sleep_ms);
+	remain = g_sleep_ms;
+	while (remain > 0)
+	{
+		ret = msleep(remain);
+		if (ret <= 0)
+		{
+			break;
+		}
+		remain = (unsigned int)ret;
+	}
 	exit(0);
 }
 

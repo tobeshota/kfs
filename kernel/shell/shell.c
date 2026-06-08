@@ -1,6 +1,7 @@
 #include <kfs/exec.h>
 #include <kfs/prctl.h>
 #include <kfs/shell.h>
+#include <kfs/signal.h>
 #include <kfs/stdio.h>
 #include <kfs/string.h>
 #include <kfs/unistd.h>
@@ -67,6 +68,57 @@ static void shell_parse_command_line(const char *input, char *output, size_t out
 	output[len] = '\0';
 }
 
+static void execute_external_command(const char *cmd, shell_cmd_fn fn, const char *args, int foreground)
+{
+	extern int shell_jobs_add(pid_t pid, pid_t pgrp, const char *cmd, int stopped);
+	int status;
+
+	pid_t pid = fork();
+	if (pid < 0)
+	{
+		printf("Failed to fork process\n");
+		return;
+	}
+	else if (pid == 0)
+	{
+		__exec_fn(cmd, fn, (void *)args);
+	}
+	else
+	{
+		/* 親が子をプロセスグループリーダーにする */
+		setpgid(pid, pid);
+
+		if (foreground)
+		{
+			/* 端末のフォアグラウンドプロセスグループを子プロセスグループに移す */
+			tcsetpgrp(0, pid);
+			status = 0;
+			if (waitpid(pid, &status, WUNTRACED) > 0)
+			{
+				if (WIFSTOPPED(status))
+				{
+					int job_id = shell_jobs_add(pid, pid, cmd, 1);
+					if (job_id > 0)
+					{
+						printf("[%d] Stopped %s\n", job_id, cmd);
+					}
+				}
+			}
+
+			/* 終了後は shell に foreground を戻す */
+			tcsetpgrp(0, getpgrp());
+		}
+		else
+		{
+			int job_id = shell_jobs_add(pid, pid, cmd, 0);
+			if (job_id > 0)
+			{
+				printf("[%d] %d\n", job_id, (int)pid);
+			}
+		}
+	}
+}
+
 static void execute_command(const char *line)
 {
 	char normalized_cmd[CMD_BUFFER_SIZE];
@@ -80,39 +132,22 @@ static void execute_command(const char *line)
 		return;
 	}
 
-	shell_builtin_fn fn;
+	shell_cmd_fn fn;
 	const char *args;
-	if (lookup_builtin(cmd, &fn, &args))
+	enum shell_cmd_mode mode;
+	if (cmd_lookup(cmd, &fn, &args, &mode) == -1)
 	{
-		pid_t pid = fork();
-		if (pid < 0)
-		{
-			printf("Failed to fork process\n");
-			return;
-		}
-		else if (pid == 0)
-		{
-			__exec_fn(cmd, fn, (void *)args);
-		}
-		else
-		{
-			/* 親が子をプロセスグループリーダーにする */
-			setpgid(pid, pid);
-
-			if (foreground)
-			{
-				/* 端末のフォアグラウンドプロセスグループを子プロセスグループに移す */
-				tcsetpgrp(0, pid);
-				waitpid(pid, NULL, 0);
-
-				/* 終了後は shell に foreground を戻す */
-				tcsetpgrp(0, getpgrp());
-			}
-		}
+		printf("Unknown command: %s\n", cmd);
 		return;
 	}
-
-	printf("Unknown command: %s\n", cmd);
+	else if (mode == SHELL_CMD_BUILTIN)
+	{
+		fn((void *)args);
+	}
+	else
+	{
+		execute_external_command(cmd, fn, args, foreground);
+	}
 }
 
 /* 非ブロッキングでゾンビ子プロセスを回収する。 */
@@ -122,11 +157,14 @@ static void reap_zombie_children(void)
 
 	while (1)
 	{
-		pid_t r = waitpid(-1, &reap_status, WNOHANG);
+		pid_t r = waitpid(-1, &reap_status, WNOHANG | WUNTRACED | WCONTINUED);
 		if (r <= 0)
 		{
 			break;
 		}
+
+		extern void shell_jobs_on_wait_event(pid_t pid, int wait_status);
+		shell_jobs_on_wait_event(r, reap_status);
 	}
 }
 
@@ -206,7 +244,7 @@ void shell_init(void)
 	}
 
 	shell_state.initialized = 1;
-	shell_builtins_init();
+	cmd_registry_init();
 }
 
 /** シェルのメインループ
@@ -239,16 +277,16 @@ __attribute__((weak)) void shell_run(void)
 		(void)tcsetpgrp(0, shell_pgrp);
 	}
 
+	/* neofetchを出す */
+	extern void cmd_neofetch(void *args);
+	cmd_neofetch(NULL);
+
 	/* 接続されたTTYを表示する */
 	int tty = ttynr();
 	if (tty >= 0)
 	{
 		printf("Connected to tty%u\n", (unsigned int)(tty + 1));
 	}
-
-	/* neofetchを出す */
-	extern void cmd_neofetch(void *args);
-	cmd_neofetch(NULL);
 
 	while (1)
 	{
