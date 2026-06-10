@@ -14,6 +14,7 @@
 #include <kfs/shell.h>
 #include <kfs/slab.h>
 #include <kfs/timer.h>
+#include <kfs/unistd.h>
 #include <kfs/vmalloc.h>
 #include <kfs/wait.h>
 
@@ -28,31 +29,28 @@ extern uint32_t multiboot_magic; /* boot.S で保存したブートローダー�
 /* ページアロケータの初期化（mm/page_alloc.c） */
 extern void page_alloc_init(unsigned long mbi_ptr, uint32_t magic);
 
+/* シェルのエントリポイント */
+static void shell_entry(void *arg)
+{
+	ioctl(0, TIOCSCTTY, (unsigned long)arg);
+	shell_run();
+}
+
 /** PID 1: init プロセス
- * shell を子プロセス（PID 2）として起動し、
+ * シェルを子プロセス（PID 2）として起動し、
  * 孤児プロセス（音楽バックグラウンド再生等）を wait() で回収し続ける。
  * Linux の PID 1 / init に相当する。
  */
 static void kernel_init(void)
 {
 	/* 各仮想コンソールごとにシェルを1つ起動する */
-	for (size_t i = 0; i < kfs_terminal_console_count(); ++i)
+	for (size_t ctty_i = 0; ctty_i < kfs_terminal_console_count(); ++ctty_i)
 	{
-		pid_t pid = do_fork((unsigned long)shell_run);
+		pid_t pid = do_fork((unsigned long)shell_entry, (unsigned long)ctty_i);
 		if (pid < 0)
 		{
-			printk("Failed to start shell process on console %d\n", (int)i);
-			continue;
+			printk("Failed to start shell process on console %d\n", (int)ctty_i);
 		}
-
-		struct task_struct *shell_task = find_task_by_pid(pid);
-		if (!shell_task)
-		{
-			continue;
-		}
-
-		/* controlling tty 識別子のみ親側で渡し、session/pgrp/fg は shell 側で syscall 初期化する */
-		shell_task->tty_console = i;
 	}
 
 	/* 孤児プロセス（バックグラウンド再生等）を回収するループ
@@ -126,7 +124,7 @@ void start_kernel(void)
 	/* PID 1 の init プロセスを起動する（シェルの展開と孤児回収を担当） */
 	kernel_thread(kernel_init, "init");
 
-	/* init_task はここから cpu_idle_lo	op() でアイドル待機する。
+	/* init_task はここから cpu_idle_loop() でアイドル待機する。
 	 * この呼び出しから戻ることはない。 */
 	cpu_idle_loop();
 }

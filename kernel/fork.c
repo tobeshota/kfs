@@ -293,7 +293,7 @@ struct task_struct *copy_process(struct task_struct *orig)
  *       cmd_sched() 等からは do_fork(eip) で呼ぶ（ring-3 直接起動）。
  *       ユーザスタックは内部で do_mmap(MAP_ANONYMOUS) により動的確保する。
  */
-pid_t do_fork(unsigned long user_eip)
+pid_t do_fork(unsigned long user_eip, unsigned long arg)
 {
 	struct task_struct *p;
 	extern struct task_struct *current; /* 現在のプロセス */
@@ -310,8 +310,22 @@ pid_t do_fork(unsigned long user_eip)
 			printk(KERN_WARNING "do_fork: failed to allocate user stack\n");
 			return -ENOMEM;
 		}
-		/* スタックはアドレス高位から使うため末尾を渡す */
-		user_esp = (unsigned long)ustack + STACK_SIZE;
+
+		/** 空のユーザスタックの上に，関数が呼び出された直後のスタック状態を人工的に作る
+		 * @brief iret 後のユーザコードが通常の cdecl 関数呼び出しと同じ
+		 *        スタックレイアウトを参照できるよう，戻り番地と引数を
+		 *        手動で配置する．
+		 * @details
+		 * ((void (*)(void *))user_eip)(arg);がちょうどcallされた直後のユーザスタックは，
+		 * i386 cdeclでは，関数入口で戻り番地がスタックに積まれ，その次に引数が積まれた状態にある．
+		 * この状態を人工的に作る．これにより，iret後のユーザコードが
+		 * 通常のcdecl関数呼び出しと同じスタックレイアウトを参照できるようにする．
+		 */
+		unsigned long *sp = (unsigned long *)((unsigned long)ustack + STACK_SIZE); /* スタックの末尾 */
+		*(sp - 1) = arg; /* 第1引数argをスタックの末尾の1要素前に配置する */
+		*(sp - 2) = 0;	 /* 偽の戻り番地をスタックの末尾の2要素前に配置する */
+		sp -= 2;		 /* スタックポインタの位置を2要素分下げる */
+		user_esp = (unsigned long)sp;
 	}
 	else if (current->user_stack_vm_start != 0)
 	{

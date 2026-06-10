@@ -15,7 +15,7 @@
 #include <kfs/tty.h>
 #include <kfs/wait.h>
 
-extern pid_t do_fork(unsigned long user_eip);
+extern pid_t do_fork(unsigned long user_eip, unsigned long arg);
 extern long kfs_keyboard_read_event(struct kfs_keyboard_raw_event *event);
 extern void kfs_keyboard_clear_events(void);
 extern void sys_exit(int error_code);
@@ -124,7 +124,7 @@ static long do_sys_fork(long arg1, long arg2, long arg3, long arg4, long arg5)
 	(void)arg3;
 	(void)arg4;
 	(void)arg5;
-	return (long)do_fork(0);
+	return (long)do_fork(0, 0);
 }
 
 /** exit() システムコール

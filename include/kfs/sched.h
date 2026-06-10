@@ -222,7 +222,7 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next);
 
 /* fork/exec カーネル内部 API（kernel/fork.c で実装） */
 void fork_init(void);
-pid_t do_fork(unsigned long user_eip);
+pid_t do_fork(unsigned long user_eip, unsigned long arg);
 
 int task_for_each(int (*fn)(struct task_struct *task, void *ctx), void *ctx);
 

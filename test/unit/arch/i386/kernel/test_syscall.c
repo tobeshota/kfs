@@ -17,7 +17,7 @@
 
 extern struct task_struct *current;
 extern struct task_struct init_task;
-extern pid_t do_fork(unsigned long user_eip);
+extern pid_t do_fork(unsigned long user_eip, unsigned long arg);
 extern pid_t do_wait(int *wstatus, int options);
 extern void fork_init(void);
 extern void pid_init(void);
@@ -357,7 +357,7 @@ KFS_TEST(test_int80_setpgid_ring3_calls_successfully)
 	pid_t waited;
 
 	current->pgrp = 12345;
-	child_pid = do_fork((unsigned long)ring3_setpgid_worker);
+	child_pid = do_fork((unsigned long)ring3_setpgid_worker, 0);
 	KFS_ASSERT_TRUE(child_pid > 0);
 
 	waited = do_wait(&wstatus, 0);
@@ -376,7 +376,7 @@ KFS_TEST(test_int80_setsid_ring3_calls_successfully)
 
 	current->pgrp = 12345;
 	current->session = 12345;
-	child_pid = do_fork((unsigned long)ring3_setsid_worker);
+	child_pid = do_fork((unsigned long)ring3_setsid_worker, 0);
 	KFS_ASSERT_TRUE(child_pid > 0);
 
 	waited = do_wait(&wstatus, 0);
