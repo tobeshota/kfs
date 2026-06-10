@@ -346,12 +346,15 @@ static void test_sys_ioctl_tcgets_returns_termios_lflag(void)
 
 	KFS_ASSERT_EQ(0, (int)sys_ioctl(0, TCGETS, (unsigned long)&tio));
 	KFS_ASSERT_EQ(ICANON | ECHO | ISIG, (int)tio.c_lflag);
+	KFS_ASSERT_EQ(0x03, (int)tio.c_cc[VINTR]);
+	KFS_ASSERT_EQ(0x1A, (int)tio.c_cc[VSUSP]);
 }
 
 static void test_sys_ioctl_tcsets_updates_termios_lflag(void)
 {
 	struct termios tio;
 
+	KFS_ASSERT_EQ(0, (int)sys_ioctl(0, TCGETS, (unsigned long)&tio));
 	tio.c_lflag = ISIG;
 	KFS_ASSERT_EQ(0, (int)sys_ioctl(0, TCSETS, (unsigned long)&tio));
 	KFS_ASSERT_EQ(0, (int)sys_ioctl(0, TCGETS, (unsigned long)&tio));

@@ -617,63 +617,6 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 			char ctrl_char = translate_ctrl_char(ch);
 			if (ctrl_char)
 			{
-				/* 現在の端末がシグナルを受け取る設定になっている場合 */
-				if (tty_signal_enabled_for_console(kfs_terminal_active_console()))
-				{
-					/* 端末がCtrl-Cを受け取ったとき，
-					 * フォアグラウンドプロセスグループに属するプロセスに対して，
-					 * SIGINTを送信する */
-					if (ctrl_char == 0x03)
-					{
-						pid_t fgprg = kfs_terminal_get_foreground_pgrp_for_console(kfs_terminal_active_console());
-						if (fgprg == 0)
-						{
-							fgprg = current->pgrp;
-						}
-						if (fgprg > 0)
-						{
-							(void)kill_pg(fgprg, SIGINT);
-						}
-
-						/* シェルが read(0, ...) で入力待ち中なら、^C を表示して
-						 * 現在の入力行を破棄し、空行を publish して即座にプロンプトへ戻す。 */
-						if (!custom_handler)
-						{
-							printk("^C\n");
-							tty_discard_input_for_console(kfs_terminal_active_console(), 1);
-						}
-
-						extended_prefix = 0;
-						return;
-					}
-
-					/* 端末がCtrl-Zを受け取ったとき，
-					 * フォアグラウンドプロセスグループに属するプロセスに対して，
-					 * SIGTSTPを送信する */
-					if (ctrl_char == 0x1A)
-					{
-						pid_t fgprg = kfs_terminal_get_foreground_pgrp_for_console(kfs_terminal_active_console());
-						if (fgprg == 0)
-						{
-							/* フォアグラウンドプロセスグループが設定されていない場合は
-							 * 現在のプロセスのグループを使用する */
-							fgprg = current->pgrp;
-						}
-						if (fgprg > 0)
-						{
-							(void)kill_pg(fgprg, SIGTSTP);
-						}
-
-						if (!custom_handler)
-						{
-							printk("^Z\n");
-							tty_discard_input_for_console(kfs_terminal_active_console(), 1);
-						}
-
-						extended_prefix = 0;
-						return;
-					}
-				}
 				ch = ctrl_char;
 			}
 		}

@@ -19,6 +19,7 @@ struct tty_line_state
 	int line_ready;					 /* 行が準備できているかどうか */
 	struct task_struct *line_waiter; /* 行を待っているタスク */
 	tcflag_t lflag;					 /* termiosローカルモードフラグ */
+	unsigned char cc[NCCS];			 /* termios制御文字 */
 };
 
 /* 仮想コンソールごとのTTY行状態 */
@@ -45,6 +46,87 @@ static struct tty_line_state *tty_state_for_console(size_t console_index)
 static int tty_console_is_active(size_t console_index)
 {
 	return console_index == kfs_terminal_active_console();
+}
+
+/** 制御文字配列を初期化する
+ * @param cc 初期化する制御文字配列
+ */
+static void tty_init_default_cc(unsigned char cc[NCCS])
+{
+	memset(cc, 0, NCCS);
+	cc[VINTR] = 0x03;  /* Ctrl-C */
+	cc[VQUIT] = 0x1C;  /* Ctrl-\ */
+	cc[VERASE] = 0x7F; /* DEL */
+	cc[VKILL] = 0x15;  /* Ctrl-U */
+	cc[VEOF] = 0x04;   /* Ctrl-D */
+	cc[VTIME] = 0;	   /* タイムアウト値 */
+	cc[VMIN] = 1;	   /* 最小読み取り文字数 */
+	cc[VSTART] = 0x11; /* Ctrl-Q */
+	cc[VSTOP] = 0x13;  /* Ctrl-S */
+	cc[VSUSP] = 0x1A;  /* Ctrl-Z */
+}
+
+/** 入力された制御文字chに対応するシグナル番号を返す
+ * @param state 対象TTY行状態
+ * @param ch 入力文字
+ * @return 対応するシグナル番号。シグナル対象でなければ0
+ */
+static int tty_signal_for_char(struct tty_line_state *state, char ch)
+{
+	unsigned char uch = (unsigned char)ch;
+
+	/* シグナル制御文字が有効でない場合はシグナルを送らない */
+	if (!(state->lflag & ISIG))
+	{
+		return 0;
+	}
+
+	if (state->cc[VINTR] != KFS_VDISABLE && uch == state->cc[VINTR])
+	{
+		return SIGINT;
+	}
+	if (state->cc[VSUSP] != KFS_VDISABLE && uch == state->cc[VSUSP])
+	{
+		return SIGTSTP;
+	}
+	return 0;
+}
+
+/** 端末制御文字に対応するシグナルをフォアグラウンドプロセスグループへ送る
+ * @param console_index 仮想コンソール番号
+ * @param sig 送信するシグナル番号
+ */
+static void tty_send_signal_for_console(size_t console_index, int sig)
+{
+	pid_t fgprg = kfs_terminal_get_foreground_pgrp_for_console(console_index);
+
+	if (fgprg == 0)
+	{
+		fgprg = current->pgrp;
+	}
+	if (fgprg > 0)
+	{
+		(void)kill_pg(fgprg, sig);
+	}
+}
+
+/** シグナル制御文字の表示と入力行破棄を行う
+ * @param console_index 仮想コンソール番号
+ * @param ch 入力された制御文字
+ */
+static void tty_echo_signal_char(size_t console_index, char ch)
+{
+	char echo[3];
+
+	if (!tty_console_is_active(console_index))
+	{
+		return;
+	}
+	echo[0] = '^';
+	echo[1] = (char)(((unsigned char)ch) + '@');
+	echo[2] = '\n';
+	terminal_write_console(console_index, echo, sizeof(echo));
+	serial_write(echo, sizeof(echo));
 }
 
 /** 入力中の行を確定して読み取り可能状態にする
@@ -149,6 +231,7 @@ void tty_reset(void)
 		tty_line_states[i].line_ready = 0;
 		tty_line_states[i].line_waiter = NULL;
 		tty_line_states[i].lflag = ICANON | ECHO | ISIG; /* 行入力モード、エコー有効、シグナル有効 */
+		tty_init_default_cc(tty_line_states[i].cc);
 	}
 }
 
@@ -214,6 +297,18 @@ long tty_read_line_for_console(size_t console_index, char *buf, unsigned int siz
 void tty_input_char_for_console(size_t console_index, char ch)
 {
 	struct tty_line_state *state = tty_state_for_console(console_index);
+	int sig = tty_signal_for_char(state, ch);
+
+	if (sig)
+	{
+		tty_send_signal_for_console(console_index, sig);
+		if (state->lflag & ECHO)
+		{
+			tty_echo_signal_char(console_index, ch);
+		}
+		tty_discard_input_for_console(console_index, 1);
+		return;
+	}
 
 	if (state->input_line_len + 1 >= TTY_LINE_MAX)
 	{
@@ -409,6 +504,7 @@ int tty_get_termios_for_console(size_t console_index, struct termios *termios)
 
 	memset(termios, 0, sizeof(*termios));
 	termios->c_lflag = tty_line_states[console_index].lflag;
+	memcpy(termios->c_cc, tty_line_states[console_index].cc, NCCS);
 
 	return 0;
 }
@@ -426,6 +522,7 @@ int tty_set_termios_for_console(size_t console_index, const struct termios *term
 	}
 
 	tty_line_states[console_index].lflag = termios->c_lflag & (ICANON | ECHO | ISIG);
+	memcpy(tty_line_states[console_index].cc, termios->c_cc, NCCS);
 
 	return 0;
 }

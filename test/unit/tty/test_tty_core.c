@@ -110,6 +110,45 @@ KFS_TEST(test_tty_core_noncanonical_read_without_enter)
 }
 
 /* フォアグラウンドのプロセスは TTY 読み込みで SIGTTIN を受けない */
+
+KFS_TEST(test_tty_core_vintr_sends_sigint)
+{
+	char buf[4];
+
+	current->pgrp = 10;
+	kfs_terminal_set_foreground_pgrp_for_console(0, 10);
+	current->pending.signal = 0;
+
+	tty_input_char_for_console(0, 0x03);
+
+	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGINT));
+	KFS_ASSERT_EQ(0, tty_read_line_for_console(0, buf, sizeof(buf)));
+}
+
+KFS_TEST(test_tty_core_vintr_can_be_remapped_with_cc)
+{
+	struct termios tio;
+	char buf[8];
+
+	current->pgrp = 10;
+	kfs_terminal_set_foreground_pgrp_for_console(0, 10);
+	current->pending.signal = 0;
+
+	KFS_ASSERT_EQ(0, tty_get_termios_for_console(0, &tio));
+	tio.c_lflag &= ~((tcflag_t)ECHO);
+	tio.c_cc[VINTR] = 0x01;
+	KFS_ASSERT_EQ(0, tty_set_termios_for_console(0, &tio));
+
+	tty_input_char_for_console(0, 0x03);
+	tty_handle_enter_for_console(0);
+	KFS_ASSERT_EQ(1, tty_read_line_for_console(0, buf, sizeof(buf)));
+	KFS_ASSERT_EQ(0x03, (int)buf[0]);
+	KFS_ASSERT_EQ(0, (int)(current->pending.signal & (1UL << SIGINT)));
+
+	tty_input_char_for_console(0, 0x01);
+	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGINT));
+}
+
 KFS_TEST(test_tty_core_foreground_read_no_sigttin)
 {
 	char buf[16];
@@ -175,6 +214,8 @@ int register_unit_tests_tty_core(struct kfs_test_case **out)
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_echo_off_suppresses_terminal_write, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_termios_lflag_get_set, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_noncanonical_read_without_enter, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_vintr_sends_sigint, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_vintr_can_be_remapped_with_cc, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_foreground_read_no_sigttin, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_background_read_sends_sigttin, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_orphaned_pgrp_no_sigttin, setup_test, teardown_test),
