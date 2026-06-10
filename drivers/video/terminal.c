@@ -17,6 +17,7 @@
 #define VGA_CURSOR_END 0x0B
 #define SCROLLBACK_LINES 100 /* スクロールバックバッファの行数 */
 #define ANSI_MAX_PARAMS 8	 /* ANSIエスケープシーケンスの最大パラメータ数 */
+#define VGA_TAB_WIDTH 8		 /* タブ文字を展開する桁幅 */
 
 extern void kfs_io_outb(uint16_t port, uint8_t val);
 
@@ -638,39 +639,8 @@ static void terminal_scroll_if_needed(struct kfs_console_state *con)
 	con->scroll_offset = 0;
 }
 
-/* 値cを現在のコンソールに出力する(MMIO) */
-void terminal_putchar(char c)
-{
-	ensure_console_bootstrap();
-	struct kfs_console_state *con = active_console();
-	console_activate_if_needed(con);
-	if (c == '\n')
-	{
-		con->column = 0; /* キャリッジリターン */
-		con->row++;		 /* ラインフィード */
-		terminal_scroll_if_needed(con);
-		sync_globals_from_console(con);
-		return;
-	}
-	if (c == '\r')
-	{
-		con->column = 0; /* キャリッジリターン */
-		sync_globals_from_console(con);
-		return;
-	}
-	/* 挿入モード: カーソル位置に文字を挿入 */
-	terminal_insert_char_at(con, c, con->column, con->row);
-	if (++con->column == VGA_WIDTH)
-	{
-		con->column = 0;
-		con->row++;
-	}
-	terminal_scroll_if_needed(con);
-	sync_globals_from_console(con);
-}
-
 /* 値cをコンソールconに出力する(MMIO) */
-static void terminal_putchar_in_console(struct kfs_console_state *con, char c)
+static void terminal_putchar(struct kfs_console_state *con, char c)
 {
 	if (c == '\n')
 	{
@@ -689,6 +659,31 @@ static void terminal_putchar_in_console(struct kfs_console_state *con, char c)
 		if (console_is_active(con))
 		{
 			sync_globals_from_console(con);
+		}
+		return;
+	}
+	if (c == '\t')
+	{
+		/** タブ文字の場合，次のタブストップまで移動する
+		 * @details 計算方法は，現在の列番号をVGA_TAB_WIDTHで割った余りを引いて，
+		 *          次のタブストップまでの空文字数を求める．
+		 *          VGA_TAB_WIDTHが8の場合，次のタブストップは8である．
+		 *
+		 * @example |ABC     |         現在の列が3のとき，
+		 *              ^^^^^          空文字数は8-(3%8)=5となる．
+		 *
+		 * @example |ABCDEFGH        | 現在の列が8のとき，
+		 *                   ^^^^^^^^  空文字数は8-(8%8)=8となる．
+		 *
+		 * @example |ABCDEFGHABCDEFG | 現在の列が15のとき，
+		 *                           ^ 空文字数は8-(15%8)=1となる．
+		 *
+		 */
+		size_t spaces = VGA_TAB_WIDTH - (con->column % VGA_TAB_WIDTH);
+
+		for (size_t i = 0; i < spaces; i++)
+		{
+			terminal_putchar(con, ' ');
 		}
 		return;
 	}
@@ -758,7 +753,7 @@ void terminal_write(const char *data, size_t size)
 	{
 		if (!terminal_try_handle_escape(con, data[i]))
 		{
-			terminal_putchar_in_console(con, data[i]);
+			terminal_putchar(con, data[i]);
 		}
 	}
 }
@@ -779,7 +774,7 @@ void terminal_write_console(size_t index, const char *data, size_t size)
 	{
 		if (!terminal_try_handle_escape(con, data[i]))
 		{
-			terminal_putchar_in_console(con, data[i]);
+			terminal_putchar(con, data[i]);
 		}
 	}
 }

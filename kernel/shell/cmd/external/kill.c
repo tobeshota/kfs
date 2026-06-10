@@ -163,7 +163,7 @@ static void print_signal_list(void)
 	for (int i = 0; i < signal_name_count; i++)
 	{
 		printf("%2d) %10s%s", signal_names[i].signo, signal_names[i].name,
-			   ((i % per_line) == (per_line - 1) || i == signal_name_count - 1) ? "\n" : " ");
+			   ((i % per_line) == (per_line - 1) || i == signal_name_count - 1) ? "\n" : "\t");
 	}
 }
 

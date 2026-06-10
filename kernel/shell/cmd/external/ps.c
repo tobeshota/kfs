@@ -54,23 +54,23 @@ void cmd_ps(void *arg)
 
 	if (long_mode)
 	{
-		printf("PID  PPID STAT TTY      TIME  CMD\n");
+		printf("PID\tPPID\tSTAT\tTTY\tTIME\tCMD\n");
 		for (long i = 0; i < n; i++)
 		{
 			struct kfs_ps_entry *e = &g_ps_entries[i];
-			snprintf(g_ps_line, sizeof(g_ps_line), "%5d %4d %4s %7s %5s %s\n", (int)e->pid, (int)e->ppid, e->stat,
+			snprintf(g_ps_line, sizeof(g_ps_line), "%5d\t%4d\t%4s\t%7s\t%5s\t%s\n", (int)e->pid, (int)e->ppid, e->stat,
 					 e->tty, e->time, e->cmd);
 			printf("%s", g_ps_line);
 		}
 	}
 	else
 	{
-		printf("PID   TTY      TIME  CMD\n");
+		printf("PID\tTTY\tTIME\tCMD\n");
 
 		for (long i = 0; i < n; i++)
 		{
 			struct kfs_ps_entry *e = &g_ps_entries[i];
-			printf("%5d %7s %5s %s\n", (int)e->pid, e->tty, e->time, e->cmd);
+			printf("%5d\t%7s\t%5s\t%s\n", (int)e->pid, e->tty, e->time, e->cmd);
 		}
 	}
 }

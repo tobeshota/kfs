@@ -58,9 +58,36 @@ KFS_TEST(test_ansi_sgr_bold_and_bg)
 	KFS_ASSERT_EQ((long long)kfs_vga_make_color(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_LIGHT_GREY), (long long)cell_color(0));
 }
 
+KFS_TEST(test_terminal_tab_expands_to_next_tab_stop)
+{
+	setup_terminal();
+	terminal_write("A\tB", strlen("A\tB"));
+
+	KFS_ASSERT_EQ('A', cell_char(0));
+	for (size_t i = 1; i < 8; i++)
+	{
+		KFS_ASSERT_EQ(' ', cell_char(i));
+	}
+	KFS_ASSERT_EQ('B', cell_char(8));
+}
+
+KFS_TEST(test_terminal_tab_uses_current_column)
+{
+	setup_terminal();
+	terminal_write("123456\tX", strlen("123456\tX"));
+
+	KFS_ASSERT_EQ('1', cell_char(0));
+	KFS_ASSERT_EQ('6', cell_char(5));
+	KFS_ASSERT_EQ(' ', cell_char(6));
+	KFS_ASSERT_EQ(' ', cell_char(7));
+	KFS_ASSERT_EQ('X', cell_char(8));
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_ansi_sgr_fg_and_reset, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_ansi_sgr_bold_and_bg, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_terminal_tab_expands_to_next_tab_stop, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_terminal_tab_uses_current_column, setup_test, teardown_test),
 };
 
 int register_unit_tests_terminal_ansi(struct kfs_test_case **out)
