@@ -20,6 +20,11 @@ static inline char get_char_at(size_t pos)
 	return (char)(stub[pos] & 0xFF);
 }
 
+static void terminal_write_char(char c)
+{
+	terminal_write(&c, 1);
+}
+
 static void setup_terminal(void)
 {
 	kfs_terminal_set_buffer(stub);
@@ -50,22 +55,22 @@ KFS_TEST(test_scroll_up_after_full_screen)
 		char line_marker = 'A' + i;
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++) /* 最後の1文字は残す */
 		{
-			terminal_putchar(line_marker);
+			terminal_write_char(line_marker);
 		}
-		terminal_putchar('\n'); /* 明示的に改行 */
+		terminal_write_char('\n'); /* 明示的に改行 */
 	}
 
 	/* 25行目（Y行）を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 	{
-		terminal_putchar('Y');
+		terminal_write_char('Y');
 	}
 
 	/* さらに1行追加してスクロールを発生させる */
-	terminal_putchar('\n'); /* この改行でスクロール発生 */
+	terminal_write_char('\n'); /* この改行でスクロール発生 */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 	{
-		terminal_putchar('Z');
+		terminal_write_char('Z');
 	}
 	/* Z行は改行なし - これでスクロールは1回だけ */
 
@@ -91,20 +96,20 @@ KFS_TEST(test_scroll_down_returns_to_latest)
 		char line_marker = 'A' + i;
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 		{
-			terminal_putchar(line_marker);
+			terminal_write_char(line_marker);
 		}
-		terminal_putchar('\n');
+		terminal_write_char('\n');
 	}
 	/* 25行目（Y行）を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 	{
-		terminal_putchar('Y');
+		terminal_write_char('Y');
 	}
 	/* Z行を追加してスクロール発生 */
-	terminal_putchar('\n');
+	terminal_write_char('\n');
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 	{
-		terminal_putchar('Z');
+		terminal_write_char('Z');
 	}
 	/* Z行は改行なし */
 
@@ -131,14 +136,14 @@ KFS_TEST(test_multiple_scroll_up)
 		char digit = '0' + (i % 10);
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 		{
-			terminal_putchar(digit);
+			terminal_write_char(digit);
 		}
-		terminal_putchar('\n');
+		terminal_write_char('\n');
 	}
 	/* 30行目（9）を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 	{
-		terminal_putchar('9');
+		terminal_write_char('9');
 	}
 
 	/* 最初の行は'5'のはず（0,1,2,3,4がスクロールアウト） */
@@ -195,24 +200,24 @@ KFS_TEST(test_scroll_up_beyond_limit)
 		char letter = 'A' + (i % 26);
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 		{
-			terminal_putchar(letter);
+			terminal_write_char(letter);
 		}
-		terminal_putchar('\n');
+		terminal_write_char('\n');
 	}
 	/* 25行目（Y）を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 	{
-		terminal_putchar('Y');
+		terminal_write_char('Y');
 	}
 
 	/* さらに10行追加してスクロールを10回発生させる（A～Jがスクロールアウト） */
 	for (int i = 0; i < 10; i++)
 	{
-		terminal_putchar('\n');
+		terminal_write_char('\n');
 		char letter = 'A' + ((25 + i) % 26); /* Z, A, B, C, D, E, F, G, H, I */
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 		{
-			terminal_putchar(letter);
+			terminal_write_char(letter);
 		}
 	}
 
@@ -266,14 +271,14 @@ KFS_TEST(test_new_output_resets_scroll_offset)
 		char letter = 'A' + i;
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 		{
-			terminal_putchar(letter);
+			terminal_write_char(letter);
 		}
-		terminal_putchar('\n');
+		terminal_write_char('\n');
 	}
 	/* Z行を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 	{
-		terminal_putchar('Z');
+		terminal_write_char('Z');
 	}
 
 	/* この時点でA行がスクロールバックに、画面はB～Zのはず */
@@ -282,10 +287,10 @@ KFS_TEST(test_new_output_resets_scroll_offset)
 	KFS_ASSERT_EQ('A', get_char_at(0));
 
 	/* 新しい行を出力（スクロールを発生させる） */
-	terminal_putchar('\n');
+	terminal_write_char('\n');
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 	{
-		terminal_putchar('X');
+		terminal_write_char('X');
 	}
 	/* X行は改行なし */
 
@@ -323,20 +328,20 @@ KFS_TEST(test_scroll_per_console)
 	{
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 		{
-			terminal_putchar('A');
+			terminal_write_char('A');
 		}
-		terminal_putchar('\n');
+		terminal_write_char('\n');
 	}
 	/* 25行目を改行なしで書く */
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 	{
-		terminal_putchar('A');
+		terminal_write_char('A');
 	}
 	/* 26行目を追加してスクロール発生 */
-	terminal_putchar('\n');
+	terminal_write_char('\n');
 	for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 	{
-		terminal_putchar('A');
+		terminal_write_char('A');
 	}
 
 	kfs_terminal_scroll_up();
@@ -350,7 +355,7 @@ KFS_TEST(test_scroll_per_console)
 	/* コンソール1で出力 */
 	for (int j = 0; j < 5; j++)
 	{
-		terminal_putchar('B');
+		terminal_write_char('B');
 	}
 
 	/* コンソール1では'B'が表示されているはず */
@@ -375,9 +380,9 @@ KFS_TEST(test_scrollback_buffer_wraparound)
 		char marker = 'A' + (i % 26);
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 		{
-			terminal_putchar(marker);
+			terminal_write_char(marker);
 		}
-		terminal_putchar('\n');
+		terminal_write_char('\n');
 	}
 
 	/* 少しスクロールアップ */
@@ -411,11 +416,11 @@ KFS_TEST(test_line_wrap_at_edge)
 	/* 行末まで文字を埋める */
 	for (int i = 0; i < KFS_VGA_WIDTH; i++)
 	{
-		terminal_putchar('X');
+		terminal_write_char('X');
 	}
 
 	/* さらに文字を追加（次の行に折り返されるはず） */
-	terminal_putchar('Y');
+	terminal_write_char('Y');
 
 	/* 2行目の最初の文字が'Y'であることを確認 */
 	KFS_ASSERT_EQ('Y', get_char_at(KFS_VGA_WIDTH));
@@ -432,9 +437,9 @@ KFS_TEST(test_scrollback_ring_buffer_edge)
 		char marker = 'A' + (i % 26);
 		for (int j = 0; j < KFS_VGA_WIDTH - 1; j++)
 		{
-			terminal_putchar(marker);
+			terminal_write_char(marker);
 		}
-		terminal_putchar('\n');
+		terminal_write_char('\n');
 	}
 
 	/* 少しスクロールアップ */
@@ -458,9 +463,9 @@ KFS_TEST(test_terminal_putchar_overwrite)
 	terminal_initialize();
 
 	/* まず通常モードで文字を書き込む */
-	terminal_putchar('A');
-	terminal_putchar('B');
-	terminal_putchar('C');
+	terminal_write_char('A');
+	terminal_write_char('B');
+	terminal_write_char('C');
 
 	/* カーソルを先頭に戻す */
 	kfs_terminal_move_cursor(0, 0);
@@ -486,11 +491,11 @@ KFS_TEST(test_terminal_delete_char)
 	terminal_initialize();
 
 	/* "ABCDE"と書き込む */
-	terminal_putchar('A');
-	terminal_putchar('B');
-	terminal_putchar('C');
-	terminal_putchar('D');
-	terminal_putchar('E');
+	terminal_write_char('A');
+	terminal_write_char('B');
+	terminal_write_char('C');
+	terminal_write_char('D');
+	terminal_write_char('E');
 
 	/* カーソルを'C'の位置(列2)に移動 */
 	kfs_terminal_move_cursor(0, 2);

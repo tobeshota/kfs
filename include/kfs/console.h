@@ -17,7 +17,6 @@ uint16_t kfs_vga_make_entry(char c, uint8_t color);
 void terminal_initialize(void);
 
 /* 端末出力 API */
-void terminal_putchar(char c);
 void terminal_putchar_overwrite(char c);
 void terminal_delete_char(void);
 void terminal_write(const char *data, size_t size);
