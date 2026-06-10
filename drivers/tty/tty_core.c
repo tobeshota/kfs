@@ -18,7 +18,7 @@ struct tty_line_state
 	char ready_line[TTY_LINE_MAX];	 /* 読み取り可能な行 */
 	int line_ready;					 /* 行が準備できているかどうか */
 	struct task_struct *line_waiter; /* 行を待っているタスク */
-	int echo_enabled;				 /* エコーが有効かどうか */
+	tcflag_t lflag;					 /* termiosローカルモードフラグ */
 };
 
 /* 仮想コンソールごとのTTY行状態 */
@@ -73,6 +73,41 @@ static void tty_publish_line(struct tty_line_state *state)
 	}
 }
 
+/** 読み取り可能バッファへ1文字追加する
+ * @param state 対象TTY行状態
+ * @param ch 追加する文字
+ * @details non-canonical mode では Enter を待たずに入力文字を ready_line へ積み、
+ *          read 待機中のタスクがあれば起床する。
+ */
+static void tty_append_ready_char(struct tty_line_state *state, char ch)
+{
+	unsigned int len = 0;
+
+	/* 読み取り可能バッファの末尾を探す */
+	while (len + 1 < TTY_LINE_MAX && state->ready_line[len] != '\0')
+	{
+		len++;
+	}
+
+	/* バッファがいっぱいの場合は追加できない */
+	if (len + 1 >= TTY_LINE_MAX)
+	{
+		return;
+	}
+
+	/* 読み取り可能バッファに文字を追加する */
+	state->ready_line[len] = ch;
+	state->ready_line[len + 1] = '\0';
+	state->line_ready = 1;
+
+	/* 読み取り待機中のタスクがあれば起床させる */
+	if (state->line_waiter)
+	{
+		wake_up_process(state->line_waiter);
+		state->line_waiter = NULL;
+	}
+}
+
 /** カーソル位置に1文字挿入する
  * @param state 対象TTY行状態
  * @param ch 挿入する文字
@@ -113,7 +148,7 @@ void tty_reset(void)
 		tty_line_states[i].ready_line[0] = '\0';
 		tty_line_states[i].line_ready = 0;
 		tty_line_states[i].line_waiter = NULL;
-		tty_line_states[i].echo_enabled = 1;
+		tty_line_states[i].lflag = ICANON | ECHO | ISIG; /* 行入力モード、エコー有効、シグナル有効 */
 	}
 }
 
@@ -160,6 +195,7 @@ long tty_read_line_for_console(size_t console_index, char *buf, unsigned int siz
 			}
 			buf[copy_len] = '\0';
 			state->line_ready = 0;
+			state->ready_line[0] = '\0';
 			__asm__ volatile("sti");
 			return (long)copy_len;
 		}
@@ -184,8 +220,17 @@ void tty_input_char_for_console(size_t console_index, char ch)
 		return;
 	}
 
-	tty_insert_char_at_cursor(state, ch);
-	if (state->echo_enabled && tty_console_is_active(console_index))
+	if (state->lflag & ICANON)
+	{
+		/* 行入力モードの場合，カーソル位置に文字を挿入する */
+		tty_insert_char_at_cursor(state, ch);
+	}
+	else
+	{
+		/* 非行入力モードの場合，読み取り可能バッファへ文字を追加する */
+		tty_append_ready_char(state, ch);
+	}
+	if ((state->lflag & ECHO) && tty_console_is_active(console_index))
 	{
 		terminal_write_console(console_index, &ch, 1);
 		serial_write(&ch, 1);
@@ -199,6 +244,13 @@ void tty_handle_backspace_for_console(size_t console_index)
 {
 	struct tty_line_state *state = tty_state_for_console(console_index);
 
+	/* 非行入力モードの場合，バックスペースを読み取り可能バッファへ追加する */
+	if (!(state->lflag & ICANON))
+	{
+		tty_append_ready_char(state, '\b');
+		return;
+	}
+
 	if (state->input_cursor == 0 || state->input_line_len == 0)
 	{
 		return;
@@ -209,7 +261,8 @@ void tty_handle_backspace_for_console(size_t console_index)
 	state->input_cursor--;
 	state->input_line_len--;
 
-	if (state->echo_enabled && tty_console_is_active(console_index))
+	/* エコーが有効な場合，バックスペースを表示する */
+	if ((state->lflag & ECHO) && tty_console_is_active(console_index))
 	{
 		kfs_terminal_cursor_left();
 		terminal_delete_char();
@@ -224,12 +277,23 @@ void tty_handle_enter_for_console(size_t console_index)
 {
 	struct tty_line_state *state = tty_state_for_console(console_index);
 
-	if (state->echo_enabled && tty_console_is_active(console_index))
+	/* エコーが有効な場合，改行を表示する */
+	if ((state->lflag & ECHO) && tty_console_is_active(console_index))
 	{
 		terminal_write_console(console_index, "\n", 1);
 		serial_write("\n", 1);
 	}
-	tty_publish_line(state);
+
+	if (state->lflag & ICANON)
+	{
+		/* 行入力モードの場合，入力中の行を確定して読み取り可能状態にする */
+		tty_publish_line(state);
+	}
+	else
+	{
+		/* 非行入力モードの場合，改行文字を読み取り可能バッファへ追加する */
+		tty_append_ready_char(state, '\n');
+	}
 }
 
 /** 指定コンソールの入力カーソルを左へ移動する
@@ -245,7 +309,9 @@ void tty_handle_cursor_left_for_console(size_t console_index)
 	}
 
 	state->input_cursor--;
-	if (state->echo_enabled && tty_console_is_active(console_index))
+
+	/* エコーが有効な場合，カーソルを左に移動する */
+	if ((state->lflag & ECHO) && tty_console_is_active(console_index))
 	{
 		kfs_terminal_cursor_left();
 	}
@@ -264,7 +330,9 @@ void tty_handle_cursor_right_for_console(size_t console_index)
 	}
 
 	state->input_cursor++;
-	if (state->echo_enabled && tty_console_is_active(console_index))
+
+	/* エコーが有効な場合，カーソルを右に移動する */
+	if ((state->lflag & ECHO) && tty_console_is_active(console_index))
 	{
 		kfs_terminal_cursor_right();
 	}
@@ -301,7 +369,16 @@ int tty_set_echo_for_console(size_t console_index, int enabled)
 	{
 		return -EINVAL;
 	}
-	tty_line_states[console_index].echo_enabled = enabled ? 1 : 0;
+	if (enabled)
+	{
+		/* エコーを有効にする */
+		tty_line_states[console_index].lflag |= ECHO;
+	}
+	else
+	{
+		/* エコーを無効にする */
+		tty_line_states[console_index].lflag &= ~((tcflag_t)ECHO);
+	}
 	return 0;
 }
 
@@ -315,5 +392,53 @@ int tty_get_echo_for_console(size_t console_index)
 	{
 		return -EINVAL;
 	}
-	return tty_line_states[console_index].echo_enabled;
+	return (tty_line_states[console_index].lflag & ECHO) ? 1 : 0;
+}
+
+/** 指定コンソールの termios 設定を取得する
+ * @param console_index 仮想コンソール番号
+ * @param termios 取得した設定の格納先
+ * @return 成功時0、範囲外コンソール番号またはNULLポインタで-EINVAL
+ */
+int tty_get_termios_for_console(size_t console_index, struct termios *termios)
+{
+	if (console_index >= KFS_VIRTUAL_CONSOLE_COUNT || !termios)
+	{
+		return -EINVAL;
+	}
+
+	memset(termios, 0, sizeof(*termios));
+	termios->c_lflag = tty_line_states[console_index].lflag;
+
+	return 0;
+}
+
+/** 指定コンソールの termios 設定を反映する
+ * @param console_index 仮想コンソール番号
+ * @param termios 反映する設定
+ * @return 成功時0、範囲外コンソール番号またはNULLポインタで-EINVAL
+ */
+int tty_set_termios_for_console(size_t console_index, const struct termios *termios)
+{
+	if (console_index >= KFS_VIRTUAL_CONSOLE_COUNT || !termios)
+	{
+		return -EINVAL;
+	}
+
+	tty_line_states[console_index].lflag = termios->c_lflag & (ICANON | ECHO | ISIG);
+
+	return 0;
+}
+
+/** 指定コンソールで端末特殊文字のシグナル配送が有効かを返す
+ * @param console_index 仮想コンソール番号
+ * @return ISIG が有効なら1、それ以外または範囲外コンソール番号なら0
+ */
+int tty_signal_enabled_for_console(size_t console_index)
+{
+	if (console_index >= KFS_VIRTUAL_CONSOLE_COUNT)
+	{
+		return 0;
+	}
+	return (tty_line_states[console_index].lflag & ISIG) ? 1 : 0;
 }

@@ -16,6 +16,7 @@
 #include <kfs/string.h>
 #include <kfs/sys.h>
 #include <kfs/timer.h>
+#include <kfs/tty.h>
 
 #include <asm-i386/page.h>
 
@@ -653,13 +654,12 @@ void sys_panic(void)
 
 /** デバイスを制御する
  * @param fd  ファイルディスクリプタ（KFS では現在小複数指定）
- * @param cmd コマンド（TIOCSCTTYのみ実装）
- * @param arg TIOCSCTTY 時: 接続するコンソール番号
+ * @param cmd コマンド
+ * @param arg コマンドに応じた引数
  * @return 0: 成功, -EINVAL: 範囲外, -ENOTTY: 未サポートコマンド
  */
 long sys_ioctl(int fd, unsigned int cmd, unsigned long arg)
 {
-	(void)fd;
 
 	if (cmd == TIOCSCTTY)
 	{
@@ -671,6 +671,27 @@ long sys_ioctl(int fd, unsigned int cmd, unsigned long arg)
 		/* 端末argを呼び出し元プロセスの制御端末にする */
 		current->tty_console = (size_t)arg;
 		return 0;
+	}
+
+	if (cmd == TCGETS || cmd == TCSETS)
+	{
+		if (fd != 0 || current->tty_console >= kfs_terminal_console_count())
+		{
+			return -ENOTTY;
+		}
+		if (!arg)
+		{
+			return -EINVAL;
+		}
+
+		if (cmd == TCGETS)
+		{
+			/* 端末の属性を取得する */
+			return tty_get_termios_for_console(current->tty_console, (struct termios *)arg);
+		}
+
+		/* 端末の属性を設定する */
+		return tty_set_termios_for_console(current->tty_console, (const struct termios *)arg);
 	}
 
 	return -ENOTTY; /* 未サポートコマンド */

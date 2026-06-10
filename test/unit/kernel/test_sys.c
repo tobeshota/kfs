@@ -8,8 +8,10 @@
 #include <kfs/capability.h>
 #include <kfs/console.h>
 #include <kfs/errno.h>
+#include <kfs/ioctl.h>
 #include <kfs/sched.h>
 #include <kfs/sys.h>
+#include <kfs/tty.h>
 
 extern struct task_struct *current;
 extern struct task_struct init_task;
@@ -24,6 +26,7 @@ static void setup_test(void)
 	current->euid.val = 0;
 	current->cap_effective = CAP_FULL_SET;
 	(void)kfs_terminal_set_foreground_pgrp_for_console(0, 0);
+	tty_reset();
 }
 
 static void teardown_test(void)
@@ -337,6 +340,37 @@ static void test_sys_ioctl_unknown_cmd_returns_enotty(void)
 	KFS_ASSERT_EQ(-ENOTTY, (int)ret);
 }
 
+static void test_sys_ioctl_tcgets_returns_termios_lflag(void)
+{
+	struct termios tio;
+
+	KFS_ASSERT_EQ(0, (int)sys_ioctl(0, TCGETS, (unsigned long)&tio));
+	KFS_ASSERT_EQ(ICANON | ECHO | ISIG, (int)tio.c_lflag);
+}
+
+static void test_sys_ioctl_tcsets_updates_termios_lflag(void)
+{
+	struct termios tio;
+
+	tio.c_lflag = ISIG;
+	KFS_ASSERT_EQ(0, (int)sys_ioctl(0, TCSETS, (unsigned long)&tio));
+	KFS_ASSERT_EQ(0, (int)sys_ioctl(0, TCGETS, (unsigned long)&tio));
+	KFS_ASSERT_EQ(ISIG, (int)tio.c_lflag);
+}
+
+static void test_sys_ioctl_tcgets_without_ctty_returns_enotty(void)
+{
+	struct termios tio;
+
+	current->tty_console = kfs_terminal_console_count();
+	KFS_ASSERT_EQ(-ENOTTY, (int)sys_ioctl(0, TCGETS, (unsigned long)&tio));
+}
+
+static void test_sys_ioctl_tcsets_null_arg_returns_einval(void)
+{
+	KFS_ASSERT_EQ(-EINVAL, (int)sys_ioctl(0, TCSETS, 0UL));
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_getuid_returns_uid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_setuid_succeeds_with_cap, setup_test, teardown_test),
@@ -364,6 +398,10 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tiocsctty_sets_tty_console, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tiocsctty_invalid_console_returns_einval, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_unknown_cmd_returns_enotty, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tcgets_returns_termios_lflag, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tcsets_updates_termios_lflag, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tcgets_without_ctty_returns_enotty, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tcsets_null_arg_returns_einval, setup_test, teardown_test),
 };
 
 int register_unit_tests_sys(struct kfs_test_case **out)

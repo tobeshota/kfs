@@ -32,25 +32,71 @@ static int extended_prefix;
  * @note レイアウト変換済み ASCII 文字・押下時のみ通知。
  *       シェルのように「文字」として扱いたい用途に使う。
  */
-static keyboard_handler_t custom_handler = NULL;
+static keyboard_handler_t custom_handlers[KFS_VIRTUAL_CONSOLE_COUNT];
 
 /** RAW スキャンコードハンドラ（piano モードなどが登録する）
  * @note 物理スキャンコード・押下と解放の両方を通知。
  *       piano のように「どの物理キーが今押されているか」を
  *       追跡する必要がある用途に使う。
  */
-static keyboard_raw_handler_t raw_handler = NULL;
+static keyboard_raw_handler_t raw_handlers[KFS_VIRTUAL_CONSOLE_COUNT];
 
 /* 現在のキーボードレイアウト */
 static kbd_layout_t current_layout = KBD_LAYOUT_QWERTY;
 
 #define KEYBOARD_RAW_QUEUE_SIZE 64
-static struct kfs_keyboard_raw_event keyboard_raw_queue[KEYBOARD_RAW_QUEUE_SIZE]; /* RAWイベントのリングバッファ */
-static unsigned int keyboard_raw_head;			/* RAWイベントキューの先頭インデックス */
-static unsigned int keyboard_raw_tail;			/* RAWイベントキューの末尾インデックス */
-static unsigned int keyboard_raw_count;			/* RAWイベントキュー内のイベント数 */
-static struct task_struct *keyboard_raw_waiter; /* RAWイベント待ちのタスク */
-static int keyboard_raw_mode; /* RAWモードフラグ。1のときraw_handlerにイベントを送る */
+
+struct keyboard_raw_state
+{
+	struct kfs_keyboard_raw_event queue[KEYBOARD_RAW_QUEUE_SIZE]; /* RAWイベントのリングバッファ */
+	unsigned int head;			/* RAWイベントキューの先頭インデックス */
+	unsigned int tail;			/* RAWイベントキューの末尾インデックス */
+	unsigned int count;			/* RAWイベントキュー内のイベント数 */
+	struct task_struct *waiter; /* RAWイベント待ちのタスク */
+	int mode;					/* RAWモードフラグ */
+};
+
+static struct keyboard_raw_state keyboard_raw_states[KFS_VIRTUAL_CONSOLE_COUNT];
+
+/** キーボード状態配列で使用するコンソール番号へ正規化する
+ * @param console_index 入力された仮想コンソール番号
+ * @return 有効な仮想コンソール番号。範囲外の場合は0
+ */
+static size_t keyboard_state_console_index(size_t console_index)
+{
+	if (console_index >= KFS_VIRTUAL_CONSOLE_COUNT)
+	{
+		return 0;
+	}
+	return console_index;
+}
+
+/** 指定コンソールの RAW 入力状態を取得する
+ * @param console_index 仮想コンソール番号
+ * @return 対応する RAW 入力状態へのポインタ
+ */
+static struct keyboard_raw_state *keyboard_raw_state_for_console(size_t console_index)
+{
+	return &keyboard_raw_states[keyboard_state_console_index(console_index)];
+}
+
+/** 指定コンソールの文字入力ハンドラを取得する
+ * @param console_index 仮想コンソール番号
+ * @return 登録済みハンドラ。未登録の場合はNULL
+ */
+static keyboard_handler_t keyboard_custom_handler_for_console(size_t console_index)
+{
+	return custom_handlers[keyboard_state_console_index(console_index)];
+}
+
+/** 指定コンソールの RAW スキャンコードハンドラを取得する
+ * @param console_index 仮想コンソール番号
+ * @return 登録済みハンドラ。未登録の場合はNULL
+ */
+static keyboard_raw_handler_t keyboard_raw_handler_for_console(size_t console_index)
+{
+	return raw_handlers[keyboard_state_console_index(console_index)];
+}
 
 extern uint8_t kfs_io_inb(uint16_t port);
 
@@ -141,20 +187,28 @@ static char translate_scancode(uint8_t code)
 	return base;
 }
 
-static void keyboard_publish_raw_event(uint8_t code, int release)
+/** 指定コンソールの RAW イベントキューへイベントを追加する
+ * @param console_index 仮想コンソール番号
+ * @param code スキャンコード本体
+ * @param release 0=押下、1=解放
+ * @details 待機中のタスクがあれば起床する。キュー満杯時はイベントを破棄する。
+ */
+static void keyboard_publish_raw_event(size_t console_index, uint8_t code, int release)
 {
-	if (keyboard_raw_count < KEYBOARD_RAW_QUEUE_SIZE)
+	struct keyboard_raw_state *state = keyboard_raw_state_for_console(console_index);
+
+	if (state->count < KEYBOARD_RAW_QUEUE_SIZE)
 	{
-		keyboard_raw_queue[keyboard_raw_tail].code = code;
-		keyboard_raw_queue[keyboard_raw_tail].release = (uint8_t)(release ? 1 : 0);
-		keyboard_raw_tail = (keyboard_raw_tail + 1) % KEYBOARD_RAW_QUEUE_SIZE;
-		keyboard_raw_count++;
+		state->queue[state->tail].code = code;
+		state->queue[state->tail].release = (uint8_t)(release ? 1 : 0);
+		state->tail = (state->tail + 1) % KEYBOARD_RAW_QUEUE_SIZE;
+		state->count++;
 	}
 
-	if (keyboard_raw_waiter)
+	if (state->waiter)
 	{
-		wake_up_process(keyboard_raw_waiter);
-		keyboard_raw_waiter = NULL;
+		wake_up_process(state->waiter);
+		state->waiter = NULL;
 	}
 }
 
@@ -168,26 +222,34 @@ long kfs_keyboard_read_line_for_console(size_t console_index, char *buf, unsigne
 	return tty_read_line_for_console(console_index, buf, size);
 }
 
+/** 呼び出し元の制御端末に対応する RAW イベントを1件読み取る
+ * @param event 読み取ったイベントの格納先
+ * @return 成功時1、NULLポインタで-1
+ * @note イベントがない場合は TASK_INTERRUPTIBLE で待機する。
+ */
 static long keyboard_read_raw_event(struct kfs_keyboard_raw_event *event)
 {
+	struct keyboard_raw_state *state;
+
 	if (!event)
 	{
 		return -1;
 	}
+	state = keyboard_raw_state_for_console(current->tty_console);
 
 	while (1)
 	{
 		__asm__ volatile("cli");
-		if (keyboard_raw_count > 0)
+		if (state->count > 0)
 		{
-			*event = keyboard_raw_queue[keyboard_raw_head];
-			keyboard_raw_head = (keyboard_raw_head + 1) % KEYBOARD_RAW_QUEUE_SIZE;
-			keyboard_raw_count--;
+			*event = state->queue[state->head];
+			state->head = (state->head + 1) % KEYBOARD_RAW_QUEUE_SIZE;
+			state->count--;
 			__asm__ volatile("sti");
 			return 1;
 		}
 
-		keyboard_raw_waiter = current;
+		state->waiter = current;
 		current->__state = TASK_INTERRUPTIBLE;
 		__asm__ volatile("sti");
 		schedule();
@@ -201,17 +263,21 @@ long kfs_keyboard_read_event(struct kfs_keyboard_raw_event *event)
 
 void kfs_keyboard_clear_events(void)
 {
+	struct keyboard_raw_state *state = keyboard_raw_state_for_console(current->tty_console);
+
 	__asm__ volatile("cli");
-	keyboard_raw_head = 0;
-	keyboard_raw_tail = 0;
-	keyboard_raw_count = 0;
+	state->head = 0;
+	state->tail = 0;
+	state->count = 0;
 	__asm__ volatile("sti");
 }
 
 void kfs_keyboard_set_raw_mode(int enabled)
 {
-	keyboard_raw_mode = enabled ? 1 : 0;
-	if (!keyboard_raw_mode)
+	struct keyboard_raw_state *state = keyboard_raw_state_for_console(current->tty_console);
+
+	state->mode = enabled ? 1 : 0;
+	if (!state->mode)
 	{
 		kfs_keyboard_clear_events();
 	}
@@ -240,15 +306,21 @@ void kfs_keyboard_reset(void)
 	alt_pressed = 0;
 	caps_lock = 0;
 	extended_prefix = 0;
-	custom_handler = NULL;
-	raw_handler = NULL;
+	for (size_t i = 0; i < KFS_VIRTUAL_CONSOLE_COUNT; ++i)
+	{
+		custom_handlers[i] = NULL;
+		raw_handlers[i] = NULL;
+	}
 	current_layout = KBD_LAYOUT_QWERTY;
 	tty_reset();
-	keyboard_raw_head = 0;
-	keyboard_raw_tail = 0;
-	keyboard_raw_count = 0;
-	keyboard_raw_waiter = NULL;
-	keyboard_raw_mode = 0;
+	for (size_t i = 0; i < KFS_VIRTUAL_CONSOLE_COUNT; ++i)
+	{
+		keyboard_raw_states[i].head = 0;
+		keyboard_raw_states[i].tail = 0;
+		keyboard_raw_states[i].count = 0;
+		keyboard_raw_states[i].waiter = NULL;
+		keyboard_raw_states[i].mode = 0;
+	}
 }
 
 /** RAW スキャンコードハンドラを登録する
@@ -256,7 +328,7 @@ void kfs_keyboard_reset(void)
  */
 void kfs_keyboard_set_raw_handler(keyboard_raw_handler_t handler)
 {
-	raw_handler = handler;
+	raw_handlers[keyboard_state_console_index(current->tty_console)] = handler;
 }
 
 /** キーボードレイアウトを設定する
@@ -384,9 +456,14 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 
 	int release = (scancode & SCANCODE_RELEASE_BIT) != 0; /* 上位1ビットが1なら解放イベント */
 	uint8_t code = scancode & SCANCODE_KEY_MASK;		  /* 下位7ビットがキーコード本体 */
-	if (keyboard_raw_mode)
+	size_t console_index = kfs_terminal_active_console();
+	struct keyboard_raw_state *raw_state = keyboard_raw_state_for_console(console_index);
+	keyboard_raw_handler_t raw_handler = keyboard_raw_handler_for_console(console_index);
+	keyboard_handler_t custom_handler = keyboard_custom_handler_for_console(console_index);
+
+	if (raw_state->mode)
 	{
-		keyboard_publish_raw_event(code, release);
+		keyboard_publish_raw_event(console_index, code, release);
 	}
 
 	/* RAW ハンドラが登録されていれば先に呼ぶ (piano モードなど press/release 両方が必要な場合) */
@@ -478,7 +555,7 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 		return;
 	}
 
-	if (keyboard_raw_mode)
+	if (raw_state->mode)
 	{
 		return;
 	}
@@ -540,58 +617,62 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
 			char ctrl_char = translate_ctrl_char(ch);
 			if (ctrl_char)
 			{
-				/* 端末がCtrl-Cを受け取ったとき，
-				 * フォアグラウンドプロセスグループに属するプロセスに対して，
-				 * SIGINTを送信する */
-				if (ctrl_char == 0x03)
+				/* 現在の端末がシグナルを受け取る設定になっている場合 */
+				if (tty_signal_enabled_for_console(kfs_terminal_active_console()))
 				{
-					pid_t fgprg = kfs_terminal_get_foreground_pgrp_for_console(kfs_terminal_active_console());
-					if (fgprg == 0)
+					/* 端末がCtrl-Cを受け取ったとき，
+					 * フォアグラウンドプロセスグループに属するプロセスに対して，
+					 * SIGINTを送信する */
+					if (ctrl_char == 0x03)
 					{
-						fgprg = current->pgrp;
-					}
-					if (fgprg > 0)
-					{
-						(void)kill_pg(fgprg, SIGINT);
+						pid_t fgprg = kfs_terminal_get_foreground_pgrp_for_console(kfs_terminal_active_console());
+						if (fgprg == 0)
+						{
+							fgprg = current->pgrp;
+						}
+						if (fgprg > 0)
+						{
+							(void)kill_pg(fgprg, SIGINT);
+						}
+
+						/* シェルが read(0, ...) で入力待ち中なら、^C を表示して
+						 * 現在の入力行を破棄し、空行を publish して即座にプロンプトへ戻す。 */
+						if (!custom_handler)
+						{
+							printk("^C\n");
+							tty_discard_input_for_console(kfs_terminal_active_console(), 1);
+						}
+
+						extended_prefix = 0;
+						return;
 					}
 
-					/* シェルが read(0, ...) で入力待ち中なら、^C を表示して
-					 * 現在の入力行を破棄し、空行を publish して即座にプロンプトへ戻す。 */
-					if (!custom_handler)
+					/* 端末がCtrl-Zを受け取ったとき，
+					 * フォアグラウンドプロセスグループに属するプロセスに対して，
+					 * SIGTSTPを送信する */
+					if (ctrl_char == 0x1A)
 					{
-						printk("^C\n");
-						tty_discard_input_for_console(kfs_terminal_active_console(), 1);
-					}
+						pid_t fgprg = kfs_terminal_get_foreground_pgrp_for_console(kfs_terminal_active_console());
+						if (fgprg == 0)
+						{
+							/* フォアグラウンドプロセスグループが設定されていない場合は
+							 * 現在のプロセスのグループを使用する */
+							fgprg = current->pgrp;
+						}
+						if (fgprg > 0)
+						{
+							(void)kill_pg(fgprg, SIGTSTP);
+						}
 
-					extended_prefix = 0;
-					return;
-				}
+						if (!custom_handler)
+						{
+							printk("^Z\n");
+							tty_discard_input_for_console(kfs_terminal_active_console(), 1);
+						}
 
-				/* 端末がCtrl-Zを受け取ったとき，
-				 * フォアグラウンドプロセスグループに属するプロセスに対して，
-				 * SIGTSTPを送信する */
-				if (ctrl_char == 0x1A)
-				{
-					pid_t fgprg = kfs_terminal_get_foreground_pgrp_for_console(kfs_terminal_active_console());
-					if (fgprg == 0)
-					{
-						/* フォアグラウンドプロセスグループが設定されていない場合は
-						 * 現在のプロセスのグループを使用する */
-						fgprg = current->pgrp;
+						extended_prefix = 0;
+						return;
 					}
-					if (fgprg > 0)
-					{
-						(void)kill_pg(fgprg, SIGTSTP);
-					}
-
-					if (!custom_handler)
-					{
-						printk("^Z\n");
-						tty_discard_input_for_console(kfs_terminal_active_console(), 1);
-					}
-
-					extended_prefix = 0;
-					return;
 				}
 				ch = ctrl_char;
 			}
@@ -612,5 +693,5 @@ void kfs_keyboard_feed_scancode(uint8_t scancode)
  */
 void kfs_keyboard_set_handler(keyboard_handler_t handler)
 {
-	custom_handler = handler;
+	custom_handlers[keyboard_state_console_index(current->tty_console)] = handler;
 }
