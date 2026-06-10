@@ -4,10 +4,14 @@
 #include <kfs/console.h>
 #include <kfs/keyboard.h>
 #include <kfs/sched.h>
+#include <kfs/termios.h>
+#include <kfs/tty.h>
 
 /* テスト用のカスタムハンドラで受け取った文字を記録 */
 static char last_char_received;
 static int handler_called;
+static uint8_t last_raw_code;
+static int raw_handler_called;
 
 static int test_keyboard_handler(char c)
 {
@@ -16,10 +20,20 @@ static int test_keyboard_handler(char c)
 	return 1; /* 処理したことを示す */
 }
 
+static int test_keyboard_raw_handler(uint8_t code, int release)
+{
+	(void)release;
+	last_raw_code = code;
+	raw_handler_called = 1;
+	return 1;
+}
+
 static void reset_handler_state(void)
 {
 	last_char_received = 0;
 	handler_called = 0;
+	last_raw_code = 0;
+	raw_handler_called = 0;
 }
 
 /* 通常の文字入力テスト */
@@ -260,6 +274,70 @@ KFS_TEST(test_keyboard_alt_f_keys)
 	kfs_keyboard_feed_scancode(0xB8);
 }
 
+KFS_TEST(test_keyboard_custom_handler_is_console_local)
+{
+	kfs_keyboard_reset();
+	kfs_keyboard_init();
+
+	current->tty_console = 0;
+	kfs_terminal_switch_console(0);
+	kfs_keyboard_set_handler(test_keyboard_handler);
+
+	reset_handler_state();
+	kfs_terminal_switch_console(1);
+	kfs_keyboard_feed_scancode(0x1E);
+	KFS_ASSERT_EQ(0, handler_called);
+
+	reset_handler_state();
+	kfs_terminal_switch_console(0);
+	kfs_keyboard_feed_scancode(0x1E);
+	KFS_ASSERT_TRUE(handler_called);
+	KFS_ASSERT_EQ('a', last_char_received);
+}
+
+KFS_TEST(test_keyboard_raw_handler_is_console_local)
+{
+	kfs_keyboard_reset();
+	kfs_keyboard_init();
+
+	current->tty_console = 0;
+	kfs_terminal_switch_console(0);
+	kfs_keyboard_set_raw_handler(test_keyboard_raw_handler);
+
+	reset_handler_state();
+	kfs_terminal_switch_console(1);
+	kfs_keyboard_feed_scancode(0x1E);
+	KFS_ASSERT_EQ(0, raw_handler_called);
+
+	reset_handler_state();
+	kfs_terminal_switch_console(0);
+	kfs_keyboard_feed_scancode(0x1E);
+	KFS_ASSERT_TRUE(raw_handler_called);
+	KFS_ASSERT_EQ(0x1E, (int)last_raw_code);
+}
+
+KFS_TEST(test_keyboard_raw_mode_is_console_local)
+{
+	kfs_keyboard_reset();
+	kfs_keyboard_init();
+
+	current->tty_console = 0;
+	kfs_terminal_switch_console(0);
+	kfs_keyboard_set_raw_mode(1);
+
+	current->tty_console = 1;
+	kfs_terminal_switch_console(1);
+	kfs_keyboard_set_handler(test_keyboard_handler);
+
+	reset_handler_state();
+	kfs_keyboard_feed_scancode(0x1E);
+	KFS_ASSERT_TRUE(handler_called);
+	KFS_ASSERT_EQ('a', last_char_received);
+
+	current->tty_console = 0;
+	kfs_terminal_switch_console(0);
+}
+
 /* 数字キーテスト */
 KFS_TEST(test_keyboard_digit_keys)
 {
@@ -392,6 +470,28 @@ KFS_TEST(test_keyboard_ctrl_c_sends_sigint)
 	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGINT));
 }
 
+KFS_TEST(test_keyboard_ctrl_c_is_input_when_isig_disabled)
+{
+	struct termios tio;
+	char buf[4];
+
+	kfs_keyboard_reset();
+	kfs_keyboard_init();
+	tty_reset();
+	current->pending.signal = 0;
+
+	KFS_ASSERT_EQ(0, tty_get_termios_for_console(kfs_terminal_active_console(), &tio));
+	tio.c_lflag &= ~((tcflag_t)(ISIG | ICANON | ECHO));
+	KFS_ASSERT_EQ(0, tty_set_termios_for_console(kfs_terminal_active_console(), &tio));
+
+	kfs_keyboard_feed_scancode(0x1D);
+	kfs_keyboard_feed_scancode(0x2E);
+
+	KFS_ASSERT_EQ(0, (int)(current->pending.signal & (1UL << SIGINT)));
+	KFS_ASSERT_EQ(1, (int)tty_read_line_for_console(kfs_terminal_active_console(), buf, sizeof(buf)));
+	KFS_ASSERT_EQ(0x03, (int)buf[0]);
+}
+
 /* 0xE1プレフィックステスト (Pause/Break) */
 KFS_TEST(test_keyboard_e1_prefix)
 {
@@ -434,6 +534,9 @@ int register_unit_tests_keyboard(struct kfs_test_case **out_cases)
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_enter, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_arrow_keys, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_alt_f_keys, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_custom_handler_is_console_local, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_raw_handler_is_console_local, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_raw_mode_is_console_local, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_digit_keys, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_space, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_tab, setup_test, teardown_test),
@@ -442,6 +545,7 @@ int register_unit_tests_keyboard(struct kfs_test_case **out_cases)
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_e1_prefix, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_without_handler, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_ctrl_c_sends_sigint, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_keyboard_ctrl_c_is_input_when_isig_disabled, setup_test, teardown_test),
 	};
 	*out_cases = cases;
 	return sizeof(cases) / sizeof(cases[0]);

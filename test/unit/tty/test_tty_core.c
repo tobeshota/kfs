@@ -6,6 +6,7 @@
 #include <kfs/errno.h>
 #include <kfs/sched.h>
 #include <kfs/signal.h>
+#include <kfs/termios.h>
 #include <kfs/tty.h>
 
 extern struct task_struct *current;
@@ -77,6 +78,37 @@ KFS_TEST(test_tty_core_echo_off_suppresses_terminal_write)
 	KFS_ASSERT_EQ(0, tty_get_echo_for_console(0));
 }
 
+KFS_TEST(test_tty_core_termios_lflag_get_set)
+{
+	struct termios tio;
+
+	KFS_ASSERT_EQ(0, tty_get_termios_for_console(0, &tio));
+	KFS_ASSERT_EQ(ICANON | ECHO | ISIG, (int)tio.c_lflag);
+
+	tio.c_lflag = ISIG;
+	KFS_ASSERT_EQ(0, tty_set_termios_for_console(0, &tio));
+	KFS_ASSERT_EQ(0, tty_get_echo_for_console(0));
+	KFS_ASSERT_EQ(1, tty_signal_enabled_for_console(0));
+
+	KFS_ASSERT_EQ(0, tty_get_termios_for_console(0, &tio));
+	KFS_ASSERT_EQ(ISIG, (int)tio.c_lflag);
+}
+
+KFS_TEST(test_tty_core_noncanonical_read_without_enter)
+{
+	struct termios tio;
+	char buf[16];
+
+	KFS_ASSERT_EQ(0, tty_get_termios_for_console(0, &tio));
+	tio.c_lflag &= ~((tcflag_t)ICANON);
+	KFS_ASSERT_EQ(0, tty_set_termios_for_console(0, &tio));
+
+	tty_input_char_for_console(0, 'x');
+	KFS_ASSERT_EQ(1, tty_read_line_for_console(0, buf, sizeof(buf)));
+	KFS_ASSERT_EQ('x', buf[0]);
+	KFS_ASSERT_EQ('\0', buf[1]);
+}
+
 /* フォアグラウンドのプロセスは TTY 読み込みで SIGTTIN を受けない */
 KFS_TEST(test_tty_core_foreground_read_no_sigttin)
 {
@@ -141,6 +173,8 @@ int register_unit_tests_tty_core(struct kfs_test_case **out)
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_backspace_edits_canonical_line, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_echo_on_writes_to_terminal, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_echo_off_suppresses_terminal_write, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_termios_lflag_get_set, setup_test, teardown_test),
+		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_noncanonical_read_without_enter, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_foreground_read_no_sigttin, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_background_read_sends_sigttin, setup_test, teardown_test),
 		KFS_REGISTER_TEST_WITH_SETUP(test_tty_core_orphaned_pgrp_no_sigttin, setup_test, teardown_test),
