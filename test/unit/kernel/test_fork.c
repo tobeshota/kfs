@@ -9,7 +9,7 @@
 
 /* テスト対象関数（kernel/fork.c） */
 extern struct task_struct *copy_process(struct task_struct *orig);
-extern pid_t do_fork(unsigned long user_eip);
+extern pid_t do_fork(unsigned long user_eip, unsigned long arg);
 extern void fork_init(void);
 extern pid_t kernel_thread(void (*fn)(void), const char *name);
 extern void release_task(struct task_struct *p);
@@ -273,7 +273,7 @@ KFS_TEST(test_do_fork_basic)
 	current = &init_task;
 
 	/* do_fork()を実行 */
-	child_pid = do_fork(0);
+	child_pid = do_fork(0, 0);
 
 	/* 正のPIDが返ること */
 	KFS_ASSERT_TRUE(child_pid > 0);
@@ -315,7 +315,7 @@ KFS_TEST(test_fork_bomb)
 	 * 保護機構がなければここでクラッシュする */
 	do
 	{
-		result = do_fork(0);
+		result = do_fork(0, 0);
 		count++;
 	} while (result >= 0);
 

@@ -19,7 +19,7 @@
 static inline void run_in_ring3(void (*fn)(void))
 {
 	/* 子を ring-3 で起動: copy_thread が cs/ss/eip/esp を ring-3 用に設定 */
-	do_fork((unsigned long)fn);
+	do_fork((unsigned long)fn, 0);
 	/* 親: fn() が exit() を呼ぶまで待つ */
 	do_wait(NULL, 0);
 }

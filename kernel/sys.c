@@ -1,6 +1,7 @@
 #include <kfs/capability.h>
 #include <kfs/console.h>
 #include <kfs/errno.h>
+#include <kfs/ioctl.h>
 #include <kfs/keyboard.h>
 #include <kfs/list.h>
 #include <kfs/neofetch.h>
@@ -648,4 +649,29 @@ int sys_kbd_set_raw_mode(int enabled)
 void sys_panic(void)
 {
 	panic("panic requested from user space");
+}
+
+/** デバイスを制御する
+ * @param fd  ファイルディスクリプタ（KFS では現在小複数指定）
+ * @param cmd コマンド（TIOCSCTTYのみ実装）
+ * @param arg TIOCSCTTY 時: 接続するコンソール番号
+ * @return 0: 成功, -EINVAL: 範囲外, -ENOTTY: 未サポートコマンド
+ */
+long sys_ioctl(int fd, unsigned int cmd, unsigned long arg)
+{
+	(void)fd;
+
+	if (cmd == TIOCSCTTY)
+	{
+		/* arg は接続するコンソール番号（現在/dev/ttyの代わり） */
+		if (arg >= kfs_terminal_console_count())
+		{
+			return -EINVAL;
+		}
+		/* 端末argを呼び出し元プロセスの制御端末にする */
+		current->tty_console = (size_t)arg;
+		return 0;
+	}
+
+	return -ENOTTY; /* 未サポートコマンド */
 }

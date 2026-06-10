@@ -309,3 +309,10 @@ pid_t waitpid(pid_t pid, int *wstatus, int options)
 	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_waitpid), "b"(pid), "c"(wstatus), "d"(options) : "memory");
 	return (pid_t)ret;
 }
+
+int ioctl(int fd, unsigned int cmd, unsigned long arg)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_ioctl), "b"(fd), "c"(cmd), "d"(arg) : "memory");
+	return (int)ret;
+}
