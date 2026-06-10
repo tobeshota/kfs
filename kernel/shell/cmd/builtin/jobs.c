@@ -20,7 +20,6 @@ struct shell_job
 };
 
 static struct shell_job shell_jobs[SHELL_MAX_JOBS]; /* ジョブテーブル */
-static int shell_next_job_id = 1;					/* 次に割り当てるジョブID（1から開始） */
 
 /** PID からジョブテーブルのエントリを検索する
  * @param pid 検索対象のプロセスID
@@ -54,6 +53,21 @@ static struct shell_job *shell_find_job_by_id(int job_id)
 	return NULL;
 }
 
+/** 未使用の最小ジョブIDを割り当てる
+ * @return 未使用の最小ジョブID、空きIDがない場合は -1
+ */
+static int shell_alloc_job_id(void)
+{
+	for (int id = 1; id <= SHELL_MAX_JOBS; id++)
+	{
+		if (!shell_find_job_by_id(id))
+		{
+			return id;
+		}
+	}
+	return -1;
+}
+
 /** ジョブエントリを未使用状態へ戻す
  * @param job 削除対象ジョブ
  */
@@ -75,12 +89,18 @@ static void shell_remove_job(struct shell_job *job)
  */
 int shell_jobs_add(pid_t pid, pid_t pgrp, const char *cmd, int stopped)
 {
+	int job_id = shell_alloc_job_id();
+	if (job_id < 0)
+	{
+		return -1;
+	}
+
 	for (int i = 0; i < SHELL_MAX_JOBS; i++)
 	{
 		if (!shell_jobs[i].used)
 		{
 			shell_jobs[i].used = 1;
-			shell_jobs[i].id = shell_next_job_id++;
+			shell_jobs[i].id = job_id;
 			shell_jobs[i].pid = pid;
 			shell_jobs[i].pgrp = pgrp;
 			shell_jobs[i].stopped = stopped ? 1 : 0;
@@ -205,6 +225,12 @@ int shell_jobs_bg(int job_id)
 	 * バックグラウンド化では，job_id指定プロセスの状態変化をwaitpid)();等で待たない */
 
 	return 0;
+}
+
+/* ジョブテーブルを初期化する */
+void shell_jobs_reset(void)
+{
+	memset(shell_jobs, 0, sizeof(shell_jobs));
 }
 
 /** jobs コマンドエントリ

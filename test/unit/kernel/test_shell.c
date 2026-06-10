@@ -5,11 +5,15 @@
 #include <kfs/shell.h>
 #include <kfs/string.h>
 #include <kfs/unistd.h>
+#include <kfs/wait.h>
 
 /* シェルの内部関数を外部から呼び出せるように宣言 */
 extern int shell_keyboard_handler(char c);
 extern void shell_init(void);
 extern void cmd_loadkeys(void *args);
+extern int shell_jobs_add(pid_t pid, pid_t pgrp, const char *cmd, int stopped);
+extern void shell_jobs_on_wait_event(pid_t pid, int wait_status);
+extern void shell_jobs_reset(void);
 
 static const char *g_loadkeys_args;
 
@@ -29,6 +33,7 @@ static void run_loadkeys_cmd(const char *args)
 static void setup_test(void)
 {
 	reset_all_state_for_test();
+	shell_jobs_reset();
 }
 
 /* 全テストで共通のクリーンアップ関数 */
@@ -531,6 +536,28 @@ KFS_TEST(test_shell_execute_beep_negative)
 	KFS_ASSERT_TRUE(1);
 }
 
+KFS_TEST(test_shell_jobs_reuse_lowest_id_after_exit)
+{
+	int id = shell_jobs_add(6, 6, "sleep 30", 0);
+	KFS_ASSERT_EQ(1, id);
+
+	shell_jobs_on_wait_event(6, 0);
+
+	id = shell_jobs_add(6, 6, "sleep 30", 0);
+	KFS_ASSERT_EQ(1, id);
+}
+
+KFS_TEST(test_shell_jobs_reuse_lowest_gap_id)
+{
+	KFS_ASSERT_EQ(1, shell_jobs_add(10, 10, "sleep 10", 0));
+	KFS_ASSERT_EQ(2, shell_jobs_add(11, 11, "sleep 20", 0));
+	KFS_ASSERT_EQ(3, shell_jobs_add(12, 12, "sleep 30", 0));
+
+	shell_jobs_on_wait_event(11, 0);
+
+	KFS_ASSERT_EQ(2, shell_jobs_add(13, 13, "sleep 40", 0));
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_init, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_keyboard_handler_printable, setup_test, teardown_test),
@@ -575,6 +602,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_loadkeys_via_shell, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_loadkeys_fr_via_shell, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_negative, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_jobs_reuse_lowest_id_after_exit, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_shell_jobs_reuse_lowest_gap_id, setup_test, teardown_test),
 };
 
 int register_unit_tests_shell(struct kfs_test_case **out)
