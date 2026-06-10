@@ -676,7 +676,7 @@ static void terminal_putchar(struct kfs_console_state *con, char c)
 		 *                   ^^^^^^^^  空文字数は8-(8%8)=8となる．
 		 *
 		 * @example |ABCDEFGHABCDEFG | 現在の列が15のとき，
-		 *                           ^ 空文字数は8-(15%8)=1となる．
+		 *                          ^  空文字数は8-(15%8)=1となる．
 		 *
 		 */
 		size_t spaces = VGA_TAB_WIDTH - (con->column % VGA_TAB_WIDTH);
