@@ -36,6 +36,7 @@
 #define __NR_kbd_set_raw_mode 259
 #define __NR_neofetch_info 260
 #define __NR_ttynr 261
+#define __NR_ioctl 54
 #define __NR_openpty 262
 
 /* サポートするシステムコールの数 */

@@ -31,6 +31,7 @@ long sys_kbd_read_event(struct kfs_keyboard_raw_event *event);
 int sys_kbd_clear_events(void);
 int sys_kbd_set_raw_mode(int enabled);
 long sys_openpty(int *master_fd, int *slave_fd);
+long sys_ioctl(int fd, unsigned int cmd, unsigned long arg);
 void sys_panic(void) __attribute__((noreturn));
 
 #endif /* _KFS_SYS_H */

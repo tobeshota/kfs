@@ -354,6 +354,14 @@ static long do_sys_openpty(long arg1, long arg2, long arg3, long arg4, long arg5
 	return sys_openpty((int *)arg1, (int *)arg2);
 }
 
+/* ioctl(fd, cmd, arg) システムコール */
+static long do_sys_ioctl(long fd, long cmd, long arg, long a4, long a5)
+{
+	(void)a4;
+	(void)a5;
+	return sys_ioctl((int)fd, (unsigned int)cmd, (unsigned long)arg);
+}
+
 /* mmap2(addr, len, prot, flags, fd) システムコール
  * @note pgoff は MAP_ANONYMOUS では不要なため省略（syscall_fn_t は5引数）
  */
@@ -458,6 +466,7 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_neofetch_info] = do_sys_neofetch_info,
 	[__NR_ttynr] = do_sys_ttynr,
 	[__NR_openpty] = do_sys_openpty,
+	[__NR_ioctl] = do_sys_ioctl,
 };
 
 /** システムコールディスパッチャ

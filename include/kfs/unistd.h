@@ -1,6 +1,7 @@
 #ifndef _KFS_UNISTD_H
 #define _KFS_UNISTD_H
 
+#include <kfs/ioctl.h>
 #include <kfs/keyboard.h>
 #include <kfs/neofetch.h>
 #include <kfs/pid.h> /* pid_t */
@@ -38,6 +39,7 @@ int kbd_read_event(struct kfs_keyboard_raw_event *event);
 int kbd_clear_events(void);
 int kbd_set_raw_mode(int enabled);
 int openpty(int *master_fd, int *slave_fd);
+int ioctl(int fd, unsigned int cmd, unsigned long arg);
 void __attribute__((noreturn)) trigger_panic(void);
 
 #endif /* _KFS_UNISTD_H */

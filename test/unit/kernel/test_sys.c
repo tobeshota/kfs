@@ -300,6 +300,43 @@ static void test_sys_msleep_zero_returns_immediately(void)
 	printk("test_sys_msleep_zero_returns_immediately: OK\n");
 }
 
+/** sys_ioctl(TIOCSCTTY) でカレントプロセスの tty_console が設定される
+ * 検証対象: kernel/sys.c sys_ioctl()
+ * 検証項目: TIOCSCTTY コマンドで有効なコンソール番号を渡すと 0 が返り tty_console が更新される
+ */
+static void test_sys_ioctl_tiocsctty_sets_tty_console(void)
+{
+	size_t initial = current->tty_console;
+	size_t target = (initial == 0) ? 1 : 0;
+
+	long ret = sys_ioctl(0, 0x540E, (unsigned long)target);
+
+	KFS_ASSERT_EQ(0, (int)ret);
+	KFS_ASSERT_EQ((int)target, (int)current->tty_console);
+}
+
+/** sys_ioctl(TIOCSCTTY) で範囲外コンソール番号を渡すと -EINVAL が返る
+ * 検証対象: kernel/sys.c sys_ioctl()
+ * 検証項目: arg >= kfs_terminal_console_count() なら -EINVAL
+ */
+static void test_sys_ioctl_tiocsctty_invalid_console_returns_einval(void)
+{
+	long ret = sys_ioctl(0, 0x540E, 9999UL);
+
+	KFS_ASSERT_EQ(-EINVAL, (int)ret);
+}
+
+/** sys_ioctl で未知のコマンドを渡すと -ENOTTY が返る
+ * 検証対象: kernel/sys.c sys_ioctl()
+ * 検証項目: 未実装コマンドは -ENOTTY
+ */
+static void test_sys_ioctl_unknown_cmd_returns_enotty(void)
+{
+	long ret = sys_ioctl(0, 0xDEAD, 0UL);
+
+	KFS_ASSERT_EQ(-ENOTTY, (int)ret);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_getuid_returns_uid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_setuid_succeeds_with_cap, setup_test, teardown_test),
@@ -324,6 +361,9 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_without_ctty_returns_enotty, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_rejects_pgrp_from_other_session, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_msleep_zero_returns_immediately, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tiocsctty_sets_tty_console, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tiocsctty_invalid_console_returns_einval, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_unknown_cmd_returns_enotty, setup_test, teardown_test),
 };
 
 int register_unit_tests_sys(struct kfs_test_case **out)
