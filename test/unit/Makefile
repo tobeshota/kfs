@@ -21,6 +21,7 @@ DEPFLAGS       = -MMD -MP -MF $(BUILD_DIR)/$*.d
 BUILD_DIR      := build/obj
 LOGDIR         := coverage/log
 REPORT_DIR     := coverage/report
+QEMU_TIMEOUT  ?= 60s
 
 # Coverage
 LCOV           := lcov --rc lcov_branch_coverage=1
@@ -42,6 +43,16 @@ KERNEL        := testImage
 ISO_BIOS      := test-bios.iso
 ISO_UEFI      := test-uefi.iso
 ISO           := $(ISO_BIOS)
+
+ifeq ($(strip $(BOOT_MODE)),UEFI)
+BOOT_ISO_TARGET := iso-uefi
+BOOT_RUN_TARGET := run-iso-uefi
+BOOT_UNIT_TARGET := unit-uefi
+else
+BOOT_ISO_TARGET := iso-bios
+BOOT_RUN_TARGET := run-iso-bios
+BOOT_UNIT_TARGET := unit-bios
+endif
 
 # Coverage build flag - when set, use instrumented sources from build/coverage
 COVERAGE_BUILD ?= 0
@@ -104,12 +115,17 @@ iso-uefi: kernel ./grub-uefi.cfg
 	mkdir -p isodir-uefi/boot/grub
 	cp $(KERNEL) isodir-uefi/boot/
 	cp ./grub-uefi.cfg isodir-uefi/boot/grub/grub.cfg
-	grub-mkrescue -o $(ISO_UEFI) isodir-uefi --modules="multiboot2 normal configfile part_msdos part_gpt" --compress=xz
+	grub-mkrescue -o $(ISO_UEFI) isodir-uefi --modules="multiboot multiboot2 normal configfile part_msdos part_gpt" --compress=xz
 
-unit: unit-bios
+iso: $(BOOT_ISO_TARGET)
+
+unit: $(BOOT_UNIT_TARGET)
 
 unit-bios: iso-bios
-	$(MAKE) run
+	$(MAKE) run-iso-bios
+
+unit-uefi: iso-uefi
+	$(MAKE) run-iso-uefi
 
 else
 
@@ -139,11 +155,15 @@ $(ISO_UEFI): $(KERNEL) ./grub-uefi.cfg
 
 iso-uefi: $(ISO_UEFI)
 
-# unit はテスト実行（QEMU）を伴うため常に run を呼ぶが，
-# $(ISO_BIOS) がファイルターゲットのためソース変更がなければ Docker ビルドはスキップされる
-unit: $(ISO_BIOS)
-	$(call ensure_image)
-	@ $(DOCKER_RUN) /bin/bash -lc 'IN_DOCKER=1 COVERAGE_BUILD=$(COVERAGE_BUILD) make run'
+iso: $(BOOT_ISO_TARGET)
+
+unit: $(BOOT_UNIT_TARGET)
+
+unit-bios: $(ISO_BIOS)
+	@ $(MAKE) run-iso-bios
+
+unit-uefi: $(ISO_UEFI)
+	@ $(MAKE) run-iso-uefi
 
 endif
 
@@ -163,21 +183,53 @@ $(REPORT_DIR):
 	@ mkdir -p $(REPORT_DIR)
 
 # ===== Run with QEMU (prefer host, fallback to container) =====
-run: run-iso-bios
+run: $(BOOT_RUN_TARGET)
 
 # Bashと明示した理由はPIPESTATUSがBash特有の機能であるため
 run-iso-bios: $(ISO_BIOS) | $(LOGDIR) $(REPORT_DIR)
 	@ bash -c \
 	'set -e; \
 	LOGFILE=$$([ "$(COVERAGE_BUILD)" = "1" ] && echo "coverage/log/qemu_serial.log" || echo "coverage/log/qemu_serial.log"); \
-	{ qemu-system-$(ISA) \
+	{ timeout $(QEMU_TIMEOUT) qemu-system-$(ISA) \
 		-display none \
 		-device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+		-no-reboot \
 		-cdrom $(ISO_BIOS) \
 		-serial stdio 2>&1 | tee $$LOGFILE; } ; \
 	raw_status=$${PIPESTATUS[0]}; \
 	decoded_status=$$(( (raw_status - 1) / 2 )); \
 	echo "qemu exit raw=$$raw_status decoded_status=$$decoded_status"; \
+	if ! grep -q "== SUMMARY: .*all passed ==" "$$LOGFILE"; then \
+		echo "unit test summary not found or not all tests passed"; \
+		exit 1; \
+	fi; \
+	exit $$decoded_status'
+
+
+# QEMU上でUEFIで起動する
+OVMF_FD ?= $(shell find /usr/share/ovmf /usr/share/OVMF /usr/share/qemu /opt/homebrew /usr/local \( -name "OVMF.fd" -o -name "edk2-x86_64-code.fd" \) 2>/dev/null | head -1)
+run-iso-uefi: $(ISO_UEFI) | $(LOGDIR) $(REPORT_DIR)
+	@ bash -c \
+	'set -e; \
+	if [ -z "$(OVMF_FD)" ] || [ ! -r "$(OVMF_FD)" ]; then \
+		echo "OVMF_FD is not set or not readable: $(OVMF_FD)"; \
+		exit 1; \
+	fi; \
+	LOGFILE=$$([ "$(COVERAGE_BUILD)" = "1" ] && echo "coverage/log/qemu_serial.log" || echo "coverage/log/qemu_serial.log"); \
+	{ timeout $(QEMU_TIMEOUT) qemu-system-x86_64 \
+		-display none \
+		-device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+		-no-reboot \
+		-drive if=pflash,format=raw,readonly=on,file=$(OVMF_FD) \
+		-cdrom $(ISO_UEFI) \
+		-serial stdio 2>&1 | tee $$LOGFILE; } ; \
+	raw_status=$${PIPESTATUS[0]}; \
+	decoded_status=$$(( (raw_status - 1) / 2 )); \
+	echo "qemu exit raw=$$raw_status decoded_status=$$decoded_status"; \
+	if ! grep -q "== SUMMARY: .*all passed ==" "$$LOGFILE"; then \
+		echo "unit test summary not found or not all tests passed"; \
+		exit 1; \
+	fi; \
 	exit $$decoded_status'
 
 # Now builds with instrumented sources from build/coverage without modifying production code
@@ -197,4 +249,4 @@ coverage-instrument:
 	@ echo "Instrumenting production code..."
 	@ python3 coverage/insert_coverage_func.py ../../ build/coverage/ coverage/log/coverage_manifest.txt
 
-.PHONY: all run run-iso-bios clean fclean re ensure-image unit test coverage coverage-instrument
+.PHONY: all iso run run-iso-bios run-iso-uefi clean fclean re ensure-image unit unit-bios unit-uefi test coverage coverage-instrument
