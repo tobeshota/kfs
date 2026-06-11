@@ -13,7 +13,7 @@
 uint8_t kfs_vga_make_color(enum vga_color fg, enum vga_color bg);
 uint16_t kfs_vga_make_entry(char c, uint8_t color);
 
-/* 初期化ルーチン (従来 umbrella 経由で公開) */
+void terminal_configure_from_multiboot(unsigned long mbi_ptr, uint32_t magic);
 void terminal_initialize(void);
 
 /* 端末出力 API */
