@@ -1,12 +1,33 @@
 /*このカーネルをどう扱ってロードしてほしいかを伝える設定 #defineみたいなもの */
-.set ALIGN,    1<<0             /* ページサイズ（通常4 KiB）に揃えて読み込んでほしい、と通知するフラグ */
+
+/* ===== Multiboot2 ヘッダ定数（UEFI対応） ===== */
+.set MB2_MAGIC,      0xE85250D6         /* Multiboot2 マジックナンバー（固定値） */
+.set MB2_ARCH,       0                  /* 0 = i386 Protected Mode */
+.set MB2_HEADER_LEN, (mb2_header_end - mb2_header_start)
+.set MB2_CHECKSUM,   -(MB2_MAGIC + MB2_ARCH + MB2_HEADER_LEN)
+
+/* ===== Multiboot1 ヘッダ定数（Legacy BIOS 用） ===== */
+.set ALIGN,    1<<0             /* ページサイズ（通常4 KiB）に揃えて読み込んでほしい、と通知するフラグ */
 .set MEMINFO,  1<<1             /* カーネルがブートローダに対して， mem_lower/mem_upper 情報を multiboot_info に詰めて渡すよう要求するフラグ */
 .set FLAGS,    ALIGN | MEMINFO  /* 上記フラグをまとめたもの */
 .set MAGIC,    0x1BADB002       /* 「マルチブートヘッダが正しく存在すること」をブートローダへ知らせるための固定値 */
 .set CHECKSUM, -(MAGIC + FLAGS) /* 破損検出のための軽量チェック。 */
 
-/* マルチブートヘッダは最初の8KiB内に存在し、4バイト単位で整列されなければならない */
+/* マルチブートヘッダは最初の8KiB内に存在し、適切に整列されなければならない */
 .section .multiboot, "a"
+
+/* Multiboot2ヘッダを先に配置し，UEFI環境のGRUBが認識できるようにする */
+.align 8
+mb2_header_start:
+.long MB2_MAGIC
+.long MB2_ARCH
+.long MB2_HEADER_LEN
+.long MB2_CHECKSUM
+.short 0
+.short 0
+.long 8
+mb2_header_end:
+
 .align 4 /* 同セクション内での変数(.multibootセクションの場合MAGIC, FLAGS, CHECKSUM)の値を4バイト整列する */
 .long MAGIC /* マルチブートヘッダのマジックナンバーを配置 */
 .long FLAGS /* フラグを配置 */
@@ -64,7 +85,7 @@ multiboot_magic:
 .section .boot, "ax"
 .global _start /* リンカに_startシンボルをエクスポートするよう指示 */
 .extern gdt_init
-.extern start_kernel
+.extern start_unit_test_kernel
 
 _start:
     /** 割り込みを無効化（IDT設定前に割り込みが来ないようにするため）

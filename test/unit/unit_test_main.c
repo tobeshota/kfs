@@ -17,20 +17,25 @@ int kfs_test_failures = 0;
 
 void start_unit_test_kernel(void)
 {
+	extern unsigned long multiboot_info_ptr;
+	extern uint32_t multiboot_magic;
+	extern void page_alloc_init(unsigned long mbi_ptr, uint32_t magic);
+	extern void kmem_cache_init(void);
+	extern uint16_t *kfs_terminal_buffer;
+
 	/* 初期化 */
 	serial_init();
+	terminal_configure_from_multiboot(multiboot_info_ptr, multiboot_magic);
+	if (multiboot_magic == MULTIBOOT2_BOOTLOADER_MAGIC)
+	{
+		kfs_terminal_buffer = NULL;
+	}
 	terminal_initialize();
-	kfs_keyboard_init();
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK));
 
 	printk("unit test\n");
 
 	/* メモリ管理の初期化（slabテスト用） */
-	extern unsigned long multiboot_info_ptr;
-	extern uint32_t multiboot_magic;
-	extern void page_alloc_init(unsigned long mbi_ptr, uint32_t magic);
-	extern void kmem_cache_init(void);
-
 	if (multiboot_info_ptr != 0)
 	{
 		page_alloc_init(multiboot_info_ptr, multiboot_magic);
@@ -51,6 +56,7 @@ void start_unit_test_kernel(void)
 	/* 8259A PIC を先に初期化しないと IRQ0 が vector 0x08（DF）に飛ぶ */
 	init_8259A();
 	timer_init();
+	kfs_keyboard_init();
 
 	/* fork・PID初期化（task_struct_cachep確立） */
 	fork_init();
