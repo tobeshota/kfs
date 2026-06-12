@@ -95,14 +95,12 @@ def instrument_functions(content, file_path):
     in_function = False
     brace_depth = 0
     initializer_depth = 0  # 配列/構造体初期化子の深さ
+    pending_enum = False
     i = 0
 
     while i < len(lines):
         line = lines[i]
         stripped = line.strip()
-        # 独自の行に「enum」がある列挙型の保留フラグ
-        if 'pending_enum' not in locals():
-            pending_enum = False
 
         # 空行やコメント行はそのまま追加
         if not stripped or stripped.startswith('//') or stripped.startswith('/*') or stripped.startswith('*'):
@@ -118,9 +116,9 @@ def instrument_functions(content, file_path):
 
         # 配列/構造体/enum 初期化子の検出
         # "変数名[] = {", "変数名 = {" のパターン、または "enum { ... }" を検出
-        if ('[] = {' in line or
-            (re.search(r'\w+\s*=\s*\{', line) and not stripped.startswith('if') and not stripped.startswith('while') and not stripped.startswith('for')) or
-            re.search(r'\benum\b\s*(\w+)?\s*\{', line)):
+        is_control_line = any(stripped.startswith(kw) for kw in ['if', 'while', 'for', 'switch'])
+        if (re.search(r'\benum\b\s*(\w+)?\s*\{', line) or
+            (('=' in line) and ('{' in line) and stripped.endswith('{') and not is_control_line)):
             # 初期化子の開始
             initializer_depth += line.count('{') - line.count('}')
             result.append(line)
@@ -170,12 +168,24 @@ def instrument_functions(content, file_path):
             # 実行可能文かチェック
             # 1. セミコロンで終わる（文の終わり）
             if stripped.endswith(';'):
+                prev_line = lines[i - 1].strip() if i > 0 else ''
+
+                # 前行が演算子終端なら複数行式の継続とみなす
+                continuation_suffixes = (
+                    '=', '(', ',', ':',
+                    '|', '||', '&', '&&', '^',
+                    '+', '-', '*', '/', '%', '?'
+                )
+                if prev_line and prev_line.endswith(continuation_suffixes):
+                    result.append(line)
+                    i += 1
+                    continue
+
                 # 継続行かチェック（インデントが深すぎる、または前の行が代入や関数呼び出しの途中）
                 # 簡易判定: 行がタブ2つ以上のインデントなら継続行の可能性
                 indent_level = len(line) - len(line.lstrip('\t'))
                 # インデントが深い場合は継続行の可能性があるため、前の行をチェック
                 if i > 0 and indent_level >= 2:
-                    prev_line = lines[i - 1].strip()
                     # 前の行が '=' や '(' や ',' で終わっている場合は継続行
                     if prev_line and (prev_line.endswith('=') or prev_line.endswith('(') or
                                      prev_line.endswith(',') or prev_line.endswith(':')):
