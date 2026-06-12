@@ -81,6 +81,8 @@ static void execute_external_command(const char *cmd, shell_cmd_fn fn, const cha
 	}
 	else if (pid == 0)
 	{
+		/* 子プロセスではCtrl-Cを通常動作（終了）に戻す */
+		signal(SIGINT, SIG_DFL);
 		__exec_fn(cmd, fn, (void *)args);
 	}
 	else
@@ -108,7 +110,7 @@ static void execute_external_command(const char *cmd, shell_cmd_fn fn, const cha
 					int job_id = shell_jobs_add(pid, pid, cmd, 1);
 					if (job_id > 0)
 					{
-						/** 文字を出力する前に，shell に foreground を戻す
+						/** 文字を出力する前に，シェルに foreground を戻す
 						 * @brief バックグラウンド状態にあるシェルプロセスが文字列を出力しようとすると
 						 *        SIGTTOUが送信され，シェルが停止してしまうため．
 						 * @ref sys_write();
@@ -120,7 +122,7 @@ static void execute_external_command(const char *cmd, shell_cmd_fn fn, const cha
 				}
 			}
 
-			/* 終了後は shell に foreground を戻す */
+			/* 終了後はシェルに foreground を戻す */
 			tcsetpgrp(0, getpgrp());
 		}
 		else
@@ -284,19 +286,22 @@ __attribute__((weak)) void shell_run(void)
 	shell_init();
 	prctl(PR_SET_NAME, (unsigned long)"shell_run", 0, 0, 0);
 
-	/* shell 自身で session/pgrp/foreground を確立する（Phase 5 最小導入） */
+	/* シェル自身で session/pgrp/foreground を確立する */
 	sid = setsid();
 	if (sid < 0)
 	{
 		/* 既にセッションリーダー等で失敗する場合があるため継続する */
 	}
 
-	/* shell のプロセスグループを取得してフォアグラウンドに設定する */
+	/* シェルのプロセスグループを取得してフォアグラウンドに設定する */
 	shell_pgrp = getpgrp();
 	if (shell_pgrp > 0)
 	{
 		(void)tcsetpgrp(0, shell_pgrp);
 	}
+
+	/* シェル本体はCtrl-C等により送信されるSIGINTで終了しないようにする */
+	signal(SIGINT, SIG_IGN);
 
 	/* neofetchを出す */
 	extern void cmd_neofetch(void *args);
