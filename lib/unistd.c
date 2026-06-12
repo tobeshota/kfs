@@ -295,14 +295,6 @@ int munmap(void *addr, unsigned long len)
 	return (int)ret;
 }
 
-/* シグナルハンドラ return 後、元のコンテキストへ復帰する（sigframe の pretcode から呼ばれる）
- * @note entry.S の sys_sigreturn が g_current_regs からコンテキストを復元する
- */
-void sigreturn(void)
-{
-	__asm__ __volatile__("int $0x80" : : "a"(__NR_sigreturn) : "memory");
-}
-
 pid_t waitpid(pid_t pid, int *wstatus, int options)
 {
 	long ret;

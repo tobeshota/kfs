@@ -253,6 +253,14 @@ long tty_read_line_for_console(size_t console_index, char *buf, unsigned int siz
 
 	while (1)
 	{
+		/** SIGCHLDを保留中のときreadを中断する
+		 * @note 子プロセスの状態回収はシェル側で行われる
+		 */
+		if (current->pending.signal & (1UL << SIGCHLD))
+		{
+			return -EINTR;
+		}
+
 		/** バックグラウンドプロセスが TTY から読み取ろうとした場合は SIGTTIN を送信する
 		 * @brief 呼び出し元プロセスのプロセスグループが
 		 *        フォアグラウンドプロセスグループでない場合，

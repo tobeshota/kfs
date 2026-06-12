@@ -20,6 +20,22 @@ static struct
 	int initialized;				  /* 初期化済みフラグ */
 } shell_state;
 
+/** SIGCHLD 受信時に子状態回収をメインループへ通知するフラグ
+ * @note shell_sigchld_handler()によってセットされる．
+ *       シェルのメインループはこのフラグを見て，子プロセスの状態回収を行う．
+ */
+static volatile int shell_sigchld_pending;
+
+/** SIGCHLD シグナルハンドラ
+ * @param sig 受信したシグナル番号
+ * @brief shell_sigchld_pending フラグをセットする．
+ */
+static void shell_sigchld_handler(int sig)
+{
+	(void)sig;
+	shell_sigchld_pending = 1;
+}
+
 /* コマンドバッファをクリアする。次のコマンド入力の準備をするために必要 */
 static void clear_command_buffer(void)
 {
@@ -191,6 +207,18 @@ static void reap_zombie_children(void)
 	}
 }
 
+/* SIGCHLD 保留中の処理を行う */
+static void shell_handle_pending_sigchld(void)
+{
+	if (!shell_sigchld_pending)
+	{
+		return;
+	}
+
+	shell_sigchld_pending = 0;
+	reap_zombie_children();
+}
+
 /** 旧 keyboard handler 互換 shim
  * @param c 入力された文字（通常文字、'\n', '\b', 制御文字など）
  * @return 処理した場合は1、処理しなかった場合は0
@@ -302,6 +330,8 @@ __attribute__((weak)) void shell_run(void)
 
 	/* シェル本体はCtrl-C等により送信されるSIGINTで終了しないようにする */
 	signal(SIGINT, SIG_IGN);
+	/* 子プロセスの状態変化通知は SIGCHLD で受ける。 */
+	signal(SIGCHLD, shell_sigchld_handler);
 
 	/* neofetchを出す */
 	extern void cmd_neofetch(void *args);
@@ -316,6 +346,8 @@ __attribute__((weak)) void shell_run(void)
 
 	while (1)
 	{
+		shell_handle_pending_sigchld();
+
 		printf("%s", SHELL_PROMPT);
 		line_len = read(0, line, sizeof(line) - 1);
 		if (line_len < 0)
@@ -325,9 +357,7 @@ __attribute__((weak)) void shell_run(void)
 		line[line_len] = '\0';
 
 		/* 入力待ち中にゾンビ化した子を、次コマンド実行前に先に回収する。 */
-		reap_zombie_children();
 		execute_command(line);
-		reap_zombie_children();
 	}
 }
 
