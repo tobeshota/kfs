@@ -189,7 +189,7 @@ run-iso-bios: $(ISO_BIOS) | $(LOGDIR) $(REPORT_DIR)
 	@ bash -c \
 	'set -e; \
 	LOGFILE=$$([ "$(COVERAGE_BUILD)" = "1" ] && echo "coverage/log/qemu_serial.log" || echo "coverage/log/qemu_serial.log"); \
-	{ qemu-system-$(ISA) \
+	{ qemu-system-x86_64 \
 		-display none \
 		-device isa-debug-exit,iobase=0xf4,iosize=0x04 \
 		-no-reboot \
