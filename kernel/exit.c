@@ -6,6 +6,7 @@
 #include <kfs/printk.h>
 #include <kfs/rr.h>
 #include <kfs/sched.h>
+#include <kfs/signal.h>
 #include <kfs/slab.h>
 
 /** 外部参照（kernel/sched/core.c） */
@@ -122,6 +123,12 @@ __attribute__((noreturn)) void do_exit(int code)
 
 	/* ゾンビ状態に遷移（親がwait()で回収するまで） */
 	tsk->exit_state = EXIT_ZOMBIE;
+
+	/* 親プロセスに対してSIGCHLD（子プロセスの状態変化）を送信する */
+	if (tsk->parent && tsk->parent != tsk && tsk->parent->exit_state != EXIT_DEAD)
+	{
+		send_signal(SIGCHLD, tsk->parent);
+	}
 
 	/* TASK_DEADに変更（スケジューラがrunqueueから除外する） */
 	tsk->__state = TASK_DEAD;
