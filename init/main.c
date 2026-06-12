@@ -66,6 +66,7 @@ void start_kernel(void)
 	serial_init();
 	pcspkr_init();
 	psg_init();
+	terminal_configure_from_multiboot(multiboot_info_ptr, multiboot_magic);
 	terminal_initialize();
 	kfs_terminal_set_color(kfs_vga_make_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK));
 

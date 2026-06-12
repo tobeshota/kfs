@@ -1,5 +1,8 @@
+#include <asm-i386/page.h>
+#include <asm-i386/pgtable.h>
 #include <kfs/console.h>
 #include <kfs/errno.h>
+#include <kfs/multiboot.h>
 #include <kfs/pid.h>
 #include <kfs/printk.h>
 #include <kfs/serial.h>
@@ -15,11 +18,19 @@
 #define VGA_CRTC_DATA_PORT 0x3D5
 #define VGA_CURSOR_START 0x0A
 #define VGA_CURSOR_END 0x0B
-#define SCROLLBACK_LINES 100 /* スクロールバックバッファの行数 */
-#define ANSI_MAX_PARAMS 8	 /* ANSIエスケープシーケンスの最大パラメータ数 */
-#define VGA_TAB_WIDTH 8		 /* タブ文字を展開する桁幅 */
+#define SCROLLBACK_LINES 100	  /* スクロールバックバッファの行数 */
+#define ANSI_MAX_PARAMS 8		  /* ANSIエスケープシーケンスの最大パラメータ数 */
+#define VGA_TAB_WIDTH 8			  /* タブ文字を展開する桁幅 */
+#define VGA_COLOR_INDEX_MASK 0x0F /* VGAの色属性バイトから4bitの色番号を取り出すためのマスク */
+#define VGA_COLOR_PALETTE_SIZE (VGA_COLOR_INDEX_MASK + 1) /* VGAのカラーパレットのサイズ */
+#define VGA_COLOR_BACKGROUND_SHIFT 4 /* VGAの属性バイトから背景色を取り出すためのシフト量 */
+#define KFS_FB_VADDR 0xE0000000UL	 /* フレームバッファの仮想アドレス */
+#define KFS_FB_MAX_TABLES 8 /* フレームバッファマッピングに使用するページテーブルの最大数（32MBまで対応） */
+#define KFS_FB_CELL_WIDTH 8	  /* フレームバッファのセルの幅（ピクセル単位） */
+#define KFS_FB_CELL_HEIGHT 16 /* フレームバッファのセルの高さ（ピクセル単位） */
 
 extern void kfs_io_outb(uint16_t port, uint8_t val);
+extern pde_t boot_page_directory[]; /* ブート時のページディレクトリ(boot.Sで定義) */
 
 size_t kfs_terminal_row;
 size_t kfs_terminal_column;
@@ -31,12 +42,12 @@ struct kfs_console_state
 	size_t row;
 	size_t column;
 	uint8_t color;
-	uint8_t ansi_state;				  /* ANSIエスケープシーケンスのパーサ状態 */
-	int ansi_params[ANSI_MAX_PARAMS]; /* ANSIエスケープシーケンスのパラメータ配列 */
-	int ansi_param_count;			  /* 現在解析中のパラメータ数 */
-	int ansi_current;				  /* 現在解析中の数値 */
-	int ansi_has_current;			  /* 現在解析中の数値があるかどうか */
-	uint16_t shadow[VGA_WIDTH * VGA_HEIGHT];
+	uint8_t ansi_state;						 /* ANSIエスケープシーケンスのパーサ状態 */
+	int ansi_params[ANSI_MAX_PARAMS];		 /* ANSIエスケープシーケンスのパラメータ配列 */
+	int ansi_param_count;					 /* 現在解析中のパラメータ数 */
+	int ansi_current;						 /* 現在解析中の数値 */
+	int ansi_has_current;					 /* 現在解析中の数値があるかどうか */
+	uint16_t shadow[VGA_WIDTH * VGA_HEIGHT]; /* シャドウバッファ（端末のテキスト内容を保持） */
 	uint16_t scrollback[SCROLLBACK_LINES * VGA_WIDTH]; /* スクロールバックバッファ */
 	size_t scrollback_pos;	 /* スクロールバックバッファ内の現在位置（リングバッファ） */
 	size_t scrollback_lines; /* 保存されているスクロールバック行数 */
@@ -50,15 +61,725 @@ static pid_t foreground_pgrp_per_console[KFS_VIRTUAL_CONSOLE_COUNT];
 pid_t foreground_pgrp; /* 端末のフォアグラウンドプロセスグループID（0=未設定） */
 static int kfs_console_bootstrap_completed;
 
+/* フレームバッファの状態を保持する構造体 */
+struct kfs_framebuffer_state
+{
+	uint8_t *base;		/* フレームバッファのベースアドレス */
+	uint32_t pitch;		/* フレームバッファの1行あたりのバイト数 */
+	uint32_t width;		/* フレームバッファの幅（ピクセル単位） */
+	uint32_t height;	/* フレームバッファの高さ（ピクセル単位） */
+	uint8_t bpp;		/* ビット深度（bits per pixel） */
+	uint8_t red_pos;	/* 赤成分のビット位置 */
+	uint8_t red_size;	/* 赤成分のビットサイズ */
+	uint8_t green_pos;	/* 緑成分のビット位置 */
+	uint8_t green_size; /* 緑成分のビットサイズ */
+	uint8_t blue_pos;	/* 青成分のビット位置 */
+	uint8_t blue_size;	/* 青成分のビットサイズ */
+	int enabled;		/* フレームバッファが有効かどうか */
+};
+
+static struct kfs_framebuffer_state kfs_framebuffer;
+static pte_t kfs_framebuffer_tables[KFS_FB_MAX_TABLES][PTRS_PER_PTE] __attribute__((aligned(PAGE_SIZE)));
+
 /* 現在使用しているコンソールを取得 */
 static struct kfs_console_state *active_console(void)
 {
 	return &kfs_console_states[kfs_console_active];
 }
 
+/* 現在のコンソールがアクティブかどうかを判定する */
 static int console_is_active(const struct kfs_console_state *con)
 {
 	return con == &kfs_console_states[kfs_console_active];
+}
+
+/* 指定値valueを指定アラインメントalignに切り下げる */
+static unsigned long align_down_ulong(unsigned long value, unsigned long align)
+{
+	return value & ~(align - 1);
+}
+
+/* 指定値valueを指定アラインメントalignに切り上げる */
+static unsigned long align_up_ulong(unsigned long value, unsigned long align)
+{
+	return (value + align - 1) & ~(align - 1);
+}
+
+/** 指定値valueを指定ビット数bitsに合わせて調整する
+ * @param value 調整する値（0-255）
+ * @param bits 調整後のビット数（0-8）
+ * @return bitsビットに合わせて調整された値
+ * @example
+ * value=255, bits=5の場合，255は8ビットで11111111のため，これを5ビットに合わせた11111（31）を返す．
+ * value=128, bits=4の場合，128は8ビットで10000000のため，これを4ビットに合わせた1000（8）を返す．
+ */
+static unsigned long framebuffer_color_component(uint8_t value, uint8_t bits)
+{
+	if (bits >= 8)
+	{
+		return value;
+	}
+	if (bits == 0)
+	{
+		return 0;
+	}
+
+	return value >> (8 - bits);
+}
+
+/** 指定されたRGB値をフレームバッファのカラーフォーマットにパックする
+ * @param r 赤成分の値（0-255）
+ * @param g 緑成分の値（0-255）
+ * @param b 青成分の値（0-255）
+ * @return フレームバッファのカラーフォーマットにパックされた色値
+ * @note ここでパックするとは，
+ *       フレームバッファのビット配置に合わせてRGBの各成分を適切な位置に配置し，
+ *       1つの整数値としてまとめることを意味する．
+ */
+static unsigned long framebuffer_pack_color(uint8_t r, uint8_t g, uint8_t b)
+{
+	unsigned long color = 0;
+
+	color |= framebuffer_color_component(r, kfs_framebuffer.red_size) << kfs_framebuffer.red_pos;
+	color |= framebuffer_color_component(g, kfs_framebuffer.green_size) << kfs_framebuffer.green_pos;
+	color |= framebuffer_color_component(b, kfs_framebuffer.blue_size) << kfs_framebuffer.blue_pos;
+	return color;
+}
+
+/** 指定されたVGAカラーパレットの色をRGB値に変換する
+ * @param color VGAカラーパレットの色（0-15）
+ * @param r 赤成分の値（0-255）へのポインタ
+ * @param g 緑成分の値（0-255）へのポインタ
+ * @param b 青成分の値（0-255）へのポインタ
+ */
+static void framebuffer_vga_color(uint8_t color, uint8_t *r, uint8_t *g, uint8_t *b)
+{
+	/* VGAカラーパレットの色をRGB値に変換するための配列 */
+	static const uint8_t vga_color_palette[VGA_COLOR_PALETTE_SIZE][3] = {
+		{0x00, 0x00, 0x00}, {0x00, 0x00, 0xaa}, {0x00, 0xaa, 0x00}, {0x00, 0xaa, 0xaa},
+		{0xaa, 0x00, 0x00}, {0xaa, 0x00, 0xaa}, {0xaa, 0x55, 0x00}, {0xaa, 0xaa, 0xaa},
+		{0x55, 0x55, 0x55}, {0x55, 0x55, 0xff}, {0x55, 0xff, 0x55}, {0x55, 0xff, 0xff},
+		{0xff, 0x55, 0x55}, {0xff, 0x55, 0xff}, {0xff, 0xff, 0x55}, {0xff, 0xff, 0xff},
+	};
+
+	*r = vga_color_palette[color & VGA_COLOR_INDEX_MASK][0];
+	*g = vga_color_palette[color & VGA_COLOR_INDEX_MASK][1];
+	*b = vga_color_palette[color & VGA_COLOR_INDEX_MASK][2];
+}
+
+/** 指定文字cの指定行rowに対応するフォントデータを取得する
+ * @param c 文字
+ * @param row 行番号（0-6）
+ * @return フォントデータ
+ * @example font5x7_row('A', 0)は'A'のフォントデータの0行目を返す
+ */
+static uint8_t font5x7_row(char c, int row)
+{
+	/* 5x7フォントの数字データ */
+	static const uint8_t digits[10][7] = {
+		{0x0e, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0e}, {0x04, 0x0c, 0x04, 0x04, 0x04, 0x04, 0x0e},
+		{0x0e, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1f}, {0x1e, 0x01, 0x01, 0x0e, 0x01, 0x01, 0x1e},
+		{0x02, 0x06, 0x0a, 0x12, 0x1f, 0x02, 0x02}, {0x1f, 0x10, 0x10, 0x1e, 0x01, 0x01, 0x1e},
+		{0x0e, 0x10, 0x10, 0x1e, 0x11, 0x11, 0x0e}, {0x1f, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08},
+		{0x0e, 0x11, 0x11, 0x0e, 0x11, 0x11, 0x0e}, {0x0e, 0x11, 0x11, 0x0f, 0x01, 0x01, 0x0e},
+	};
+	/* 5x7フォントの大文字アルファベットデータ */
+	static const uint8_t uppercase_letters[26][7] = {
+		{0x0e, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11}, {0x1e, 0x11, 0x11, 0x1e, 0x11, 0x11, 0x1e},
+		{0x0e, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0e}, {0x1e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1e},
+		{0x1f, 0x10, 0x10, 0x1e, 0x10, 0x10, 0x1f}, {0x1f, 0x10, 0x10, 0x1e, 0x10, 0x10, 0x10},
+		{0x0e, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0f}, {0x11, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11},
+		{0x0e, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0e}, {0x07, 0x02, 0x02, 0x02, 0x12, 0x12, 0x0c},
+		{0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11}, {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1f},
+		{0x11, 0x1b, 0x15, 0x15, 0x11, 0x11, 0x11}, {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11},
+		{0x0e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e}, {0x1e, 0x11, 0x11, 0x1e, 0x10, 0x10, 0x10},
+		{0x0e, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0d}, {0x1e, 0x11, 0x11, 0x1e, 0x14, 0x12, 0x11},
+		{0x0f, 0x10, 0x10, 0x0e, 0x01, 0x01, 0x1e}, {0x1f, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04},
+		{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e}, {0x11, 0x11, 0x11, 0x11, 0x11, 0x0a, 0x04},
+		{0x11, 0x11, 0x11, 0x15, 0x15, 0x15, 0x0a}, {0x11, 0x11, 0x0a, 0x04, 0x0a, 0x11, 0x11},
+		{0x11, 0x11, 0x0a, 0x04, 0x04, 0x04, 0x04}, {0x1f, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1f},
+	};
+	/* 5x7フォントの小文字アルファベットデータ */
+	static const uint8_t lowercase_letters[26][7] = {
+		{0x00, 0x00, 0x0e, 0x01, 0x0f, 0x11, 0x0f}, {0x10, 0x10, 0x1e, 0x11, 0x11, 0x11, 0x1e},
+		{0x00, 0x00, 0x0e, 0x10, 0x10, 0x10, 0x0e}, {0x01, 0x01, 0x0f, 0x11, 0x11, 0x11, 0x0f},
+		{0x00, 0x00, 0x0e, 0x11, 0x1f, 0x10, 0x0e}, {0x06, 0x09, 0x08, 0x1c, 0x08, 0x08, 0x08},
+		{0x00, 0x00, 0x0f, 0x11, 0x11, 0x0f, 0x01}, {0x10, 0x10, 0x1e, 0x11, 0x11, 0x11, 0x11},
+		{0x04, 0x00, 0x0c, 0x04, 0x04, 0x04, 0x0e}, {0x02, 0x00, 0x06, 0x02, 0x02, 0x12, 0x0c},
+		{0x10, 0x10, 0x12, 0x14, 0x18, 0x14, 0x12}, {0x0c, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0e},
+		{0x00, 0x00, 0x1a, 0x15, 0x15, 0x15, 0x15}, {0x00, 0x00, 0x1e, 0x11, 0x11, 0x11, 0x11},
+		{0x00, 0x00, 0x0e, 0x11, 0x11, 0x11, 0x0e}, {0x00, 0x00, 0x1e, 0x11, 0x11, 0x1e, 0x10},
+		{0x00, 0x00, 0x0f, 0x11, 0x11, 0x0f, 0x01}, {0x00, 0x00, 0x16, 0x18, 0x10, 0x10, 0x10},
+		{0x00, 0x00, 0x0f, 0x10, 0x0e, 0x01, 0x1e}, {0x08, 0x08, 0x1c, 0x08, 0x08, 0x09, 0x06},
+		{0x00, 0x00, 0x11, 0x11, 0x11, 0x13, 0x0d}, {0x00, 0x00, 0x11, 0x11, 0x11, 0x0a, 0x04},
+		{0x00, 0x00, 0x11, 0x11, 0x15, 0x15, 0x0a}, {0x00, 0x00, 0x11, 0x0a, 0x04, 0x0a, 0x11},
+		{0x00, 0x00, 0x11, 0x11, 0x11, 0x0f, 0x01}, {0x00, 0x00, 0x1f, 0x02, 0x04, 0x08, 0x1f},
+	};
+
+	/* 行番号が範囲外の場合は0（' 'と同じ）を返す */
+	if (row < 0 || row >= 7)
+	{
+		return 0;
+	}
+
+	if (c >= 'a' && c <= 'z')
+	{
+		return lowercase_letters[c - 'a'][row];
+	}
+	if (c >= 'A' && c <= 'Z')
+	{
+		return uppercase_letters[c - 'A'][row];
+	}
+	if (c >= '0' && c <= '9')
+	{
+		return digits[c - '0'][row];
+	}
+
+	switch (c)
+	{
+	case ' ':
+		return 0x00;
+	case '$': {
+		/** '$'のフォントデータ
+		 * @details
+		 * '$'のフォントデータを描画すると次のようになる：
+		 * 0x04 -> 00100
+		 * 0x0f -> 01111
+		 * 0x14 -> 10100
+		 * 0x0e -> 01110
+		 * 0x05 -> 00101
+		 * 0x1e -> 11110
+		 * 0x04 -> 00100
+		 */
+		static const uint8_t g[7] = {0x04, 0x0f, 0x14, 0x0e, 0x05, 0x1e, 0x04};
+		return g[row];
+	}
+	case '#': {
+		/** '#'のフォントデータ
+		 * @details
+		 * '#'のフォントデータを描画すると次のようになる：
+		 * 0x0a -> 01010
+		 * 0x0a -> 01010
+		 * 0x1f -> 11111
+		 * 0x0a -> 01010
+		 * 0x1f -> 11111
+		 * 0x0a -> 01010
+		 * 0x0a -> 01010
+		 */
+		static const uint8_t g[7] = {0x0a, 0x0a, 0x1f, 0x0a, 0x1f, 0x0a, 0x0a};
+		return g[row];
+	}
+	case '%': {
+		/** '%'のフォントデータ
+		 * @details
+		 * '%'のフォントデータを描画すると次のようになる：
+		 * 0x18 -> 11000
+		 * 0x19 -> 11001
+		 * 0x02 -> 00010
+		 * 0x04 -> 00100
+		 * 0x08 -> 01000
+		 * 0x13 -> 10011
+		 * 0x03 -> 00011
+		 */
+		static const uint8_t g[7] = {0x18, 0x19, 0x02, 0x04, 0x08, 0x13, 0x03};
+		return g[row];
+	}
+	case '&': {
+		/** '&'のフォントデータ
+		 * @details
+		 * '&'のフォントデータを描画すると次のようになる：
+		 * 0x0c -> 01100
+		 * 0x12 -> 10010
+		 * 0x14 -> 10100
+		 * 0x08 -> 01000
+		 * 0x15 -> 10101
+		 * 0x12 -> 10010
+		 * 0x0d -> 01101
+		 */
+		static const uint8_t g[7] = {0x0c, 0x12, 0x14, 0x08, 0x15, 0x12, 0x0d};
+		return g[row];
+	}
+	case '*': {
+		/** '*'のフォントデータ
+		 * @details
+		 * '*'のフォントデータを描画すると次のようになる：
+		 * 0x00 -> 00000
+		 * 0x04 -> 00100
+		 * 0x15 -> 10101
+		 * 0x0e -> 01110
+		 * 0x15 -> 10101
+		 * 0x04 -> 00100
+		 * 0x00 -> 00000
+		 */
+		static const uint8_t g[7] = {0x00, 0x04, 0x15, 0x0e, 0x15, 0x04, 0x00};
+		return g[row];
+	}
+	case '+': {
+		/** '+'のフォントデータ
+		 * @details
+		 * '+'のフォントデータを描画すると次のようになる：
+		 * 0x00 -> 00000
+		 * 0x04 -> 00100
+		 * 0x04 -> 00100
+		 * 0x1f -> 11111
+		 * 0x04 -> 00100
+		 * 0x04 -> 00100
+		 * 0x00 -> 00000
+		 */
+		static const uint8_t g[7] = {0x00, 0x04, 0x04, 0x1f, 0x04, 0x04, 0x00};
+		return g[row];
+	}
+	case '-': {
+		static const uint8_t g[7] = {0x00, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x00};
+		return g[row];
+	}
+	case '_': {
+		static const uint8_t g[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f};
+		return g[row];
+	}
+	case '=': {
+		static const uint8_t g[7] = {0x00, 0x00, 0x1f, 0x00, 0x1f, 0x00, 0x00};
+		return g[row];
+	}
+	case '/': {
+		static const uint8_t g[7] = {0x01, 0x01, 0x02, 0x04, 0x08, 0x10, 0x10};
+		return g[row];
+	}
+	case '\\': {
+		static const uint8_t g[7] = {0x10, 0x10, 0x08, 0x04, 0x02, 0x01, 0x01};
+		return g[row];
+	}
+	case '|': {
+		static const uint8_t g[7] = {0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04};
+		return g[row];
+	}
+	case '.': {
+		static const uint8_t g[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0x0c};
+		return g[row];
+	}
+	case ',': {
+		static const uint8_t g[7] = {0x00, 0x00, 0x00, 0x00, 0x0c, 0x04, 0x08};
+		return g[row];
+	}
+	case ':': {
+		static const uint8_t g[7] = {0x00, 0x0c, 0x0c, 0x00, 0x0c, 0x0c, 0x00};
+		return g[row];
+	}
+	case ';': {
+		static const uint8_t g[7] = {0x00, 0x0c, 0x0c, 0x00, 0x0c, 0x04, 0x08};
+		return g[row];
+	}
+	case '!': {
+		/** '!'のフォントデータ
+		 * @details
+		 * '!'のフォントデータを描画すると次のようになる：
+		 * 0x04 -> 00100
+		 * 0x04 -> 00100
+		 * 0x04 -> 00100
+		 * 0x04 -> 00100
+		 * 0x04 -> 00100
+		 * 0x00 -> 00000
+		 * 0x04 -> 00100
+		 */
+		static const uint8_t g[7] = {0x04, 0x04, 0x04, 0x04, 0x04, 0x00, 0x04};
+		return g[row];
+	}
+	case '?': {
+		/** '?'のフォントデータ
+		 * @details
+		 * '?'のフォントデータを描画すると次のようになる：
+		 * 0x0e -> 01110
+		 * 0x11 -> 10001
+		 * 0x01 -> 00001
+		 * 0x02 -> 00010
+		 * 0x04 -> 00100
+		 * 0x00 -> 00000
+		 * 0x04 -> 00100
+		 */
+		static const uint8_t g[7] = {0x0e, 0x11, 0x01, 0x02, 0x04, 0x00, 0x04};
+		return g[row];
+	}
+	case '>': {
+		static const uint8_t g[7] = {0x10, 0x08, 0x04, 0x02, 0x04, 0x08, 0x10};
+		return g[row];
+	}
+	case '<': {
+		static const uint8_t g[7] = {0x01, 0x02, 0x04, 0x08, 0x04, 0x02, 0x01};
+		return g[row];
+	}
+	case '[': {
+		static const uint8_t g[7] = {0x0e, 0x08, 0x08, 0x08, 0x08, 0x08, 0x0e};
+		return g[row];
+	}
+	case ']': {
+		static const uint8_t g[7] = {0x0e, 0x02, 0x02, 0x02, 0x02, 0x02, 0x0e};
+		return g[row];
+	}
+	case '(': {
+		static const uint8_t g[7] = {0x02, 0x04, 0x08, 0x08, 0x08, 0x04, 0x02};
+		return g[row];
+	}
+	case ')': {
+		static const uint8_t g[7] = {0x08, 0x04, 0x02, 0x02, 0x02, 0x04, 0x08};
+		return g[row];
+	}
+	case '\'': {
+		static const uint8_t g[7] = {0x0c, 0x04, 0x08, 0x00, 0x00, 0x00, 0x00};
+		return g[row];
+	}
+	case '"': {
+		static const uint8_t g[7] = {0x0a, 0x0a, 0x0a, 0x00, 0x00, 0x00, 0x00};
+		return g[row];
+	}
+	default: {
+		/** その他の記号のフォントデータ
+		 * @details
+		 * 描画すると次のようになる：
+		 * 0x1f -> 11111
+		 * 0x11 -> 10001
+		 * 0x05 -> 00101
+		 * 0x02 -> 00010
+		 * 0x04 -> 00100
+		 * 0x00 -> 00000
+		 * 0x04 -> 00100
+		 */
+		static const uint8_t g[7] = {0x1f, 0x11, 0x05, 0x02, 0x04, 0x00, 0x04};
+		return g[row];
+	}
+	}
+}
+
+/** フレームバッファにピクセルを描画する
+ * @param x 描画するピクセルのX座標
+ * @param y 描画するピクセルのY座標
+ * @param color 描画する色（フレームバッファのカラーフォーマットにパックされた値）
+ * @details フレームバッファが有効で，指定された座標がフレームバッファの範囲内にある場合に，
+ *          指定された色でピクセルを描画する
+ */
+static void framebuffer_put_pixel(size_t x, size_t y, unsigned long color)
+{
+	/* フレームバッファが無効または座標が範囲外の場合は描画しない */
+	if (!kfs_framebuffer.enabled || x >= kfs_framebuffer.width || y >= kfs_framebuffer.height)
+	{
+		return;
+	}
+
+	/* 書くピクセルのアドレス */
+	uint8_t *p = kfs_framebuffer.base + y * kfs_framebuffer.pitch + x * (kfs_framebuffer.bpp / 8);
+
+	/* pの位置に指定色のピクセルを書き込む */
+	if (kfs_framebuffer.bpp == 32)
+	{
+		/* ビット深度が32のビットの場合，
+		 * そのままピクセルを書き込む */
+		*(uint32_t *)p = (uint32_t)color;
+	}
+	else if (kfs_framebuffer.bpp == 24)
+	{
+		/* ビット深度が24のビットの場合，
+		 * 0xff(8ビット)でマスクして各色成分を設定してピクセルを書き込む */
+		p[0] = (uint8_t)(color & 0xff);
+		p[1] = (uint8_t)((color >> 8) & 0xff);
+		p[2] = (uint8_t)((color >> 16) & 0xff);
+	}
+}
+
+/** フレームバッファのセルに文字を描画する
+ * @param cell_x 描画するセルのX座標
+ * @param cell_y 描画するセルのY座標
+ * @param entry 描画する文字と色の情報
+ * @details 指定されたセルに文字を描画する
+ * @example
+ * cell_x = 0, cell_y = 0, entry = 0x1f41の場合，
+ * entryの下位8ビットは0x41で，これはASCIIコードで'A'を表す．
+ * entryの上位8ビットは0x1fで，これはVGAカラーパレットの色を表す．
+ * framebuffer_draw_cell();は，セルの左上隅を基準にして，
+ * 文字'A'をVGAカラーパレットの色0x1fで描画する．
+ */
+static void framebuffer_draw_cell(size_t cell_x, size_t cell_y, uint16_t entry)
+{
+	const char c = (char)(entry & 0xff);			/* 描画する文字 */
+	const uint8_t color = (uint8_t)(entry >> 8);	/* 描画する色 */
+	const size_t px0 = cell_x * KFS_FB_CELL_WIDTH;	/* セルの左上隅のX座標 */
+	const size_t py0 = cell_y * KFS_FB_CELL_HEIGHT; /* セルの左上隅のY座標 */
+	uint8_t fr, fg, fb;								/* 前景色のRGB成分 */
+	uint8_t br, bg, bb;								/* 背景色のRGB成分 */
+	framebuffer_vga_color(color & VGA_COLOR_INDEX_MASK, &fr, &fg, &fb);
+	framebuffer_vga_color((color >> VGA_COLOR_BACKGROUND_SHIFT) & VGA_COLOR_INDEX_MASK, &br, &bg, &bb);
+	const unsigned long fg_color = framebuffer_pack_color(fr, fg, fb); /* 前景色のパックされた値 */
+	const unsigned long bg_color = framebuffer_pack_color(br, bg, bb); /* 背景色のパックされた値 */
+
+	/* (px0, py0)を起点として，フレームバッファのセルに文字を描画する */
+	for (size_t py = 0; py < KFS_FB_CELL_HEIGHT; py++)
+	{
+		const int font_row = ((int)py - 1) / 2;		   /* フォントの行番号 */
+		const uint8_t bits = font5x7_row(c, font_row); /* フォントのビットパターン */
+		for (size_t px = 0; px < KFS_FB_CELL_WIDTH; px++)
+		{
+			const int font_col = (int)px - 1; /* フォントの列番号 */
+			const int on = font_col >= 0 && font_col < 5 && (bits & (uint8_t)(1 << (4 - font_col)));
+			framebuffer_put_pixel(px0 + px, py0 + py, on ? fg_color : bg_color);
+		}
+	}
+}
+
+/** フレームバッファ上にソフトウェアカーソルを描画する
+ * @param con コンソールの状態を表す構造体へのポインタ
+ * @details VGAハードウェアカーソルはUEFI framebufferには表示されないため，
+ *          現在カーソル位置のセルだけ前景色と背景色を入れ替えて描画する．
+ */
+static void framebuffer_draw_cursor(const struct kfs_console_state *con)
+{
+	/* フレームバッファが無効の場合，
+	 * または，コンソールがアクティブでない場合，
+	 * または，カーソル位置が範囲外の場合，描画しない */
+	if (!kfs_framebuffer.enabled || !console_is_active(con) || con->row >= VGA_HEIGHT || con->column >= VGA_WIDTH)
+	{
+		return;
+	}
+
+	size_t index = con->row * VGA_WIDTH + con->column; /* カーソル位置 */
+	uint16_t entry = con->shadow[index];			   /* カーソル位置のセルの内容 */
+	uint8_t color = (uint8_t)(entry >> 8);			   /* カーソル位置のセルの色 */
+
+	/* カーソル位置のセルの色を反転した色 */
+	uint8_t inverted = (uint8_t)((color >> VGA_COLOR_BACKGROUND_SHIFT) |
+								 ((color & VGA_COLOR_INDEX_MASK) << VGA_COLOR_BACKGROUND_SHIFT));
+
+	/* カーソル位置のセルを反転描画する */
+	framebuffer_draw_cell(con->column, con->row, (uint16_t)(entry & 0x00ff) | ((uint16_t)inverted << 8));
+}
+
+/** フレームバッファ上のソフトウェアカーソル位置を更新する
+ * @param con コンソールの状態を表す構造体へのポインタ
+ * @details 前回カーソルを描画したセルだけをシャドウバッファの内容で戻し，
+ *          新しいカーソルセルだけを反転描画する．文字出力ごとの全画面再描画を避けるための高速経路．
+ */
+static void framebuffer_sync_cursor(const struct kfs_console_state *con)
+{
+	static const struct kfs_console_state *last_con;
+	static size_t last_row;
+	static size_t last_column;
+	static int last_valid;
+
+	if (!kfs_framebuffer.enabled)
+	{
+		last_valid = 0;
+		return;
+	}
+	if (last_valid && last_con && console_is_active(last_con) && last_row < VGA_HEIGHT && last_column < VGA_WIDTH)
+	{
+		framebuffer_draw_cell(last_column, last_row, last_con->shadow[last_row * VGA_WIDTH + last_column]);
+	}
+	framebuffer_draw_cursor(con);
+	last_con = con;
+	last_row = con->row;
+	last_column = con->column;
+	last_valid = console_is_active(con);
+}
+
+/** シャドウバッファの内容をフレームバッファに反映する
+ * @param con コンソールの状態を表す構造体へのポインタ
+ * @details シャドウバッファは，端末のテキスト内容を保持するためのメモリ領域であり，
+ *          フレームバッファは，実際に画面に表示されるピクセルデータを保持するメモリ領域である．
+ *          この関数は，シャドウバッファの内容をフレームバッファに描画し，最後にカーソルセルを反転描画する．
+ */
+static void framebuffer_flush_shadow(const struct kfs_console_state *con)
+{
+	/* フレームバッファが無効な場合は描画しない */
+	if (!kfs_framebuffer.enabled)
+	{
+		return;
+	}
+
+	/* シャドウバッファの内容をフレームバッファに描画する */
+	for (size_t y = 0; y < VGA_HEIGHT; y++)
+	{
+		for (size_t x = 0; x < VGA_WIDTH; x++)
+		{
+			framebuffer_draw_cell(x, y, con->shadow[y * VGA_WIDTH + x]);
+		}
+	}
+	framebuffer_draw_cursor(con);
+}
+
+/** ハードウェアセルに文字を描画する
+ * @param con コンソールの状態を表す構造体へのポインタ
+ * @param index 描画するセルのインデックス
+ * @param entry 描画する文字と色の情報
+ * @details 指定されたセルに文字を描画する
+ * @example index = 0，entry = 0x1f41の場合，
+ *          entryの下位8ビットは0x41で，これはASCIIコードで'A'を表す．
+ *          entryの上位8ビットは0x1fで，これはVGAカラーパレットの色を表す．
+ *          terminal_write_hw_cell();は，セル(0, 0)に文字'A'をVGAカラーパレットの色0x1fで描画する．
+ * @note この関数は，コンソールがアクティブでない場合やフレームバッファが無効な場合は描画を行わない．
+ */
+static void terminal_write_hw_cell(const struct kfs_console_state *con, size_t index, uint16_t entry)
+{
+	/* コンソールがアクティブでない場合は描画しない */
+	if (!console_is_active(con))
+	{
+		return;
+	}
+
+	/* ターミナルバッファが存在する場合は，
+	 * indexで指定されたセルにentryを書き込む */
+	if (kfs_terminal_buffer)
+	{
+		kfs_terminal_buffer[index] = entry;
+	}
+
+	if (kfs_framebuffer.enabled)
+	{
+		framebuffer_draw_cell(index % VGA_WIDTH, index / VGA_WIDTH, entry);
+	}
+}
+
+/** フレームバッファを物理メモリにマップする
+ * @param phys_addr フレームバッファの物理アドレス
+ * @param pitch フレームバッファのピッチ（1行あたりのバイト数）
+ * @param height フレームバッファの高さ（ピクセル数）
+ * @return 成功した場合は0、失敗した場合は-1
+ * @example phys_addr = 0xa0000，pitch = 320，height = 200の場合，
+ *          フレームバッファが物理アドレス0xa0000から始まり、
+ *          1行あたり320バイト、200ピクセルの高さを持つと仮定すると、
+ *          framebuffer_map();はフレームバッファを物理メモリにマップし、成功すれば0を返す．
+ */
+static int framebuffer_map(uint64_t phys_addr, uint32_t pitch, uint32_t height)
+{
+	const uint64_t end64 = phys_addr + (uint64_t)pitch * height; /* フレームバッファの終了アドレス */
+
+	/* フレームバッファのアドレスが32ビットアドレス空間を超える場合はエラー */
+	if (phys_addr > 0xffffffffULL || end64 > 0xffffffffULL)
+	{
+		return -1;
+	}
+
+	unsigned long phys_start =
+		align_down_ulong((unsigned long)phys_addr, PAGE_SIZE); /* ページ境界に揃えたフレームバッファの開始アドレス */
+	unsigned long phys_end =
+		align_up_ulong((unsigned long)end64, PAGE_SIZE); /* ページ境界に揃えたフレームバッファの終了アドレス */
+	unsigned long map_size = phys_end - phys_start; /* マップするフレームバッファのサイズ */
+
+	/* マップするフレームバッファのサイズが最大テーブル数を超える場合はエラー */
+	if (map_size > KFS_FB_MAX_TABLES * PGDIR_SIZE)
+	{
+		return -1;
+	}
+
+	memset(kfs_framebuffer_tables, 0, sizeof(kfs_framebuffer_tables));
+	const unsigned long flags = _PAGE_PRESENT | _PAGE_RW | _PAGE_PCD | _PAGE_PWT;
+
+	/* フレームバッファの各ページに対してページテーブルエントリを設定する */
+	for (unsigned long offset = 0; offset < map_size; offset += PAGE_SIZE)
+	{
+		size_t page = offset / PAGE_SIZE;
+		set_pte(&kfs_framebuffer_tables[page / PTRS_PER_PTE][page % PTRS_PER_PTE], phys_start + offset, flags);
+	}
+
+	/* フレームバッファの各ページテーブルに対してページディレクトリエントリを設定する */
+	for (size_t table = 0; table < KFS_FB_MAX_TABLES && table * PGDIR_SIZE < map_size; table++)
+	{
+		set_pde(&boot_page_directory[pgd_index(KFS_FB_VADDR) + table], __pa(kfs_framebuffer_tables[table]), flags);
+	}
+
+	__flush_tlb();
+
+	/* フレームバッファのベースアドレスを設定する
+	 * ベースアドレスは，フレームバッファの物理アドレスを
+	 * ページ境界に揃えた開始アドレスからのオフセットを加えた仮想アドレスになる
+	 */
+	kfs_framebuffer.base = (uint8_t *)(KFS_FB_VADDR + ((unsigned long)phys_addr - phys_start));
+	return 0;
+}
+
+/** フレームバッファを設定する
+ * @param fb Multiboot2のフレームバッファタグへのポインタ
+ * @details Multiboot2のフレームバッファタグからフレームバッファの情報を取得し，
+ *          フレームバッファを設定する
+ */
+static void terminal_configure_framebuffer(const struct multiboot2_tag_framebuffer *fb)
+{
+	/* フレームバッファの情報が無効な場合は設定を行わない */
+	if (!fb || fb->framebuffer_type != 1 || (fb->framebuffer_bpp != 32 && fb->framebuffer_bpp != 24))
+	{
+		return;
+	}
+	/* フレームバッファの解像度がVGAセルサイズに満たない場合は設定を行わない */
+	if (fb->framebuffer_width < VGA_WIDTH * KFS_FB_CELL_WIDTH ||
+		fb->framebuffer_height < VGA_HEIGHT * KFS_FB_CELL_HEIGHT)
+	{
+		return;
+	}
+	/* フレームバッファを物理メモリにマップする */
+	if (framebuffer_map(fb->framebuffer_addr, fb->framebuffer_pitch, fb->framebuffer_height) < 0)
+	{
+		return;
+	}
+
+	kfs_framebuffer.pitch = fb->framebuffer_pitch;
+	kfs_framebuffer.width = fb->framebuffer_width;
+	kfs_framebuffer.height = fb->framebuffer_height;
+	kfs_framebuffer.bpp = fb->framebuffer_bpp;
+	kfs_framebuffer.red_pos = fb->red_field_position;
+	kfs_framebuffer.red_size = fb->red_mask_size;
+	kfs_framebuffer.green_pos = fb->green_field_position;
+	kfs_framebuffer.green_size = fb->green_mask_size;
+	kfs_framebuffer.blue_pos = fb->blue_field_position;
+	kfs_framebuffer.blue_size = fb->blue_mask_size;
+	kfs_framebuffer.enabled = 1;
+}
+
+/** Multiboot情報から端末の表示バックエンドを設定する
+ * @param mbi_ptr Multiboot情報構造体の物理アドレス
+ * @param magic ブートローダが渡したMultiboot magic値
+ * @details Multiboot2のフレームバッファタグを探し，見つかった場合はフレームバッファを設定する
+ * @note 主としてUEFI環境での設定であり，BIOS環境では何もしない．
+ *       つまり，UEFIブートローダがMultiboot2を使用するため，
+ *       UEFI環境でフレームバッファが提供されている場合に，
+ *       この関数がフレームバッファを設定することになる．
+ *       BIOSのブートローダはMultiboot1を使用することが多いため，
+ *       BIOS環境ではこの関数は何もせずに戻ることになる．
+ */
+void terminal_configure_from_multiboot(unsigned long mbi_ptr, uint32_t magic)
+{
+	/* ブートローダが渡したマジック値が正しくない場合，
+	 * またはMultiboot情報構造体のアドレスが無効な場合は設定を行わない．
+	 * たとえばBIOSのブートローダはMultiboot1を使用することが多く，その場合はマジック値が異なるため，
+	 * この関数は何もせずに戻ることになる．
+	 */
+	if (magic != MULTIBOOT2_BOOTLOADER_MAGIC || mbi_ptr == 0)
+	{
+		return;
+	}
+
+	const struct multiboot2_info *info =
+		(struct multiboot2_info *)__va(mbi_ptr);				/* Multiboot情報構造体の仮想アドレス */
+	unsigned long cursor = (unsigned long)info + sizeof(*info); /* 現在のタグ位置を示すカーソル */
+	const unsigned long end = (unsigned long)info + info->total_size; /* Multiboot情報構造体の終了位置 */
+	struct multiboot2_tag *tag;										  /* 現在のタグを指すポインタ */
+
+	/* 各タグを順に処理する */
+	while (cursor + sizeof(*tag) <= end)
+	{
+		tag = (struct multiboot2_tag *)cursor;
+
+		/* タグの種類がENDの場合は処理を終了する */
+		if (tag->type == MULTIBOOT2_TAG_TYPE_END)
+		{
+			break;
+		}
+
+		/* タグの種類がFRAMEBUFFERの場合はフレームバッファを設定する */
+		if (tag->type == MULTIBOOT2_TAG_TYPE_FRAMEBUFFER)
+		{
+			terminal_configure_framebuffer((const struct multiboot2_tag_framebuffer *)tag);
+			return;
+		}
+
+		/* 次のタグへ移動する */
+		cursor += (tag->size + 7) & ~7UL;
+	}
 }
 
 enum ansi_parse_state
@@ -131,8 +852,8 @@ static enum vga_color ansi_basic_color_to_vga(int idx)
 static void ansi_apply_sgr(struct kfs_console_state *con, const int *params, int count)
 {
 	/* 現在色を基準に SGR パラメータを順に適用する。 */
-	enum vga_color fg = (enum vga_color)(con->color & 0x0F);
-	enum vga_color bg = (enum vga_color)((con->color >> 4) & 0x0F);
+	enum vga_color fg = (enum vga_color)(con->color & VGA_COLOR_INDEX_MASK);
+	enum vga_color bg = (enum vga_color)((con->color >> VGA_COLOR_BACKGROUND_SHIFT) & VGA_COLOR_INDEX_MASK);
 	int bright_fg = (fg >= VGA_COLOR_DARK_GREY);
 
 	for (int i = 0; i < count; i++)
@@ -415,19 +1136,27 @@ static void console_fill_blank(struct kfs_console_state *con)
 /* シャドウバッファをVGAに書き込む */
 static void console_flush_to_hw(const struct kfs_console_state *con)
 {
-	if (!kfs_terminal_buffer)
+	/* VGAに書き込むバッファが存在しない場合，
+	 * またはフレームバッファが有効でない場合は書き込まない */
+	if (!kfs_terminal_buffer && !kfs_framebuffer.enabled)
 	{
 		return;
 	}
+
 	for (size_t i = 0; i < VGA_WIDTH * VGA_HEIGHT; ++i)
 	{
-		kfs_terminal_buffer[i] = con->shadow[i];
+		terminal_write_hw_cell(con, i, con->shadow[i]);
 	}
+	framebuffer_flush_shadow(con);
 }
 
 /* VGAに書き込まれた値をシャドウバッファに書き込む */
 static void console_capture_from_hw(struct kfs_console_state *con)
 {
+	if (kfs_framebuffer.enabled)
+	{
+		return;
+	}
 	if (!kfs_terminal_buffer)
 	{
 		return;
@@ -488,6 +1217,7 @@ static void sync_globals_from_console(const struct kfs_console_state *con)
 	kfs_terminal_column = con->column;
 	kfs_terminal_color = con->color;
 	terminal_update_hw_cursor(kfs_terminal_row, kfs_terminal_column);
+	framebuffer_sync_cursor(con);
 }
 
 /* 非アクティブなコンソールをアクティブする */
@@ -549,7 +1279,7 @@ static void terminal_putentryat(struct kfs_console_state *con, char c, size_t x,
 	con->shadow[y * VGA_WIDTH + x] = entry;
 	if (console_is_active(con) && kfs_terminal_buffer)
 	{
-		kfs_terminal_buffer[y * VGA_WIDTH + x] = entry;
+		terminal_write_hw_cell(con, y * VGA_WIDTH + x, entry);
 	}
 }
 
@@ -565,7 +1295,7 @@ static void terminal_insert_char_at(struct kfs_console_state *con, char c, size_
 		con->shadow[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i - 1];
 		if (console_is_active(con) && kfs_terminal_buffer)
 		{
-			kfs_terminal_buffer[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i];
+			terminal_write_hw_cell(con, y * VGA_WIDTH + i, con->shadow[y * VGA_WIDTH + i]);
 		}
 	}
 
@@ -574,7 +1304,7 @@ static void terminal_insert_char_at(struct kfs_console_state *con, char c, size_
 	con->shadow[y * VGA_WIDTH + x] = entry;
 	if (console_is_active(con) && kfs_terminal_buffer)
 	{
-		kfs_terminal_buffer[y * VGA_WIDTH + x] = entry;
+		terminal_write_hw_cell(con, y * VGA_WIDTH + x, entry);
 	}
 
 	/* 行末を超えた文字を次の行の先頭に移動（空白文字でない場合のみ） */
@@ -618,7 +1348,7 @@ static void terminal_scroll_if_needed(struct kfs_console_state *con)
 			con->shadow[(y - 1) * VGA_WIDTH + x] = value;
 			if (flush_hw)
 			{
-				kfs_terminal_buffer[(y - 1) * VGA_WIDTH + x] = value;
+				terminal_write_hw_cell(con, (y - 1) * VGA_WIDTH + x, value);
 			}
 		}
 	}
@@ -630,7 +1360,7 @@ static void terminal_scroll_if_needed(struct kfs_console_state *con)
 		con->shadow[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = blank;
 		if (flush_hw)
 		{
-			kfs_terminal_buffer[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = blank;
+			terminal_write_hw_cell(con, (VGA_HEIGHT - 1) * VGA_WIDTH + x, blank);
 		}
 	}
 	con->row = VGA_HEIGHT - 1;
@@ -727,7 +1457,7 @@ void terminal_delete_char(void)
 		con->shadow[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i + 1];
 		if (console_is_active(con) && kfs_terminal_buffer)
 		{
-			kfs_terminal_buffer[y * VGA_WIDTH + i] = con->shadow[y * VGA_WIDTH + i];
+			terminal_write_hw_cell(con, y * VGA_WIDTH + i, con->shadow[y * VGA_WIDTH + i]);
 		}
 	}
 
@@ -736,7 +1466,7 @@ void terminal_delete_char(void)
 	con->shadow[y * VGA_WIDTH + (VGA_WIDTH - 1)] = blank;
 	if (console_is_active(con) && kfs_terminal_buffer)
 	{
-		kfs_terminal_buffer[y * VGA_WIDTH + (VGA_WIDTH - 1)] = blank;
+		terminal_write_hw_cell(con, y * VGA_WIDTH + (VGA_WIDTH - 1), blank);
 	}
 
 	sync_globals_from_console(con);
@@ -991,7 +1721,7 @@ static void redraw_with_scroll_offset(struct kfs_console_state *con)
 		size_t buf_line = (scrollback_read_pos + i) % SCROLLBACK_LINES;
 		for (size_t x = 0; x < VGA_WIDTH; x++)
 		{
-			kfs_terminal_buffer[screen_line * VGA_WIDTH + x] = con->scrollback[buf_line * VGA_WIDTH + x];
+			terminal_write_hw_cell(con, screen_line * VGA_WIDTH + x, con->scrollback[buf_line * VGA_WIDTH + x]);
 		}
 		screen_line++;
 	}
@@ -1001,7 +1731,7 @@ static void redraw_with_scroll_offset(struct kfs_console_state *con)
 	{
 		for (size_t x = 0; x < VGA_WIDTH; x++)
 		{
-			kfs_terminal_buffer[screen_line * VGA_WIDTH + x] = con->shadow[i * VGA_WIDTH + x];
+			terminal_write_hw_cell(con, screen_line * VGA_WIDTH + x, con->shadow[i * VGA_WIDTH + x]);
 		}
 		screen_line++;
 	}

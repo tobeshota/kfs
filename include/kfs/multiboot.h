@@ -50,8 +50,9 @@ struct multiboot_mmap_entry
 #define MULTIBOOT2_BOOTLOADER_MAGIC 0x36D76289
 
 /* Multiboot2タグタイプ */
-#define MULTIBOOT2_TAG_TYPE_END 0  /* タグリスト終端 */
-#define MULTIBOOT2_TAG_TYPE_MMAP 6 /* メモリマップ */
+#define MULTIBOOT2_TAG_TYPE_END 0		  /* タグリスト終端 */
+#define MULTIBOOT2_TAG_TYPE_MMAP 6		  /* メモリマップ */
+#define MULTIBOOT2_TAG_TYPE_FRAMEBUFFER 8 /* Framebuffer情報 */
 
 /* Multiboot2メモリマップエントリタイプ（Multiboot1と共通の値） */
 #define MULTIBOOT2_MEMORY_AVAILABLE 1 /* 使用可能なRAM */
@@ -92,6 +93,26 @@ struct multiboot2_tag_mmap
 	uint32_t entry_size;	/* 各エントリのサイズ（通常24バイト） */
 	uint32_t entry_version; /* エントリフォーマットバージョン（0） */
 							/* 以降 entry_size バイトごとに multiboot2_mmap_entry が続く */
+} __attribute__((packed));
+
+/* Multiboot2 framebufferタグ（type=8） */
+struct multiboot2_tag_framebuffer
+{
+	uint32_t type;				  /* MULTIBOOT2_TAG_TYPE_FRAMEBUFFER (8) */
+	uint32_t size;				  /* タグ全体のサイズ */
+	uint64_t framebuffer_addr;	  /* フレームバッファのアドレス */
+	uint32_t framebuffer_pitch;	  /* フレームバッファの1行あたりのバイト数 */
+	uint32_t framebuffer_width;	  /* フレームバッファの幅（ピクセル単位） */
+	uint32_t framebuffer_height;  /* フレームバッファの高さ（ピクセル単位） */
+	uint8_t framebuffer_bpp;	  /* ビット深度（bits per pixel） */
+	uint8_t framebuffer_type;	  /* フレームバッファの種類（1=RGB, 2=パレット） */
+	uint16_t reserved;			  /* 予約（0） */
+	uint8_t red_field_position;	  /* 赤成分のビット位置 */
+	uint8_t red_mask_size;		  /* 赤成分のビットサイズ */
+	uint8_t green_field_position; /* 緑成分のビット位置 */
+	uint8_t green_mask_size;	  /* 緑成分のビットサイズ */
+	uint8_t blue_field_position;  /* 青成分のビット位置 */
+	uint8_t blue_mask_size;		  /* 青成分のビットサイズ */
 } __attribute__((packed));
 
 #endif /* _KFS_MULTIBOOT_H */

@@ -1,15 +1,8 @@
-# ===== User-facing targets =====
-# - make             : make iso と同じ
-# - make kernel      : Image まで作成
-# - make iso         : kfs.iso まで作成
-# - make run         : qemu-system-$(ISA) -cdrom kfs.iso を実行
-# - make run-kernel  : qemu-system-$(ISA) -kernel Image を実行
-
 $(shell [ -f .env ] || cp -a .env.sample .env)
 include .env
 export
 
-# PC スピーカー音声バックエンド（make run / make run-kernel 専用）
+# PC スピーカー音声バックエンド
 ifeq ($(shell uname -s),Darwin)
     QEMU_AUDIO ?= -audiodev coreaudio,id=snd -machine pc,pcspk-audiodev=snd
 else ifeq ($(shell uname -s),Linux)
@@ -63,8 +56,16 @@ KERNEL   := Image
 ISO_BIOS := kfs.iso
 ISO_UEFI := kfs-uefi.iso
 
+ifeq ($(strip $(BOOT_MODE)),UEFI)
+BOOT_ISO_TARGET := iso-uefi
+BOOT_RUN_TARGET := run-iso-uefi
+else
+BOOT_ISO_TARGET := iso-bios
+BOOT_RUN_TARGET := run-iso-bios
+endif
+
 # ===== Default =====
-all: iso-bios
+all: $(BOOT_ISO_TARGET)
 
 # ===== Ensure Docker image (local build only) =====
 ensure-image:
@@ -95,7 +96,7 @@ $(BUILD_DIR)/%.o: %.c
 
 kernel: $(KERNEL)
 
-iso: iso-bios
+iso: $(BOOT_ISO_TARGET)
 
 iso-bios: kernel grub-bios.cfg
 	mkdir -p isodir-bios/boot/grub
@@ -125,7 +126,7 @@ $(KERNEL): $(KERNEL_SRCS_C) $(KERNEL_SRCS_S) $(KERNEL_SRCS_H) arch/$(ISA)/boot/l
 
 kernel: $(KERNEL)
 
-iso: iso-bios
+iso: $(BOOT_ISO_TARGET)
 
 $(ISO_BIOS): $(KERNEL) grub-bios.cfg
 	$(call ensure_image)
@@ -153,7 +154,7 @@ fclean: clean
 re: fclean all
 
 # ===== Run with QEMU (prefer host, fallback to container) =====
-run: run-iso-bios
+run: $(BOOT_RUN_TARGET)
 
 run-iso-bios: $(ISO_BIOS)
 	@ $(QEMU_VNC_HINT)
@@ -180,7 +181,7 @@ run-iso-uefi: $(ISO_UEFI)
 		-cdrom $(ISO_UEFI) \
 		$(QEMU_VNC) \
 		-serial stdio \
-		-display curses \
+		$(QEMU_AUDIO)
 
 # ===== Tests passthrough =====
 test:
