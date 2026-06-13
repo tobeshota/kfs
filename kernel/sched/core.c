@@ -61,6 +61,7 @@ struct task_struct init_task = {
 	.prio = 20,				 /* デフォルト優先度 */
 	.rt_priority = 0,
 	.time_slice = 10, /* RR_TIMESLICE（kernel/sched/rr.c で定義） */
+	.cpu_time_ticks = 0,
 
 	/* プロセス名 */
 	.comm = "swapper", /* idle/swapperプロセス */
@@ -186,6 +187,16 @@ void wake_up_process(struct task_struct *tsk)
  */
 void scheduler_tick(void)
 {
+	if (!(current->flags & PF_KTHREAD))
+	{
+		/** ユーザープロセスの場合のみ CPU 時間をカウントする
+		 * @note ユーザプロセスのみに絞る理由は，
+		 *       CPU時間はユーザプロセスのリソース使用量の指標であり，
+		 *       カーネルスレッドは通常システム管理やバックグラウンドタスクであり，
+		 *       CPU時間をカウントする必要がないためである．
+		 */
+		current->cpu_time_ticks++;
+	}
 	rr_task_tick(current);
 }
 

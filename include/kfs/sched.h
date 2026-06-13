@@ -193,6 +193,8 @@ struct task_struct
 	unsigned long user_stack_vm_start; /* do_mmap が返した仮想アドレス（0=未確保） */
 	unsigned long user_stack_vm_len;   /* 確保サイズ（PAGE_SIZE 単位） */
 	struct pid *pid_struct;			   /* struct pid のポインタ（alloc_pid の返り値を保存） */
+
+	uint32_t cpu_time_ticks; /* 累積CPU時間（tick単位） */
 };
 
 /* 現在実行中のプロセス（kernel/sched/core.c で定義） */

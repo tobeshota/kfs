@@ -58,7 +58,7 @@ void cmd_ps(void *arg)
 		for (long i = 0; i < n; i++)
 		{
 			struct kfs_ps_entry *e = &g_ps_entries[i];
-			snprintf(g_ps_line, sizeof(g_ps_line), "%5d\t%4d\t%4s\t%7s\t%5s\t%s\n", (int)e->pid, (int)e->ppid, e->stat,
+			snprintf(g_ps_line, sizeof(g_ps_line), "%5d\t%4d\t%4s\t%7s\t%7s\t%s\n", (int)e->pid, (int)e->ppid, e->stat,
 					 e->tty, e->time, e->cmd);
 			printf("%s", g_ps_line);
 		}
@@ -70,7 +70,7 @@ void cmd_ps(void *arg)
 		for (long i = 0; i < n; i++)
 		{
 			struct kfs_ps_entry *e = &g_ps_entries[i];
-			printf("%5d\t%7s\t%5s\t%s\n", (int)e->pid, e->tty, e->time, e->cmd);
+			printf("%5d\t%7s\t%7s\t%s\n", (int)e->pid, e->tty, e->time, e->cmd);
 		}
 	}
 }

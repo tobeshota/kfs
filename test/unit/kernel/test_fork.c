@@ -108,6 +108,9 @@ KFS_TEST(test_copy_process_basic)
 	/* 実行可能状態であること */
 	KFS_ASSERT_EQ(child->__state, TASK_RUNNING);
 
+	/* PF_KTHREAD は通常 fork へ継承されないこと */
+	KFS_ASSERT_TRUE((child->flags & PF_KTHREAD) == 0);
+
 	printk("copy_process basic test passed\n");
 }
 
@@ -296,7 +299,12 @@ static void dummy_kthread_fn(void)
 KFS_TEST(test_kernel_thread_returns_pid)
 {
 	pid_t pid = kernel_thread(dummy_kthread_fn, NULL);
+	struct task_struct *child;
+
 	KFS_ASSERT_TRUE(pid > 0);
+	child = find_task_by_pid(pid);
+	KFS_ASSERT_TRUE(child != NULL);
+	KFS_ASSERT_TRUE((child->flags & PF_KTHREAD) != 0);
 }
 
 /** fork 爆弾を実際に起こしてもカーネルがクラッシュしないことを確かめる
