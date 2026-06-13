@@ -10,7 +10,7 @@
 #include <kfs/slab.h>
 #include <kfs/string.h>
 
-/* 初期化マクロ（Phase 1では何もしない） */
+/* 初期化マクロ（現在は追加処理なし） */
 #define __init
 
 /** task_struct用スラブキャッシュ
@@ -96,7 +96,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
  * @param tsk コピー先のtask_struct
  * @param oldmm コピー元のmm_struct
  * @return 0（成功）、負のエラーコード（失敗）
- * @note COW（Copy On Write）はPhase 6で実装予定
+ * @note COW（Copy On Write）は未実装
  */
 
 /* リンカが生成するセクション境界シンボル（linker.ld で定義） */
@@ -182,7 +182,7 @@ static int copy_mm(struct task_struct *tsk, struct mm_struct *oldmm)
 /** シグナル状態をコピー
  * @param tsk コピー先のtask_struct
  * @return 0（成功）、負のエラーコード（失敗）
- * @note Phase 4で詳細実装予定
+ * @note 現在は最小限の共有情報だけを初期化する
  */
 static int copy_signal(struct task_struct *tsk)
 {

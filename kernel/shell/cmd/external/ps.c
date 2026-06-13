@@ -16,7 +16,7 @@ static struct kfs_ps_entry g_ps_entries[MAX_PS];
 static char g_ps_line[256];
 
 /** ps コマンド（ユーザランド）エントリ
- * @brief Phase1 の骨組み。`ps_snapshot` を呼んで1件だけ取得する。
+ * @brief `ps_snapshot` から取得したプロセス情報を表示する。
  * @details 後続コミットで引数解析・複数件取得・整形表示を追加する予定。
  */
 void cmd_ps(void *arg)

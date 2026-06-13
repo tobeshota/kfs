@@ -40,7 +40,7 @@ struct task_struct init_task = {
 	.cap_effective = CAP_FULL_SET, /* 全Capability有効 */
 
 	/* シグナル（後で初期化） */
-	.signal = NULL, /* Phase 4で設定 */
+	.signal = NULL, /* 必要になった時点で初期化する */
 	.pending =
 		{
 			.list = LIST_HEAD_INIT(init_task.pending.list),
@@ -56,8 +56,8 @@ struct task_struct init_task = {
 			.vruntime = 0,
 		},
 
-	/* スケジューリングポリシー（Phase 7） */
-	.policy = SCHED_PURE_RR, /* 初期ポリシーは純粋ラウンドロビン（Phase 8でSCHED_NORMALに変更） */
+	/* スケジューリングポリシー */
+	.policy = SCHED_PURE_RR, /* 起動直後は既存の純粋ラウンドロビンで動かす */
 	.prio = 20,				 /* デフォルト優先度 */
 	.rt_priority = 0,
 	.time_slice = 10, /* RR_TIMESLICE（kernel/sched/rr.c で定義） */
@@ -74,7 +74,7 @@ struct task_struct *current = &init_task;
 
 /** 全タスクのリスト
  * 全てのtask_structをつなぐグローバルリスト
- * Phase 2でタスク検索等に使用
+ * タスク検索などで使用する
  */
 LIST_HEAD(task_list);
 
@@ -101,8 +101,8 @@ void init_idle_task(void)
 /** PIDからtask_structを検索
  * @param pid 検索するプロセスID
  * @return 見つかったtask_struct（見つからない場合NULL）
- * @note グローバルタスクリストを線形探索（Phase 1-6の簡易実装）
- *       Phase 7以降でPIDハッシュテーブルによる高速化を実装予定
+ * @note 現在はグローバルタスクリストを線形探索する簡易実装。
+ *       必要になったら PID ハッシュテーブルで高速化する
  */
 struct task_struct *find_task_by_pid(pid_t pid)
 {
@@ -183,7 +183,7 @@ void wake_up_process(struct task_struct *tsk)
 
 /** タイマーティックハンドラから呼ばれる周期処理
  * @brief 現在のタスクのタイムスライスをデクリメントし，必要に応じてプリエンプトする．
- *        arch/i386/kernel/timer.c の timer_interrupt() から呼び出す（Phase 4 コミットで実装）．
+ *        arch/i386/kernel/timer.c の timer_interrupt() から呼び出す．
  */
 void scheduler_tick(void)
 {

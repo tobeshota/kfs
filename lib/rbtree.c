@@ -62,28 +62,28 @@ struct rb_node *rb_next(const struct rb_node *node)
  * @param node 挿入したノード
  * @param root ツリーのルート
  *
- * Phase 7で完全実装予定
+ * 必要になった時点で完全な赤黒木の再平衡処理を実装する
  * 今はノードを黒に設定するだけ
  */
 void rb_insert_color(struct rb_node *node, struct rb_root *root)
 {
-	(void)root; /* Phase 7で使用 */
+	(void)root; /* 再平衡処理を実装するまで未使用 */
 	/* 簡易実装：単純に黒に設定 */
 	rb_set_color(node, RB_BLACK);
 
-	/* Phase 7で完全なRed-Black Tree調整を実装 */
+	/* 完全な Red-Black Tree 調整は未実装 */
 }
 
 /** ツリーからノードを削除する
  * @param node 削除するノード
  * @param root ツリーのルート
  *
- * Phase 7で完全実装予定
+ * 必要になった時点で完全な赤黒木の再平衡処理を実装する
  */
 void rb_erase(struct rb_node *node, struct rb_root *root)
 {
-	(void)root; /* Phase 7で使用 */
-	/* Phase 7で実装 */
+	(void)root; /* 再平衡処理を実装するまで未使用 */
+	/* 削除後の再平衡処理は未実装 */
 	/* 今はリンク解除のみ */
 	if (node->rb_left && node->rb_right)
 	{

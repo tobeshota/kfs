@@ -15,7 +15,7 @@ typedef int refcount_t;
 enum pid_type
 {
 	PIDTYPE_PID,  /* プロセスID */
-	PIDTYPE_TGID, /* スレッドグループID（Phase 14: pthread実装で使用） */
+	PIDTYPE_TGID, /* スレッドグループID（pthread対応時に使用） */
 	PIDTYPE_MAX	  /* pid_typeの数 */
 };
 
@@ -39,7 +39,7 @@ struct pid
 	 * @brief このPID構造体を指しているポインタの数．
 	 * @note 用途により意味が異なる:
 	 *       - PIDTYPE_PIDの場合: 通常1（各プロセス/スレッドは独自PID）
-	 *       - PIDTYPE_TGID(Phase 14)の場合: スレッドグループ内のスレッド数
+	 *       - PIDTYPE_TGIDの場合: スレッドグループ内のスレッド数
 	 */
 	refcount_t count;
 
@@ -59,7 +59,7 @@ struct pid
 	/** このPIDを持つタスクのハッシュリスト配列
 	 * @example
 	 * tasks[PIDTYPE_PID]: プロセスリスト
-	 * tasks[PIDTYPE_TGID]: スレッドグループリスト（Phase 14で使用）
+	 * tasks[PIDTYPE_TGID]: スレッドグループリスト（pthread対応時に使用）
 	 */
 	struct hlist_head tasks[PIDTYPE_MAX];
 };
