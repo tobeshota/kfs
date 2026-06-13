@@ -129,7 +129,7 @@ int sched_task_queued(struct task_struct *task)
 	return sched_class_for_task(task)->task_queued(task);
 }
 
- /** 次に実行する task を scheduler class から取得する
+/** 次に実行する task を scheduler class から取得する
  * @return 次に実行する task。存在しない場合は NULL
  */
 struct task_struct *sched_pick_next_task(void)
