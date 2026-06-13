@@ -82,6 +82,12 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	/* pid_struct をコピーされないように初期化 */
 	tsk->pid_struct = NULL;
 	tsk->user_stack_vm_len = 0;
+	tsk->cpu_time_ticks = 0;
+
+	/* dup_task_struct(); はプロセスとカーネルスレッドいずれも生成する．
+	 * 生成するのがプロセスである場合，PF_KTHREADが立てられることはない．
+	 * 生成するのがカーネルスレッドである場合，kernel_thread()にてPF_KTHREADが立てられる */
+	tsk->flags &= ~PF_KTHREAD;
 
 	return tsk;
 }
@@ -487,7 +493,8 @@ pid_t kernel_thread(void (*fn)(void), const char *name)
 	 * これにより，ret_from_fork がカーネルスレッドパスを選択する */
 	copy_thread_with_fn(p, fn);
 
-	/* PF_KTHREAD を明示的に設定する */
+	/* kernel_thread()で生成されるのはカーネルスレッドであるため，
+	 * PF_KTHREADフラグを立てる */
 	p->flags |= PF_KTHREAD;
 
 	/* RR ランキューに登録してスケジューリング可能にする */

@@ -13,6 +13,7 @@
 #include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/signal.h>
+#include <kfs/stdio.h>
 #include <kfs/string.h>
 #include <kfs/sys.h>
 #include <kfs/timer.h>
@@ -70,7 +71,14 @@ struct ps_snapshot_ctx
 	size_t count;
 };
 
-/* task の所属コンソール番号を ps 表示用TTY文字列へ変換する。 */
+/** task の所属コンソール番号を ps 表示用TTY文字列へ変換する
+ * @param dst 書き込み先バッファ
+ * @param dst_len バッファサイズ
+ * @param tty_console task_struct の tty_console フィールド
+ * @note 物理コンソールは "tty1", "tty2", ...，
+ *       疑似端末は "pts/1", "pts/2", ... と表示する．
+ *       範囲外の番号の場合は "-" と表示する．
+ */
 static void ps_fill_tty(char *dst, size_t dst_len, size_t tty_console)
 {
 	if (!dst || dst_len == 0)
@@ -78,47 +86,44 @@ static void ps_fill_tty(char *dst, size_t dst_len, size_t tty_console)
 		return;
 	}
 
-	if (tty_console >= kfs_terminal_console_count())
+	const size_t console_count = kfs_terminal_console_count();
+	if (tty_console < console_count)
 	{
-		dst[0] = '-';
-		if (dst_len > 1)
-		{
-			dst[1] = '\0';
-		}
+		/* taskが所属する仮想コンソールが物理端末（tty）である場合．
+		 * 端末番号は1始まりで表示する（tty1, tty2, ...）． */
+		snprintf(dst, dst_len, "tty%u", (unsigned int)(tty_console + 1));
+	}
+	else if (tty_console < console_count + PTY_MAX_PAIRS)
+	{
+		/* taskが所属する仮想コンソールが疑似端末（pts）である場合．
+		 * 仮想端末番号は1始まりで表示する（pts/1, pts/2, ...）． */
+		snprintf(dst, dst_len, "pts/%u", (unsigned int)(tty_console - console_count + 1));
+	}
+	else
+	{
+		snprintf(dst, dst_len, "-");
+	}
+}
+
+/** task の CPU 使用時間を ps 表示用文字列に変換する
+ * @param dst 書き込み先バッファ
+ * @param dst_len バッファサイズ
+ * @param cpu_time_ticks task_struct の cpu_time_ticks フィールド（tick単位）
+ * @note 表示形式は "H:MM:SS"（例: "1:05:30"）．
+ *       時間が0のときは "0:00:00" と表示する．
+ */
+static void ps_fill_time(char *dst, size_t dst_len, uint32_t cpu_time_ticks)
+{
+	if (!dst || dst_len == 0)
+	{
 		return;
 	}
 
-	/* 端末番号はユーザー表示で 1 始まりにする（tty1, tty2, ...）。 */
-	size_t n = tty_console + 1;
-	char digits[20];
-	size_t digits_len = 0;
-
-	while (n > 0 && digits_len < sizeof(digits))
-	{
-		digits[digits_len++] = (char)('0' + (n % 10));
-		n /= 10;
-	}
-
-	if (dst_len < 5)
-	{
-		dst[0] = '-';
-		if (dst_len > 1)
-		{
-			dst[1] = '\0';
-		}
-		return;
-	}
-
-	dst[0] = 't';
-	dst[1] = 't';
-	dst[2] = 'y';
-
-	size_t pos = 3;
-	while (digits_len > 0 && pos + 1 < dst_len)
-	{
-		dst[pos++] = digits[--digits_len];
-	}
-	dst[pos] = '\0';
+	const uint32_t total_seconds = cpu_time_ticks / HZ; /* 総秒数 */
+	const uint32_t hours = total_seconds / 3600;		/* 時間 */
+	const uint32_t minutes = (total_seconds / 60) % 60; /* 分 */
+	const uint32_t seconds = total_seconds % 60;		/* 秒 */
+	snprintf(dst, dst_len, "%u:%02u:%02u", hours, minutes, seconds);
 }
 
 /** @brief タスク走査コールバック — 各タスク情報を `kfs_ps_entry` に詰める
@@ -142,12 +147,7 @@ static int ps_snapshot_collect(struct task_struct *task, void *ctx)
 	entry->pid = task->pid;
 	entry->ppid = task->parent ? task->parent->pid : 0;
 	ps_fill_tty(entry->tty, sizeof(entry->tty), task->tty_console);
-	/* 現在はダミーの TIME 表示。将来 jiffies -> hh:mm:ss 変換を入れる */
-	entry->time[0] = '0';
-	entry->time[1] = ':';
-	entry->time[2] = '0';
-	entry->time[3] = '0';
-	entry->time[4] = '\0';
+	ps_fill_time(entry->time, sizeof(entry->time), task->cpu_time_ticks);
 	entry->stat[0] = ps_state_char(task);
 	entry->stat[1] = '\0';
 	strncpy(entry->cmd, task->comm, sizeof(entry->cmd));
@@ -663,6 +663,13 @@ long sys_ioctl(int fd, unsigned int cmd, unsigned long arg)
 
 	if (cmd == TIOCSCTTY)
 	{
+		if (pty_is_slave_fd(fd))
+		{
+			int slot = fd - PTY_SLAVE_FD_BASE;
+			current->tty_console = kfs_terminal_console_count() + (size_t)slot;
+			return 0;
+		}
+
 		/* arg は接続するコンソール番号（現在/dev/ttyの代わり） */
 		if (arg >= kfs_terminal_console_count())
 		{

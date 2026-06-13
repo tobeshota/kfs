@@ -9,13 +9,29 @@
 #include <kfs/console.h>
 #include <kfs/errno.h>
 #include <kfs/ioctl.h>
+#include <kfs/ps.h>
+#include <kfs/pty.h>
 #include <kfs/sched.h>
+#include <kfs/string.h>
 #include <kfs/sys.h>
+#include <kfs/timer.h>
 #include <kfs/tty.h>
 
 extern struct task_struct *current;
 extern struct task_struct init_task;
 extern struct list_head task_list;
+
+static const struct kfs_ps_entry *find_ps_entry_by_pid(const struct kfs_ps_entry *entries, long count, pid_t pid)
+{
+	for (long i = 0; i < count; ++i)
+	{
+		if (entries[i].pid == pid)
+		{
+			return &entries[i];
+		}
+	}
+	return NULL;
+}
 
 static void setup_test(void)
 {
@@ -374,6 +390,44 @@ static void test_sys_ioctl_tcsets_null_arg_returns_einval(void)
 	KFS_ASSERT_EQ(-EINVAL, (int)sys_ioctl(0, TCSETS, 0UL));
 }
 
+static void test_sys_ps_snapshot_formats_tty_console_and_time(void)
+{
+	struct kfs_ps_entry entries[16];
+	const struct kfs_ps_entry *entry;
+	long count;
+
+	current->pid = 42;
+	current->tty_console = 1;
+	current->cpu_time_ticks = 3665U * HZ;
+
+	count = sys_ps_snapshot(entries, 16);
+	KFS_ASSERT_TRUE(count > 0);
+	entry = find_ps_entry_by_pid(entries, count, 42);
+	KFS_ASSERT_TRUE(entry != NULL);
+	KFS_ASSERT_TRUE(strcmp(entry->tty, "tty2") == 0);
+	KFS_ASSERT_TRUE(strcmp(entry->time, "1:01:05") == 0);
+}
+
+static void test_sys_ps_snapshot_formats_pts_tty(void)
+{
+	struct kfs_ps_entry entries[16];
+	const struct kfs_ps_entry *entry;
+	int master_fd;
+	int slave_fd;
+	long count;
+
+	KFS_ASSERT_EQ(0, pty_open(&master_fd, &slave_fd));
+	current->pid = 43;
+	current->cpu_time_ticks = 0;
+	KFS_ASSERT_EQ(0, (int)sys_ioctl(slave_fd, TIOCSCTTY, 0UL));
+
+	count = sys_ps_snapshot(entries, 16);
+	KFS_ASSERT_TRUE(count > 0);
+	entry = find_ps_entry_by_pid(entries, count, 43);
+	KFS_ASSERT_TRUE(entry != NULL);
+	KFS_ASSERT_TRUE(strcmp(entry->tty, "pts/1") == 0);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_getuid_returns_uid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_setuid_succeeds_with_cap, setup_test, teardown_test),
@@ -405,6 +459,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tcsets_updates_termios_lflag, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tcgets_without_ctty_returns_enotty, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tcsets_null_arg_returns_einval, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ps_snapshot_formats_tty_console_and_time, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ps_snapshot_formats_pts_tty, setup_test, teardown_test),
 };
 
 int register_unit_tests_sys(struct kfs_test_case **out)
