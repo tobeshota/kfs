@@ -233,6 +233,20 @@ static void test_sched_setscheduler_ok(void)
 	printk("sys_sched_setscheduler: ok OK\n");
 }
 
+/* SCHED_NORMAL は通常プロセス用 policy として受理されることを確かめる */
+static void test_sched_setscheduler_accepts_sched_normal(void)
+{
+	current->cap_effective = CAP_EMPTY_SET;
+	current->policy = SCHED_PURE_RR;
+	current->rt_priority = 7;
+
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_NORMAL, 0) == 0); /* SCHED_NORMAL に設定できることを確かめる */
+	KFS_ASSERT_TRUE(current->policy == SCHED_NORMAL); /* ポリシーが SCHED_NORMAL に設定されたことを確認する */
+	KFS_ASSERT_TRUE(current->rt_priority == 0); /* RT 優先度がクリアされたことを確認する */
+
+	printk("sys_sched_setscheduler: accepts SCHED_NORMAL OK\n");
+}
+
 /* 不正なポリシー番号を渡すと -EINVAL が返ることを確かめる */
 static void test_sched_setscheduler_einval(void)
 {
@@ -285,6 +299,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_noop_when_same, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_wake_up_process_enqueues, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_ok, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_accepts_sched_normal, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_einval, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_eperm, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_getscheduler, setup_test, teardown_test),
