@@ -32,7 +32,7 @@ typedef int refcount_t;
 
 /** シグナル共有情報
  * Linux 6.18ではスレッドグループで共有されるシグナル情報
- * Phase 4で詳細実装予定、今は最小限
+ * 現在は最小限の情報だけを保持し、詳細なキュー管理は未実装
  */
 struct signal_struct
 {
@@ -40,7 +40,7 @@ struct signal_struct
 };
 
 /** 保留中シグナル
- * Phase 4で詳細実装予定、今は最小限
+ * 現在は最小限の情報だけを保持し、詳細なキュー管理は未実装
  */
 struct sigpending
 {
@@ -49,7 +49,7 @@ struct sigpending
 };
 
 /** CFS用スケジューリングエンティティ
- * Phase 8で実装予定、今は構造のみ定義
+ * CFS 実装で使用するための構造体。現在は一部のフィールドのみ使用する
  */
 struct sched_entity
 {
@@ -119,16 +119,16 @@ struct thread_struct
 	unsigned long ip; /* 退避済みのカーネル空間の命令ポインタ（未使用時は 0） */
 };
 
-/** スケジューリングポリシー定数（Linux 6.18 互換値）
- * @see Linux 6.18 include/linux/sched.h
+/** スケジューリングポリシー定数
+ * @note Linux 由来の値を含むが、kfs では一部 policy のみ実装する。
  */
-#define SCHED_NORMAL 0	  /* CFS（デフォルト、Phase 8 で実装） */
-#define SCHED_FIFO 1	  /* 優先度ベース FIFO（Phase 13 で実装） */
-#define SCHED_RR 2		  /* Linux 互換 RT ラウンドロビン（Phase 13 で実装） */
-#define SCHED_BATCH 3	  /* バッチ処理（将来実装） */
-#define SCHED_IDLE 5	  /* アイドル（将来実装） */
-#define SCHED_DEADLINE 6  /* デッドライン（Phase 12 で実装） */
-#define SCHED_PURE_RR 100 /* kfs 専用純粋ラウンドロビン（Phase 7 実装、学習用） */
+#define SCHED_NORMAL 0	  /* 通常プロセス用。CFS として実装する */
+#define SCHED_FIFO 1	  /* Linux 由来の RT FIFO。現在は未実装 */
+#define SCHED_RR 2		  /* Linux 由来の RT RR。現在は未実装 */
+#define SCHED_BATCH 3	  /* バッチ処理用。現在は未実装 */
+#define SCHED_IDLE 5	  /* 低優先度アイドル用。現在は未実装 */
+#define SCHED_DEADLINE 6  /* デッドライン scheduler。現在は未実装 */
+#define SCHED_PURE_RR 100 /* kfs 専用の純粋ラウンドロビン */
 
 /** プロセス/スレッド記述子
  * @brief プロセス/スレッドの全情報を保持する中核構造体
@@ -171,7 +171,7 @@ struct task_struct
 	/* スケジューリング（CFS用） */
 	struct sched_entity se; /* スケジューリングエンティティ（se.run_node, se.vruntimeを使用） */
 
-	/* スケジューリングポリシー（Phase 7追加） */
+	/* スケジューリングポリシー */
 	unsigned int policy;	 /* スケジューリングポリシー（SCHED_*） */
 	int prio;				 /* 動的優先度（0-139、低いほど高優先） */
 	int static_prio;		 /* 静的優先度（nice値から算出、SCHED_NORMAL用） */

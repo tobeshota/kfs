@@ -411,13 +411,13 @@ void *kbrk(intptr_t increment)
  * @param name キャッシュ名
  * @param size オブジェクトサイズ
  * @return 作成したキャッシュ（失敗時NULL）
- * @note Phase 2の簡易実装：静的キャッシュ配列から適切なものを返す
- *       Phase 7以降で動的キャッシュ作成を実装予定
+ * @note 現在は静的キャッシュ配列から適切なものを返す簡易実装。
+ *       動的キャッシュ作成は将来実装する
  */
 struct kmem_cache *kmem_cache_create(const char *name, size_t size)
 {
 	int i;
-	(void)name; /* Phase 7以降で使用 */
+	(void)name; /* 動的キャッシュ作成を実装するまで未使用 */
 
 	/* 適切なサイズのキャッシュを検索 */
 	for (i = 0; i < NR_CACHES; i++)
@@ -434,11 +434,11 @@ struct kmem_cache *kmem_cache_create(const char *name, size_t size)
 
 /** キャッシュを破棄
  * @param cachep 破棄するキャッシュ
- * @note Phase 2では何もしない（静的キャッシュのため）
+ * @note 現在は静的キャッシュのみなので何もしない
  */
 void kmem_cache_destroy(struct kmem_cache *cachep)
 {
-	(void)cachep; /* Phase 7以降で実装 */
+	(void)cachep; /* 動的キャッシュ破棄を実装するまで未使用 */
 }
 
 /** キャッシュからオブジェクトを割り当て
@@ -462,7 +462,7 @@ void *kmem_cache_alloc(struct kmem_cache *cachep)
  */
 void kmem_cache_free(struct kmem_cache *cachep, void *objp)
 {
-	(void)cachep; /* Phase 2では使用しない */
+	(void)cachep; /* 現在の簡易実装では未使用 */
 
 	/* 内部的にはkfreeと同じ処理 */
 	kfree(objp);

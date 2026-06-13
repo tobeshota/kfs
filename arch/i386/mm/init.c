@@ -196,8 +196,8 @@ int map_page_vmalloc(unsigned long vaddr, unsigned long paddr, unsigned long fla
  * @param dst_pgd コピー先のページディレクトリ
  * @param src_pgd コピー元のページディレクトリ
  * @return 0=成功、負数=エラー
- * @note Phase 4: プロセスメモリ分離
- * @note Phase 6でCOW（Copy On Write）を実装予定
+ * @note プロセスごとにページディレクトリを分離する。
+ * @note COW（Copy On Write）は未実装
  */
 int copy_page_tables(pgd_t *dst_pgd, pgd_t *src_pgd)
 {
@@ -233,7 +233,7 @@ int copy_page_tables(pgd_t *dst_pgd, pgd_t *src_pgd)
 		dst_pt = (pte_t *)new_pt_page;
 		src_pt = (pte_t *)pde_page(src_pde);
 
-		/* ページテーブル全体をコピー（Phase 6でCOW最適化予定） */
+		/* ページテーブル全体をコピーする。COW 最適化は未実装 */
 		memcpy(dst_pt, src_pt, PAGE_SIZE);
 
 		/* 新しいページテーブルをページディレクトリに設定 */
@@ -246,7 +246,7 @@ int copy_page_tables(pgd_t *dst_pgd, pgd_t *src_pgd)
 
 /** ページテーブルを解放（プロセス終了時）
  * @param pgd 解放するページディレクトリ
- * @note Phase 4: プロセスメモリ分離
+ * @note プロセスメモリ分離のためにページディレクトリを切り替える
  */
 void free_page_tables(pgd_t *pgd)
 {

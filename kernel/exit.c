@@ -189,7 +189,7 @@ void release_task(struct task_struct *p)
  * @param error_code 終了コード
  * @return この関数は返ってこない
  * @note Linux 6.18 kernel/exit.c sys_exit()相当
- * @note Phase 10でシステムコールテーブルから呼ばれる
+ * @note システムコールテーブルから呼ばれる
  */
 void sys_exit(int error_code)
 {

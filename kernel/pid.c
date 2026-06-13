@@ -87,7 +87,7 @@ struct pid *alloc_pid(void)
 	pid_struct->inum = 1;	 /* ルートnamespace ID（固定） */
 	pid_struct->nr = pid_nr; /* PID番号を保存 */
 
-	/* tasks配列を初期化（Phase 14でスレッドグループ管理に使用） */
+	/* tasks配列を初期化（スレッドグループ管理で使用） */
 	for (i = 0; i < PIDTYPE_MAX; i++)
 	{
 		pid_struct->tasks[i].first = NULL;
@@ -130,7 +130,7 @@ void put_pid(struct pid *pid_struct)
 	kfree(pid_struct);
 }
 
-/* PIDハッシュテーブル（簡易版、Phase 2で使用） */
+/* PIDハッシュテーブル（現在は簡易実装） */
 #define PID_HASH_SIZE 256
 static struct hlist_head pid_hash[PID_HASH_SIZE] __attribute__((unused));
 
@@ -147,17 +147,17 @@ static inline int pid_hashfn(pid_t pid)
  * @param task 追加するプロセス
  *
  * PIDからの高速検索のため
- * Phase 2で完全実装
+ * PID ハッシュテーブルへの登録は未実装
  */
 void hash_pid(struct task_struct *task)
 {
-	(void)task; /* Phase 2で完全実装 */
+	(void)task; /* PID ハッシュテーブル登録を実装するまで未使用 */
 }
 
 /** PID管理の初期化
- * @note Phase 1では何もしない（静的初期化で十分）
+ * @note 現在は静的初期化で十分なので何もしない
  */
 void pid_init(void)
 {
-	/* Phase 2以降で初期化処理を追加予定 */
+	/* 動的な PID 管理が必要になったら初期化処理を追加する */
 }
