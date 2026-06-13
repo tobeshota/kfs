@@ -110,3 +110,54 @@ void rr_task_tick(struct task_struct *tsk)
 	rr_dequeue(tsk);
 	rr_enqueue(tsk);
 }
+
+/** pure RR class の enqueue 操作
+ * @param task runnable にする task
+ */
+static void pure_rr_enqueue_task(struct task_struct *task)
+{
+	rr_enqueue(task);
+}
+
+/** pure RR class の dequeue 操作
+ * @param task runqueue から外す task
+ */
+static void pure_rr_dequeue_task(struct task_struct *task)
+{
+	rr_dequeue(task);
+}
+
+/** task が pure RR runqueue に載っているかを返す
+ * @param task 確認する task
+ * @return 1=runqueue 上, 0=runqueue 外
+ */
+static int pure_rr_task_queued(struct task_struct *task)
+{
+	return !list_empty(&task->run_list);
+}
+
+/** pure RR class の pick 操作
+ * @return 次に実行する task。存在しない場合は NULL
+ */
+static struct task_struct *pure_rr_pick_next_task(void)
+{
+	return rr_pick_next();
+}
+
+/** pure RR class の tick 操作
+ * @param task 現在実行中の task
+ */
+static void pure_rr_task_tick(struct task_struct *task)
+{
+	rr_task_tick(task);
+}
+
+/** kfs 独自の純粋ラウンドロビン scheduler class */
+const struct sched_class pure_rr_sched_class = {
+	.init = rr_init,
+	.enqueue_task = pure_rr_enqueue_task,
+	.dequeue_task = pure_rr_dequeue_task,
+	.task_queued = pure_rr_task_queued,
+	.pick_next_task = pure_rr_pick_next_task,
+	.task_tick = pure_rr_task_tick,
+};

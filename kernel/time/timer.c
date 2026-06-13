@@ -84,8 +84,8 @@ long schedule_timeout(long timeout)
 	timer.data = (void *)current; /* process_timeout() が起こすプロセス */
 	add_timer(&timer);
 
-	/* schedule() 内で rr_dequeue(prev) によりランキューから外れる．
-	 * TASK_INTERRUPTIBLE なので rr_enqueue() されず，wake_up_process() が
+	/* schedule() 内で runqueue から外れる。
+	 * TASK_INTERRUPTIBLE なので再登録されず，wake_up_process() が
 	 * 呼ばれるまで CPU を得られない */
 	current->__state = TASK_INTERRUPTIBLE;
 	schedule();

@@ -217,6 +217,56 @@ static void test_wake_up_process_enqueues(void)
 	printk("wake_up_process: task enqueued as TASK_RUNNING OK\n");
 }
 
+/* scheduler core の enqueue API が SCHED_PURE_RR を pure RR runqueue に委譲することを確かめる */
+static void test_sched_enqueue_task_pure_rr_uses_rr_queue(void)
+{
+	struct task_struct tsk;
+
+	init_test_task(&tsk, RR_TIMESLICE);
+	tsk.policy = SCHED_PURE_RR;
+
+	sched_enqueue_task(&tsk);
+
+	KFS_ASSERT_TRUE(sched_task_queued(&tsk));
+	KFS_ASSERT_TRUE(rr_pick_next() == &tsk);
+
+	printk("sched_enqueue_task: SCHED_PURE_RR uses RR runqueue OK\n");
+}
+
+/* scheduler core の dequeue API が SCHED_PURE_RR task を pure RR runqueue から外すことを確かめる */
+static void test_sched_dequeue_task_pure_rr_removes_from_rr_queue(void)
+{
+	struct task_struct tsk;
+
+	init_test_task(&tsk, RR_TIMESLICE);
+	tsk.policy = SCHED_PURE_RR;
+	sched_enqueue_task(&tsk);
+
+	sched_dequeue_task(&tsk);
+
+	KFS_ASSERT_TRUE(!sched_task_queued(&tsk));
+	KFS_ASSERT_TRUE(rr_pick_next() == 0);
+
+	printk("sched_dequeue_task: SCHED_PURE_RR removed from RR runqueue OK\n");
+}
+
+/* scheduler core の tick API が SCHED_PURE_RR task の RR time slice を進めることを確かめる */
+static void test_sched_task_tick_pure_rr_decrements_slice(void)
+{
+	struct task_struct tsk;
+
+	init_test_task(&tsk, RR_TIMESLICE);
+	tsk.policy = SCHED_PURE_RR;
+	sched_enqueue_task(&tsk);
+
+	sched_task_tick(&tsk);
+
+	KFS_ASSERT_TRUE(tsk.time_slice == RR_TIMESLICE - 1);
+	KFS_ASSERT_TRUE(sched_task_queued(&tsk));
+
+	printk("sched_task_tick: SCHED_PURE_RR decrements RR slice OK\n");
+}
+
 /* ------------------------------------------------------------------ */
 /* テスト: sys_sched_setscheduler() / sys_sched_getscheduler()          */
 /* ------------------------------------------------------------------ */
@@ -298,6 +348,9 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_rr_task_tick_rotates_on_expiry, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_noop_when_same, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_wake_up_process_enqueues, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_enqueue_task_pure_rr_uses_rr_queue, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_dequeue_task_pure_rr_removes_from_rr_queue, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_task_tick_pure_rr_decrements_slice, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_ok, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_accepts_sched_normal, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_einval, setup_test, teardown_test),

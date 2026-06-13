@@ -4,7 +4,6 @@
 #include <kfs/mman.h>
 #include <kfs/pid.h>
 #include <kfs/printk.h>
-#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/signal.h>
 #include <kfs/slab.h>
@@ -132,7 +131,7 @@ __attribute__((noreturn)) void do_exit(int code)
 
 	/* TASK_DEADに変更（スケジューラがrunqueueから除外する） */
 	tsk->__state = TASK_DEAD;
-	rr_dequeue(tsk); /* ランキューから除外して再スケジュールされないようにする */
+	sched_dequeue_task(tsk); /* ランキューから除外して再スケジュールされないようにする */
 
 	/* TASK_DEAD かつ run queue 外なので schedule() からは二度と戻らない。
 	 * __builtin_unreachable() でコンパイラに noreturn を伝える。 */
