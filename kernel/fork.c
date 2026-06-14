@@ -5,7 +5,6 @@
 #include <kfs/mman.h>
 #include <kfs/pid.h>
 #include <kfs/printk.h>
-#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
 #include <kfs/string.h>
@@ -436,8 +435,8 @@ pid_t do_fork(unsigned long user_eip, unsigned long arg)
 		}
 	}
 
-	/* 子プロセスをRRランキューに登録してスケジューリング可能にする */
-	rr_enqueue(p);
+	/* 子プロセスを runqueue に登録してスケジューリング可能にする */
+	sched_enqueue_task(p);
 
 	/* 新プロセスのPIDを返す */
 	return p->pid;
@@ -497,8 +496,8 @@ pid_t kernel_thread(void (*fn)(void), const char *name)
 	 * PF_KTHREADフラグを立てる */
 	p->flags |= PF_KTHREAD;
 
-	/* RR ランキューに登録してスケジューリング可能にする */
-	rr_enqueue(p);
+	/* runqueue に登録してスケジューリング可能にする */
+	sched_enqueue_task(p);
 
 	return p->pid;
 }

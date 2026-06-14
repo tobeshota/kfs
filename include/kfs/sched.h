@@ -130,6 +130,21 @@ struct thread_struct
 #define SCHED_DEADLINE 6  /* デッドライン scheduler。現在は未実装 */
 #define SCHED_PURE_RR 100 /* kfs 専用の純粋ラウンドロビン */
 
+struct task_struct;
+
+/** スケジューリングクラス
+ * @brief 個別スケジューラの実装を呼び出すための操作集合
+ */
+struct sched_class
+{
+	void (*init)(void);								/* スケジューラを初期化する */
+	void (*enqueue_task)(struct task_struct *task); /* タスクをランキューに追加する */
+	void (*dequeue_task)(struct task_struct *task); /* タスクをランキューから削除する */
+	int (*task_queued)(struct task_struct *task);	/* タスクがランキューに存在するか確認する */
+	struct task_struct *(*pick_next_task)(void);	/* 次に実行するタスクを選択する */
+	void (*task_tick)(struct task_struct *task);	/* タスクの1ティック分の時間経過処理を行う */
+};
+
 /** プロセス/スレッド記述子
  * @brief プロセス/スレッドの全情報を保持する中核構造体
  */
@@ -207,6 +222,12 @@ int schedule(void); /* 1=context switched, 0=no switch */
 void scheduler_tick(void);
 void wake_up_process(struct task_struct *tsk);
 void sched_init(void);
+
+void sched_enqueue_task(struct task_struct *task);
+void sched_dequeue_task(struct task_struct *task);
+int sched_task_queued(struct task_struct *task);
+struct task_struct *sched_pick_next_task(void);
+void sched_task_tick(struct task_struct *task);
 void cpu_idle_loop(void) __attribute__((weak));
 pid_t kernel_thread(void (*fn)(void), const char *name);
 

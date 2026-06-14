@@ -78,6 +78,73 @@ struct task_struct *current = &init_task;
  */
 LIST_HEAD(task_list);
 
+/** policy に対応する scheduler class を返す
+ * @param policy SCHED_* policy
+ * @return 対応する scheduler class
+ */
+static const struct sched_class *sched_class_for_policy(unsigned int policy)
+{
+	switch (policy)
+	{
+	case SCHED_NORMAL:
+	case SCHED_BATCH:
+	case SCHED_IDLE:
+	case SCHED_PURE_RR:
+	default:
+		return &pure_rr_sched_class;
+	}
+}
+
+/** task に対応する scheduler class を返す
+ * @param task 対象 task
+ * @return 対応する scheduler class
+ */
+static const struct sched_class *sched_class_for_task(struct task_struct *task)
+{
+	return sched_class_for_policy(task->policy);
+}
+
+/** task を対応する scheduler class の runqueue に追加する
+ * @param task runnable にする task
+ */
+void sched_enqueue_task(struct task_struct *task)
+{
+	sched_class_for_task(task)->enqueue_task(task);
+}
+
+/** task を対応する scheduler class の runqueue から外す
+ * @param task runqueue から外す task
+ */
+void sched_dequeue_task(struct task_struct *task)
+{
+	sched_class_for_task(task)->dequeue_task(task);
+}
+
+/** task が対応する scheduler class の runqueue に載っているかを返す
+ * @param task 確認する task
+ * @return 1=runqueue 上, 0=runqueue 外
+ */
+int sched_task_queued(struct task_struct *task)
+{
+	return sched_class_for_task(task)->task_queued(task);
+}
+
+/** 次に実行する task を scheduler class から取得する
+ * @return 次に実行する task。存在しない場合は NULL
+ */
+struct task_struct *sched_pick_next_task(void)
+{
+	return pure_rr_sched_class.pick_next_task();
+}
+
+/** 現在実行中 task の tick 処理を scheduler class へ渡す
+ * @param task 現在実行中の task
+ */
+void sched_task_tick(struct task_struct *task)
+{
+	sched_class_for_task(task)->task_tick(task);
+}
+
 /** init_taskの最終初期化
  * @brief init_taskの静的初期化できない部分を実行時に初期化する．
  *        これにより，init_taskは完全に初期化される．
@@ -153,16 +220,16 @@ int task_for_each(int (*fn)(struct task_struct *task, void *ctx), void *ctx)
 }
 
 /** スケジューラを初期化する
- * @brief RR サブスケジューラを初期化する．
- *        init_task は RR キューに入れない（cpu_idle_loop() のフォールバック先として扱う）．
+ * @brief scheduler class の内部状態を初期化する．
+ *        init_task は runqueue に入れず，cpu_idle_loop() のフォールバック先として扱う．
  *        init/main.c の start_kernel() から呼び出す．
  */
 void sched_init(void)
 {
 	INIT_LIST_HEAD(&init_task.run_list);
-	rr_init();
-	/* init_task は RR キューに登録しない。
-	 * schedule() が rr_pick_next()==NULL のとき init_task へフォールバックする。
+	pure_rr_sched_class.init();
+	/* init_task は runqueue に登録しない。
+	 * schedule() が sched_pick_next_task()==NULL のとき init_task へフォールバックする。
 	 * thread.sp は cpu_idle_loop() 内で最初に __switch_to が走った瞬間に
 	 * 自動保存されるため、ここでは 0 のままにしておく。
 	 * 0 の間は fallback を無効化することでテスト環境での誤スイッチを防ぐ。 */
@@ -171,18 +238,18 @@ void sched_init(void)
 }
 
 /** プロセスを起床させる
- * @brief プロセスの状態をTASK_RUNNINGに変更し，RRランキューに追加する．
+ * @brief プロセスの状態をTASK_RUNNINGに変更し，対応する runqueue に追加する．
  *        これにより，プロセスは次回のスケジューリングにおいて実行対象の候補となる．
  * @param tsk 起床させるプロセス
  */
 void wake_up_process(struct task_struct *tsk)
 {
 	tsk->__state = TASK_RUNNING;
-	rr_enqueue(tsk);
+	sched_enqueue_task(tsk);
 }
 
 /** タイマーティックハンドラから呼ばれる周期処理
- * @brief 現在のタスクのタイムスライスをデクリメントし，必要に応じてプリエンプトする．
+ * @brief 現在のタスクの CPU 時間を記録し，scheduler class の tick 処理を実行する．
  *        arch/i386/kernel/timer.c の timer_interrupt() から呼び出す．
  */
 void scheduler_tick(void)
@@ -197,7 +264,7 @@ void scheduler_tick(void)
 		 */
 		current->cpu_time_ticks++;
 	}
-	rr_task_tick(current);
+	sched_task_tick(current);
 }
 
 /** アイドルループ
@@ -221,8 +288,8 @@ __attribute__((weak, noreturn)) void cpu_idle_loop(void)
 }
 
 /** スケジューラ本体（コンテキストスイッチ）
- * @brief RR ランキューから次のタスクを選択し current ポインタを更新する．
- *        自発的に呼ばれた場合（do_wait等）は current をランキュー末尾に回して他タスクを先頭に立てる。
+ * @brief scheduler class から次のタスクを選択し current ポインタを更新する．
+ *        自発的に呼ばれた場合（do_wait等）は current を runqueue へ戻して他タスクに実行機会を渡す。
  * @return 1=コンテキストスイッチ実施, 0=スイッチなし（init_task から呼ばれた等）
  * @note hlt は cpu_idle_loop() 内のみで行う。
  */
@@ -236,18 +303,18 @@ int schedule(void)
 	 * TASK_RUNNING のときだけ末尾に再挿入する。
 	 * TASK_INTERRUPTIBLE / TASK_UNINTERRUPTIBLE は wake_up_process() が
 	 * 呼ばれるまでランキューに戻さない。 */
-	if (!list_empty(&prev->run_list))
+	if (sched_task_queued(prev))
 	{
-		rr_dequeue(prev);
+		sched_dequeue_task(prev);
 		if (prev->__state == TASK_RUNNING)
 		{
-			rr_enqueue(prev);
+			sched_enqueue_task(prev);
 		}
 	}
 
-	next = rr_pick_next();
+	next = sched_pick_next_task();
 
-	/* RR キューが空、または prev 以外に runnable なタスクがない
+	/* runqueue が空、または prev 以外に runnable なタスクがない
 	 * → init_task（cpu_idle_loop）へフォールバック */
 	if (!next || next == prev)
 	{
