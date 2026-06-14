@@ -143,6 +143,12 @@ struct thread_struct
 
 struct task_struct;
 
+/* POSIX sched_setscheduler() 用パラメータ */
+struct sched_param
+{
+	int sched_priority; /* kfs の非 RT policy では 0 のみ有効 */
+};
+
 /** スケジューリングクラス
  * @brief 個別スケジューラの実装を呼び出すための操作集合
  */
@@ -232,6 +238,9 @@ extern int nr_threads; /* 現在のスレッド数 */
 /* スケジューラ API（kernel/sched/core.c で実装） */
 int schedule(void); /* 1=context switched, 0=no switch */
 void scheduler_tick(void);
+int scheduler_need_resched(void);
+void scheduler_clear_need_resched(void);
+void scheduler_return_to_user_work(struct pt_regs *regs);
 void wake_up_process(struct task_struct *tsk);
 void sched_init(void);
 

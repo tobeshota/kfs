@@ -1,3 +1,4 @@
+#include <kfs/errno.h>
 #include <kfs/keyboard.h>
 #include <kfs/neofetch.h>
 #include <kfs/pid.h>	 /* pid_t */
@@ -131,6 +132,39 @@ int prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4
 						 : "0"(__NR_prctl), "b"((long)option), "c"((long)arg2), "d"((long)arg3), "S"((long)arg4),
 						   "D"((long)arg5)
 						 : "memory");
+	return (int)ret;
+}
+
+/** スケジューリングポリシーと優先度を設定する
+ * @param pid      対象 PID（0の場合呼び出し元プロセス）
+ * @param policy   設定するポリシー（SCHED_*）
+ * @param priority kfs 実装済み非 RT policy では 0 のみ有効
+ * @return 0: 成功, -ESRCH: PID 未存在, -EINVAL: 不正または未実装 policy / priority
+ */
+int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param)
+{
+	long ret;
+
+	if (!param)
+	{
+		return -EINVAL;
+	}
+	__asm__ __volatile__("int $0x80"
+						 : "=a"(ret)
+						 : "0"(__NR_sched_setscheduler), "b"((long)pid), "c"((long)policy),
+						   "d"((long)param->sched_priority)
+						 : "memory");
+	return (int)ret;
+}
+
+/** スケジューリングポリシーを取得する
+ * @param pid 対象 PID（0の場合呼び出し元プロセス）
+ * @return ポリシー値（SCHED_*）: 成功, -ESRCH: PID 未存在
+ */
+int sched_getscheduler(pid_t pid)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_sched_getscheduler), "b"((long)pid) : "memory");
 	return (int)ret;
 }
 

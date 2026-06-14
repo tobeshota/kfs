@@ -6,6 +6,7 @@
 #include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/sys.h>
+#include <kfs/unistd.h>
 
 extern struct task_struct init_task;
 
@@ -374,6 +375,14 @@ static void test_sched_setscheduler_non_rt_clears_priority(void)
 	printk("sys_sched_setscheduler: non-RT with priority!=0 returns -EINVAL OK\n");
 }
 
+/* sched_setscheduler() wrapper は NULL param を -EINVAL として拒否する */
+static void test_sched_setscheduler_wrapper_rejects_null_param(void)
+{
+	KFS_ASSERT_TRUE(sched_setscheduler(0, SCHED_NORMAL, 0) == -EINVAL);
+
+	printk("sched_setscheduler wrapper: NULL param rejected OK\n");
+}
+
 /* ------------------------------------------------------------------ */
 /* テスト登録                                                            */
 /* ------------------------------------------------------------------ */
@@ -399,6 +408,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_fair_to_rr, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_getscheduler, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_non_rt_clears_priority, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_wrapper_rejects_null_param, setup_test, teardown_test),
 };
 
 int register_unit_tests_rr(struct kfs_test_case **out)

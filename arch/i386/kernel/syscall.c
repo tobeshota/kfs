@@ -302,7 +302,7 @@ static long do_sys_neofetch_info(long arg1, long arg2, long arg3, long arg4, lon
 }
 
 /** sigreturn() システムコール
- * @brief ring-3 シグナルハンドラが return した後、sigreturn()（lib/unistd.c）から呼ばれる
+ * @brief ring-3 シグナルハンドラが return した後、sigreturn()（arch/i386/kernel/sigreturn.S）から呼ばれる
  * @return 元のプロセスの eax 値（entry.S が pt_regs->eax に書く）
  */
 static long do_sys_sigreturn(long arg1, long arg2, long arg3, long arg4, long arg5)

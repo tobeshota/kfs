@@ -182,12 +182,128 @@ static void test_schedule_reenqueues_running(void)
 	printk("test_schedule_reenqueues_running: OK\n");
 }
 
+/** RR のタイムスライスが残っている間は再スケジュール要求を出さない */
+static void test_scheduler_tick_rr_no_resched_before_expiry(void)
+{
+	struct task_struct tsk;
+	struct task_struct *saved_current;
+
+	init_test_task_for_sched(&tsk);
+	tsk.__state = TASK_RUNNING;
+	tsk.flags = 0;
+	tsk.time_slice = 2;
+	saved_current = current;
+	current = &tsk;
+	scheduler_clear_need_resched();
+
+	scheduler_tick();
+
+	KFS_ASSERT_TRUE(tsk.time_slice == 1);
+	KFS_ASSERT_TRUE(!scheduler_need_resched());
+	current = saved_current;
+	printk("scheduler_tick: RR no resched before expiry OK\n");
+}
+
+/** RR のタイムスライスが切れたら再スケジュール要求を出す */
+static void test_scheduler_tick_rr_sets_resched_on_expiry(void)
+{
+	struct task_struct tsk;
+	struct task_struct *saved_current;
+
+	init_test_task_for_sched(&tsk);
+	tsk.__state = TASK_RUNNING;
+	tsk.flags = 0;
+	tsk.time_slice = 1;
+	saved_current = current;
+	current = &tsk;
+	scheduler_clear_need_resched();
+
+	scheduler_tick();
+
+	KFS_ASSERT_TRUE(tsk.time_slice == RR_TIMESLICE);
+	KFS_ASSERT_TRUE(scheduler_need_resched());
+	scheduler_clear_need_resched();
+	current = saved_current;
+	printk("scheduler_tick: RR resched on expiry OK\n");
+}
+
+/** CFS task は tick ごとに再スケジュール候補になる */
+static void test_scheduler_tick_fair_sets_resched(void)
+{
+	struct task_struct tsk;
+	struct task_struct *saved_current;
+
+	init_test_task_for_sched(&tsk);
+	tsk.__state = TASK_RUNNING;
+	tsk.flags = 0;
+	tsk.policy = SCHED_NORMAL;
+	tsk.nice = 0;
+	sched_init_entity(&tsk);
+	saved_current = current;
+	current = &tsk;
+	scheduler_clear_need_resched();
+
+	scheduler_tick();
+
+	KFS_ASSERT_TRUE(scheduler_need_resched());
+	scheduler_clear_need_resched();
+	current = saved_current;
+	printk("scheduler_tick: fair resched OK\n");
+}
+
+/** ring-0 由来の割り込みではプリエンプトしない */
+static void test_scheduler_return_work_ignores_kernel_regs(void)
+{
+	struct pt_regs regs;
+
+	memset(&regs, 0, sizeof(regs));
+	regs.cs = 0x08;
+	scheduler_clear_need_resched();
+	current->policy = SCHED_NORMAL;
+	scheduler_tick();
+	KFS_ASSERT_TRUE(scheduler_need_resched());
+
+	scheduler_return_to_user_work(&regs);
+
+	KFS_ASSERT_TRUE(scheduler_need_resched());
+	scheduler_clear_need_resched();
+	printk("scheduler_return_to_user_work: kernel regs ignored OK\n");
+}
+
+/** ring-3 復帰前に保留シグナルを処理する */
+static void test_scheduler_return_work_handles_pending_signal(void)
+{
+	struct pt_regs regs;
+
+	memset(&regs, 0, sizeof(regs));
+	regs.cs = 0x1b;
+	regs.esp = 0x800000;
+	regs.eip = 0x400000;
+	current->flags = 0;
+	current->pending.signal = 0;
+	current->sig_actions[SIGUSR1].sa_handler = SIG_IGN;
+	scheduler_clear_need_resched();
+	send_signal(SIGUSR1, current);
+	KFS_ASSERT_TRUE(signal_pending());
+
+	scheduler_return_to_user_work(&regs);
+
+	KFS_ASSERT_TRUE(!signal_pending());
+	current->sig_actions[SIGUSR1].sa_handler = SIG_DFL;
+	printk("scheduler_return_to_user_work: pending signal handled OK\n");
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_init_task_initialization, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_list_operations, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_task_state_constants, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_does_not_reenqueue_interruptible, setup_test_sched, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_reenqueues_running, setup_test_sched, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_rr_no_resched_before_expiry, setup_test_sched, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_rr_sets_resched_on_expiry, setup_test_sched, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_fair_sets_resched, setup_test_sched, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_return_work_ignores_kernel_regs, setup_test_sched, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_return_work_handles_pending_signal, setup_test_sched, teardown_test),
 };
 
 int register_unit_tests_sched_core(struct kfs_test_case **out)
