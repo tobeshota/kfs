@@ -3,6 +3,8 @@
 #include <kfs/sched.h>
 #include <kfs/stddef.h>
 
+#define FAIR_VRUNTIME_TICK NICE_0_LOAD /* 1 tick あたりの vruntime 増分 */
+
 /** CFS (Completely Fair Scheduling) runqueue
  * @brief 実行可能な fair task を vruntime 順の二分木で管理する
  */
@@ -15,6 +17,69 @@ struct cfs_rq
 };
 
 static struct cfs_rq cfs_rq;
+
+/* nice値に対応する，CFSのvruntime計算に使用される重み */
+static const unsigned long sched_prio_to_weight[NICE_WIDTH] = {
+	88761, 71755, 56483, 46273, 36291, 29154, 23254, 18705, 14949, 11916, 9548, 7620, 6100, 4904,
+	3906,  3121,  2501,	 1991,	1586,  1277,  1024,	 820,	655,   526,	  423,	335,  272,	215,
+	172,   137,	  110,	 87,	70,	   56,	  45,	 36,	29,	   23,	  18,	15,
+};
+
+/** nice 値に対応する CFSの重みを返す
+ * @param nice nice 値
+ * @return nice に対応する重み
+ */
+unsigned long sched_weight_for_nice(int nice)
+{
+	/* 範囲外の値は Linux と同様に端へ丸める */
+	if (nice < NICE_MIN)
+	{
+		nice = NICE_MIN;
+	}
+	else if (nice > NICE_MAX)
+	{
+		nice = NICE_MAX;
+	}
+
+	return sched_prio_to_weight[nice + NICE_0_INDEX];
+}
+
+/** task の scheduling entity を runqueue 外状態へ初期化する
+ * @param task 初期化する task
+ * @note vruntime は fork 時の親からの継承を保つため変更しない
+ */
+void sched_init_entity(struct task_struct *task)
+{
+	task->se.load = sched_weight_for_nice(task->nice);
+	task->se.run_node.__rb_parent_color = 0;
+	task->se.run_node.rb_left = NULL;
+	task->se.run_node.rb_right = NULL;
+	task->se.on_rq = 0;
+}
+
+/** task の load weight が未初期化なら nice 値から設定する
+ * @param task 対象 task
+ */
+static void fair_ensure_load(struct task_struct *task)
+{
+	if (task->se.load == 0)
+	{
+		task->se.load = sched_weight_for_nice(task->nice);
+	}
+}
+
+/** 1 tick 分の実行時間を vruntime に換算する
+ * @param weight task の load weight
+ * @return weight を反映した vruntime 増分
+ */
+static uint64_t fair_delta_vruntime(unsigned long weight)
+{
+	if (weight == 0)
+	{
+		weight = NICE_0_LOAD;
+	}
+	return (uint64_t)FAIR_VRUNTIME_TICK * NICE_0_LOAD / weight;
+}
 
 /** rb_node から task_struct を取得する
  * @param node task->se.run_node へのポインタ
@@ -241,6 +306,9 @@ static void fair_enqueue_task(struct task_struct *task)
 		return;
 	}
 
+	/* task の load を更新する */
+	fair_ensure_load(task);
+
 	struct rb_node **link = &cfs_rq.tasks_timeline.rb_node; /* 挿入位置のリンク */
 	struct rb_node *parent = NULL;							/* 挿入位置の親ノード */
 	struct task_struct *entry;								/* 挿入位置のノードから取得した task_struct */
@@ -318,16 +386,37 @@ static struct task_struct *fair_pick_next_task(void)
 	return fair_leftmost_task();
 }
 
-/** fair task の tick 処理。
+/** fair task の tick 処理
  * @param task 現在実行中の task
- * @note vruntime 更新は次の実装段階で追加する
+ * @details 実行済み tick を nice weight に応じた vruntime に換算し、
+ *          runqueue 上の task であれば tree の順序を保つため挿し直す。
  */
 static void fair_task_tick(struct task_struct *task)
 {
-	(void)task;
+	/* task の load を更新する */
+	fair_ensure_load(task);
+
+	const int queued = task->se.on_rq != 0; /* タスクが runqueue に載っているか */
+
+	if (queued)
+	{
+		/* タスクが runqueue に載っている場合，
+		 * runqueue から削除する */
+		fair_dequeue_task(task);
+	}
+
+	/* 実行済み tick を vruntime に換算する */
+	task->se.vruntime += fair_delta_vruntime(task->se.load);
+
+	if (queued)
+	{
+		/* タスクが runqueue に載っている場合，
+		 * runqueue に再追加する */
+		fair_enqueue_task(task);
+	}
 }
 
-/** 通常プロセス用 fair scheduler class。 */
+/* 通常プロセス用 fair scheduler class */
 const struct sched_class fair_sched_class = {
 	.init = fair_init,
 	.enqueue_task = fair_enqueue_task,

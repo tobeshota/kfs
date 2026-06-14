@@ -51,7 +51,7 @@ struct task_struct init_task = {
 	/* スケジューリング（CFS用エンティティ） */
 	.se =
 		{
-			.load = 0,
+			.load = NICE_0_LOAD,
 			.run_node = {0},
 			.on_rq = 0,
 			.vruntime = 0,
@@ -59,7 +59,9 @@ struct task_struct init_task = {
 
 	/* スケジューリングポリシー */
 	.policy = SCHED_PURE_RR, /* 起動直後は既存の純粋ラウンドロビンで動かす */
-	.prio = 20,				 /* デフォルト優先度 */
+	.prio = DEFAULT_PRIO,	 /* デフォルト優先度 */
+	.static_prio = DEFAULT_PRIO,
+	.nice = 0,
 	.rt_priority = 0,
 	.time_slice = 10, /* RR_TIMESLICE（kernel/sched/rr.c で定義） */
 	.cpu_time_ticks = 0,
