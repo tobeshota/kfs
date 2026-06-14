@@ -75,6 +75,9 @@ struct task_struct init_task = {
  */
 struct task_struct *current = &init_task;
 
+/* スケジューリングが必要かどうかを示すフラグ */
+static volatile int need_resched;
+
 /** 全タスクのリスト
  * 全てのtask_structをつなぐグローバルリスト
  * タスク検索などで使用する
@@ -240,6 +243,7 @@ void sched_init(void)
 	INIT_LIST_HEAD(&init_task.run_list);
 	fair_sched_class.init();
 	pure_rr_sched_class.init();
+	need_resched = 0;
 	/* init_task は runqueue に登録しない。
 	 * schedule() が sched_pick_next_task()==NULL のとき init_task へフォールバックする。
 	 * thread.sp は cpu_idle_loop() 内で最初に __switch_to が走った瞬間に
@@ -277,6 +281,65 @@ void scheduler_tick(void)
 		current->cpu_time_ticks++;
 	}
 	sched_task_tick(current);
+
+	if (current->policy == SCHED_PURE_RR && current->time_slice == 0)
+	{
+		/* タイムスライスが切れた場合は再スケジュールを要求する */
+		current->time_slice = RR_TIMESLICE;
+		need_resched = 1;
+	}
+	else if (current->policy == SCHED_NORMAL)
+	{
+		/* 通常のスケジューリングポリシーの場合も再スケジュールを要求する */
+		need_resched = 1;
+	}
+}
+
+/** 再スケジュール要求があるか返す
+ * @return 1=要求あり, 0=要求なし
+ */
+int scheduler_need_resched(void)
+{
+	return need_resched != 0;
+}
+
+/* 再スケジュール要求を消す */
+void scheduler_clear_need_resched(void)
+{
+	need_resched = 0;
+}
+
+/** IRQ 復帰前に必要ならプリエンプトする
+ * @param regs 割り込み発生時のレジスタ状態
+ * @brief ring-3 実行中にタイムスライスが切れた場合だけ schedule() を呼ぶ。
+ */
+void scheduler_preempt_if_needed(struct pt_regs *regs)
+{
+	/* スケジューリングが必要でないか，またはレジスタ情報が無効な場合は何もしない */
+	if (!need_resched || !regs)
+	{
+		return;
+	}
+
+	/** ユーザーモードでない場合は何もしない
+	 * @brief カーネルモードでのプリエンプションは許可されていないため
+	 */
+	if ((regs->cs & 3) != 3)
+	{
+		return;
+	}
+
+	/** カーネルスレッドの場合は何もしない
+	 * @brief カーネルスレッドはプリエンプションの対象外であるため
+	 */
+	if (current->flags & PF_KTHREAD)
+	{
+		return;
+	}
+
+	/* フラグをクリアして再スケジュールを実行する */
+	need_resched = 0;
+	schedule();
 }
 
 /** アイドルループ

@@ -1,6 +1,7 @@
 #include <asm-i386/i8259.h>
 #include <kfs/irq.h>
 #include <kfs/printk.h>
+#include <kfs/sched.h>
 #include <kfs/stddef.h>
 
 /* IRQディスクリプタ配列 (IRQ0-15) */
@@ -128,4 +129,7 @@ void do_IRQ(struct pt_regs *regs)
 	mask_and_ack_8259A(irq);
 	/* IRQを再有効化 */
 	enable_8259A_irq(irq);
+
+	/* 必要に応じてスケジューラを呼び出す */
+	scheduler_preempt_if_needed(regs);
 }

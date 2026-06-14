@@ -238,6 +238,9 @@ extern int nr_threads; /* 現在のスレッド数 */
 /* スケジューラ API（kernel/sched/core.c で実装） */
 int schedule(void); /* 1=context switched, 0=no switch */
 void scheduler_tick(void);
+int scheduler_need_resched(void);
+void scheduler_clear_need_resched(void);
+void scheduler_preempt_if_needed(struct pt_regs *regs);
 void wake_up_process(struct task_struct *tsk);
 void sched_init(void);
 
