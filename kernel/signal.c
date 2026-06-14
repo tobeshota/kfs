@@ -34,7 +34,7 @@ int raise(int sig)
 }
 
 /** ring-3 ハンドラが return した後に実行されるトランポリン
- * @brief lib/unistd.c の同名関数。int $0x80 で sys_sigreturn を呼び元のコンテキストへ復帰する
+ * @brief arch/i386/kernel/sigreturn.S の同名スタブ。int $0x80 で sys_sigreturn を呼び元のコンテキストへ復帰する
  * @note  カーネルコードは PAGE_USER でマップされているため ring-3 から直接呼び出し可能
  */
 extern void sigreturn(void);
@@ -157,7 +157,7 @@ void do_signal(void)
 }
 
 /** sys_sigreturn: シグナルハンドラ実行後に元のコンテキストへ復帰する
- * @brief sigreturn() から int $0x80 で呼ばれる（lib/unistd.c）
+ * @brief sigreturn() から int $0x80 で呼ばれる（arch/i386/kernel/sigreturn.S）
  * @note  g_current_regs は entry.S が syscall 入り口で保存した ring-0 の pt_regs ポインタ
  *
  * 呼び出し時のスタックレイアウト（ring-3 esp 時）:

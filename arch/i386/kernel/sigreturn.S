@@ -1,11 +1,11 @@
-#define __NR_sigreturn 119
+#define __NR_sigreturn 119 /* Linux i386 互換番号 */
 
-/** ring3シグナルハンドラトランポリン
- * このシンボルは、kernel/signal.c:setup_sigframe() によって
+/** i386 ring-3 シグナルハンドラトランポリン
+ * このシンボルは，kernel/signal.c:setup_sigframe() によって
  * frame->pretcode として参照される．
  * C のプロローグ/エピローグがあってはならない．そうでない場合，
  * sys_sigreturn() の実行時にユーザーの ESP が frame->sig を指さなくなる．
- * そのため、完全なアセンブリで実装する必要がある．
+ * そのため，この i386 固有の小さなスタブはアセンブリで実装する．
  */
 .globl sigreturn
 .type sigreturn, @function

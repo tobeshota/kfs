@@ -7,7 +7,7 @@
 /* シグナルフレーム（ユーザスタックに積まれるシグナル配信用フレーム） */
 struct sigframe
 {
-	unsigned long pretcode;	   /* ハンドラの return 先 → sigreturn()（lib/unistd.c） */
+	unsigned long pretcode;	   /* ハンドラの return 先 → sigreturn()（arch/i386/kernel/sigreturn.S） */
 	int sig;				   /* シグナル番号（handler の第1引数） */
 	struct pt_regs saved_regs; /* sys_sigreturn で復元するレジスタ一式 */
 };
