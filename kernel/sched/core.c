@@ -95,6 +95,7 @@ static const struct sched_class *sched_class_for_policy(unsigned int policy)
 	case SCHED_NORMAL:
 	case SCHED_BATCH:
 	case SCHED_IDLE:
+	case SCHED_EXT:
 		return &fair_sched_class;
 	case SCHED_PURE_RR:
 	default:
@@ -288,7 +289,8 @@ void scheduler_tick(void)
 		current->time_slice = RR_TIMESLICE;
 		need_resched = 1;
 	}
-	else if (current->policy == SCHED_NORMAL)
+	else if (current->policy == SCHED_NORMAL || current->policy == SCHED_BATCH || current->policy == SCHED_IDLE ||
+			 current->policy == SCHED_EXT)
 	{
 		/* 通常のスケジューリングポリシーの場合も再スケジュールを要求する */
 		need_resched = 1;

@@ -251,6 +251,30 @@ static void test_scheduler_tick_fair_sets_resched(void)
 	printk("scheduler_tick: fair resched OK\n");
 }
 
+/** SCHED_EXT task は backend 未ロード時も fair fallback として再スケジュール候補になる */
+static void test_scheduler_tick_sched_ext_sets_resched(void)
+{
+	struct task_struct tsk;
+	struct task_struct *saved_current;
+
+	init_test_task_for_sched(&tsk);
+	tsk.__state = TASK_RUNNING;
+	tsk.flags = 0;
+	tsk.policy = SCHED_EXT;
+	tsk.nice = 0;
+	sched_init_entity(&tsk);
+	saved_current = current;
+	current = &tsk;
+	scheduler_clear_need_resched();
+
+	scheduler_tick();
+
+	KFS_ASSERT_TRUE(scheduler_need_resched());
+	scheduler_clear_need_resched();
+	current = saved_current;
+	printk("scheduler_tick: SCHED_EXT fair fallback resched OK\n");
+}
+
 /** ring-0 由来の割り込みではプリエンプトしない */
 static void test_scheduler_return_work_ignores_kernel_regs(void)
 {
@@ -302,6 +326,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_rr_no_resched_before_expiry, setup_test_sched, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_rr_sets_resched_on_expiry, setup_test_sched, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_fair_sets_resched, setup_test_sched, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_sched_ext_sets_resched, setup_test_sched, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_return_work_ignores_kernel_regs, setup_test_sched, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_return_work_handles_pending_signal, setup_test_sched, teardown_test),
 };

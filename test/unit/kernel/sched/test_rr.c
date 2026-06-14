@@ -298,6 +298,20 @@ static void test_sched_setscheduler_accepts_sched_normal(void)
 	printk("sys_sched_setscheduler: accepts SCHED_NORMAL OK\n");
 }
 
+/* SCHED_EXT は backend 未ロードでも policy として受理される */
+static void test_sched_setscheduler_accepts_sched_ext(void)
+{
+	current->cap_effective = CAP_EMPTY_SET;
+	current->policy = SCHED_NORMAL;
+	current->rt_priority = 7;
+
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_EXT, 0) == 0);
+	KFS_ASSERT_TRUE(current->policy == SCHED_EXT);
+	KFS_ASSERT_TRUE(current->rt_priority == 0);
+
+	printk("sys_sched_setscheduler: accepts SCHED_EXT OK\n");
+}
+
 /* 不正なポリシー番号を渡すと -EINVAL が返ることを確かめる */
 static void test_sched_setscheduler_einval(void)
 {
@@ -337,6 +351,25 @@ static void test_sched_setscheduler_migrates_rr_to_fair(void)
 	printk("sys_sched_setscheduler: migrates RR to fair OK\n");
 }
 
+/* SCHED_EXT は backend 未ロード時に fair runqueue へ fallback する */
+static void test_sched_setscheduler_ext_fallback_uses_fair(void)
+{
+	current->policy = SCHED_PURE_RR;
+	current->time_slice = RR_TIMESLICE;
+	sched_enqueue_task(current);
+
+	KFS_ASSERT_TRUE(sched_task_queued(current));
+	KFS_ASSERT_TRUE(!list_empty(&current->run_list));
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_EXT, 0) == 0);
+	KFS_ASSERT_TRUE(current->policy == SCHED_EXT);
+	KFS_ASSERT_TRUE(list_empty(&current->run_list));
+	KFS_ASSERT_TRUE(current->se.on_rq);
+	KFS_ASSERT_TRUE(sched_task_queued(current));
+
+	sched_dequeue_task(current);
+	printk("sys_sched_setscheduler: SCHED_EXT fair fallback OK\n");
+}
+
 /* queued task を fair から pure RR runqueue へ移動できることを確かめる */
 static void test_sched_setscheduler_migrates_fair_to_rr(void)
 {
@@ -365,6 +398,16 @@ static void test_sched_getscheduler(void)
 	KFS_ASSERT_TRUE(sys_sched_getscheduler(0) == SCHED_PURE_RR);
 
 	printk("sys_sched_getscheduler: returns policy OK\n");
+}
+
+/* sys_sched_getscheduler() は SCHED_EXT policy もそのまま返す */
+static void test_sched_getscheduler_returns_sched_ext(void)
+{
+	current->policy = SCHED_EXT;
+
+	KFS_ASSERT_TRUE(sys_sched_getscheduler(0) == SCHED_EXT);
+
+	printk("sys_sched_getscheduler: returns SCHED_EXT OK\n");
 }
 
 /* 非 RT ポリシーに priority != 0 を渡すと -EINVAL になることを確かめる（Linux 6.18 準拠） */
@@ -402,11 +445,14 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_task_tick_pure_rr_decrements_slice, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_ok, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_accepts_sched_normal, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_accepts_sched_ext, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_einval, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_rejects_linux_rt_policy, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_rr_to_fair, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_ext_fallback_uses_fair, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_fair_to_rr, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_getscheduler, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_getscheduler_returns_sched_ext, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_non_rt_clears_priority, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_wrapper_rejects_null_param, setup_test, teardown_test),
 };
