@@ -30,6 +30,7 @@ int register_unit_tests_wait(struct kfs_test_case **out);
 int register_unit_tests_capability(struct kfs_test_case **out);
 int register_unit_tests_sys(struct kfs_test_case **out);
 int register_unit_tests_rr(struct kfs_test_case **out);
+int register_unit_tests_fair(struct kfs_test_case **out);
 int register_unit_tests_process(struct kfs_test_case **out);
 int register_unit_tests_pcspkr(struct kfs_test_case **out);
 int register_unit_tests_timer_queue(struct kfs_test_case **out);
@@ -38,7 +39,7 @@ int register_unit_tests_exec(struct kfs_test_case **out);
 int register_unit_tests_mmap(struct kfs_test_case **out);
 int register_unit_tests_piano(struct kfs_test_case **out);
 
-#define KFS_MAX_TESTS 512
+#define KFS_MAX_TESTS 600
 
 // すべてのテストケースを一つにまとめる
 static struct kfs_test_case *all_cases = 0;
@@ -107,6 +108,8 @@ int register_unit_tests(struct kfs_test_case **out)
 		int count_sys = register_unit_tests_sys(&cases_sys);
 		struct kfs_test_case *cases_rr = 0;
 		int count_rr = register_unit_tests_rr(&cases_rr);
+		struct kfs_test_case *cases_fair = 0;
+		int count_fair = register_unit_tests_fair(&cases_fair);
 		struct kfs_test_case *cases_process = 0;
 		int count_process = register_unit_tests_process(&cases_process);
 		struct kfs_test_case *cases_pcspkr = 0;
@@ -239,6 +242,10 @@ int register_unit_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_rr && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_rr[i];
+		}
+		for (int i = 0; i < count_fair && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_fair[i];
 		}
 		for (int i = 0; i < count_process && idx < KFS_MAX_TESTS; i++)
 		{
