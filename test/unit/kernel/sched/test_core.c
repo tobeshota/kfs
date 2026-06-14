@@ -252,7 +252,7 @@ static void test_scheduler_tick_fair_sets_resched(void)
 }
 
 /** ring-0 由来の割り込みではプリエンプトしない */
-static void test_scheduler_preempt_ignores_kernel_regs(void)
+static void test_scheduler_return_work_ignores_kernel_regs(void)
 {
 	struct pt_regs regs;
 
@@ -263,11 +263,34 @@ static void test_scheduler_preempt_ignores_kernel_regs(void)
 	scheduler_tick();
 	KFS_ASSERT_TRUE(scheduler_need_resched());
 
-	scheduler_preempt_if_needed(&regs);
+	scheduler_return_to_user_work(&regs);
 
 	KFS_ASSERT_TRUE(scheduler_need_resched());
 	scheduler_clear_need_resched();
-	printk("scheduler_preempt_if_needed: kernel regs ignored OK\n");
+	printk("scheduler_return_to_user_work: kernel regs ignored OK\n");
+}
+
+/** ring-3 復帰前に保留シグナルを処理する */
+static void test_scheduler_return_work_handles_pending_signal(void)
+{
+	struct pt_regs regs;
+
+	memset(&regs, 0, sizeof(regs));
+	regs.cs = 0x1b;
+	regs.esp = 0x800000;
+	regs.eip = 0x400000;
+	current->flags = 0;
+	current->pending.signal = 0;
+	current->sig_actions[SIGUSR1].sa_handler = SIG_IGN;
+	scheduler_clear_need_resched();
+	send_signal(SIGUSR1, current);
+	KFS_ASSERT_TRUE(signal_pending());
+
+	scheduler_return_to_user_work(&regs);
+
+	KFS_ASSERT_TRUE(!signal_pending());
+	current->sig_actions[SIGUSR1].sa_handler = SIG_DFL;
+	printk("scheduler_return_to_user_work: pending signal handled OK\n");
 }
 
 static struct kfs_test_case cases[] = {
@@ -279,7 +302,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_rr_no_resched_before_expiry, setup_test_sched, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_rr_sets_resched_on_expiry, setup_test_sched, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_fair_sets_resched, setup_test_sched, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_preempt_ignores_kernel_regs, setup_test_sched, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_return_work_ignores_kernel_regs, setup_test_sched, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_return_work_handles_pending_signal, setup_test_sched, teardown_test),
 };
 
 int register_unit_tests_sched_core(struct kfs_test_case **out)

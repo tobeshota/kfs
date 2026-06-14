@@ -309,14 +309,14 @@ void scheduler_clear_need_resched(void)
 	need_resched = 0;
 }
 
-/** IRQ 復帰前に必要ならプリエンプトする
- * @param regs 割り込み発生時のレジスタ状態
- * @brief ring-3 実行中にタイムスライスが切れた場合だけ schedule() を呼ぶ。
+/** user mode 復帰前に遅延処理を行う
+ * @param regs syscall/割り込み/例外入口で保存したレジスタ状態
+ * @brief ring-3 へ戻る直前に，保留シグナル処理と必要な再スケジュールを行う．
  */
-void scheduler_preempt_if_needed(struct pt_regs *regs)
+void scheduler_return_to_user_work(struct pt_regs *regs)
 {
-	/* スケジューリングが必要でないか，またはレジスタ情報が無効な場合は何もしない */
-	if (!need_resched || !regs)
+	/* レジスタ情報が無効な場合は何もしない */
+	if (!regs)
 	{
 		return;
 	}
@@ -337,9 +337,18 @@ void scheduler_preempt_if_needed(struct pt_regs *regs)
 		return;
 	}
 
-	/* フラグをクリアして再スケジュールを実行する */
-	need_resched = 0;
-	schedule();
+	/* 保留中のシグナルがある場合は処理する */
+	if (signal_pending())
+	{
+		do_signal_with_regs(regs);
+	}
+
+	/* 再スケジュールが必要な場合は schedule() を呼ぶ */
+	if (need_resched)
+	{
+		need_resched = 0;
+		schedule();
+	}
 }
 
 /** アイドルループ

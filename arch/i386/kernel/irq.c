@@ -130,6 +130,6 @@ void do_IRQ(struct pt_regs *regs)
 	/* IRQを再有効化 */
 	enable_8259A_irq(irq);
 
-	/* 必要に応じてスケジューラを呼び出す */
-	scheduler_preempt_if_needed(regs);
+	/* ユーザ空間へ戻る前の遅延処理を行う */
+	scheduler_return_to_user_work(regs);
 }
