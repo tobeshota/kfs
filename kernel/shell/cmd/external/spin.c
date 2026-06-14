@@ -32,8 +32,6 @@ static void spin_main(void)
 
 /** spin コマンド
  * @param arg コマンド引数。現時点では引数なしのみ受け付ける
- * @note spin は必ず & 付きで起動されることを想定している．
- *       フォアグラウンドで起動するとCPUをあまりにも使い続けるためシェルに戻れない．
  */
 void cmd_spin(void *arg)
 {
