@@ -7,6 +7,7 @@
 #include <kfs/list.h>
 #include <kfs/mm.h>
 #include <kfs/pty.h>
+#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
 #include <kfs/vmalloc.h>
@@ -55,6 +56,15 @@ void reset_all_state_for_test(void)
 	INIT_LIST_HEAD(&init_task.run_list);
 	/* init_task の状態を起動直後に戻す */
 	init_task.__state = TASK_RUNNING;
+	init_task.flags = PF_KTHREAD;
+	init_task.policy = SCHED_PURE_RR;
+	init_task.rt_priority = 0;
+	init_task.time_slice = RR_TIMESLICE;
+	init_task.se.on_rq = 0;
+	init_task.se.vruntime = 0;
+	init_task.se.run_node.__rb_parent_color = 0;
+	init_task.se.run_node.rb_left = NULL;
+	init_task.se.run_node.rb_right = NULL;
 	/* thread.sp=0 にして「cpu_idle_loop がまだ動いていない」状態にする。
 	 * schedule() の init_task フォールバックはこれが 0 の間は無効になる。 */
 	init_task.thread.sp = 0;

@@ -1,4 +1,5 @@
 #include <kfs/errno.h>
+#include <kfs/fair.h>
 #include <kfs/list.h>
 #include <kfs/mm_types.h>
 #include <kfs/pid.h>
@@ -89,6 +90,7 @@ static const struct sched_class *sched_class_for_policy(unsigned int policy)
 	case SCHED_NORMAL:
 	case SCHED_BATCH:
 	case SCHED_IDLE:
+		return &fair_sched_class;
 	case SCHED_PURE_RR:
 	default:
 		return &pure_rr_sched_class;
@@ -134,6 +136,13 @@ int sched_task_queued(struct task_struct *task)
  */
 struct task_struct *sched_pick_next_task(void)
 {
+	struct task_struct *task;
+
+	task = fair_sched_class.pick_next_task();
+	if (task)
+	{
+		return task;
+	}
 	return pure_rr_sched_class.pick_next_task();
 }
 
@@ -227,6 +236,7 @@ int task_for_each(int (*fn)(struct task_struct *task, void *ctx), void *ctx)
 void sched_init(void)
 {
 	INIT_LIST_HEAD(&init_task.run_list);
+	fair_sched_class.init();
 	pure_rr_sched_class.init();
 	/* init_task は runqueue に登録しない。
 	 * schedule() が sched_pick_next_task()==NULL のとき init_task へフォールバックする。
