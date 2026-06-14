@@ -143,6 +143,12 @@ struct thread_struct
 
 struct task_struct;
 
+/* POSIX sched_setscheduler() 用パラメータ */
+struct sched_param
+{
+	int sched_priority; /* kfs の非 RT policy では 0 のみ有効 */
+};
+
 /** スケジューリングクラス
  * @brief 個別スケジューラの実装を呼び出すための操作集合
  */
