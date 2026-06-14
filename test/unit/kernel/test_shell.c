@@ -2,6 +2,8 @@
 #include "../test_reset.h"
 #include "unit_test_framework.h"
 #include <kfs/keyboard.h>
+#include <kfs/list.h>
+#include <kfs/sched.h>
 #include <kfs/shell.h>
 #include <kfs/string.h>
 #include <kfs/unistd.h>
@@ -11,11 +13,17 @@
 extern int shell_keyboard_handler(char c);
 extern void shell_init(void);
 extern void cmd_loadkeys(void *args);
+extern void cmd_chrt(void *args);
+extern void cmd_spin(void *args);
 extern int shell_jobs_add(pid_t pid, pid_t pgrp, const char *cmd, int stopped);
 extern void shell_jobs_on_wait_event(pid_t pid, int wait_status);
 extern void shell_jobs_reset(void);
+extern struct task_struct init_task;
+extern struct task_struct *current;
+extern struct list_head task_list;
 
 static const char *g_loadkeys_args;
+static const char *g_chrt_args;
 
 static void run_loadkeys_in_ring3(void)
 {
@@ -27,6 +35,18 @@ static void run_loadkeys_cmd(const char *args)
 {
 	g_loadkeys_args = args;
 	run_in_ring3(run_loadkeys_in_ring3);
+}
+
+static void run_chrt_in_ring3(void)
+{
+	cmd_chrt((void *)g_chrt_args);
+	exit(0);
+}
+
+static void run_chrt_cmd(const char *args)
+{
+	g_chrt_args = args;
+	run_in_ring3(run_chrt_in_ring3);
 }
 
 /* 全テストで共通のセットアップ関数 */
@@ -412,6 +432,56 @@ KFS_TEST(test_cmd_loadkeys_switch_layouts)
 	KFS_ASSERT_EQ(kfs_keyboard_get_layout(), KBD_LAYOUT_QWERTY);
 }
 
+/* chrt -o -p 0 <pid> は対象プロセスを SCHED_NORMAL に変更する */
+KFS_TEST(test_cmd_chrt_sets_sched_normal)
+{
+	struct task_struct target = init_task;
+
+	target.pid = 76;
+	target.policy = SCHED_PURE_RR;
+	INIT_LIST_HEAD(&target.children);
+	INIT_LIST_HEAD(&target.sibling);
+	INIT_LIST_HEAD(&target.tasks);
+	INIT_LIST_HEAD(&target.run_list);
+	sched_init_entity(&target);
+	list_add_tail(&target.tasks, &task_list);
+	run_chrt_cmd("-o -p 0 76");
+	KFS_ASSERT_TRUE(target.policy == SCHED_NORMAL);
+	list_del(&target.tasks);
+}
+
+/* chrt --pure-rr -p 0 <pid> は対象プロセスを SCHED_PURE_RR に変更する */
+KFS_TEST(test_cmd_chrt_sets_pure_rr_for_pid)
+{
+	struct task_struct target = init_task;
+
+	target.pid = 77;
+	target.policy = SCHED_NORMAL;
+	INIT_LIST_HEAD(&target.children);
+	INIT_LIST_HEAD(&target.sibling);
+	INIT_LIST_HEAD(&target.tasks);
+	INIT_LIST_HEAD(&target.run_list);
+	sched_init_entity(&target);
+	list_add_tail(&target.tasks, &task_list);
+	run_chrt_cmd("--pure-rr -p 0 77");
+	KFS_ASSERT_TRUE(target.policy == SCHED_PURE_RR);
+	list_del(&target.tasks);
+}
+
+/* spin コマンドは CPU 負荷確認用コマンドとして登録される */
+KFS_TEST(test_cmd_spin_registered)
+{
+	shell_cmd_fn fn;
+	const char *args;
+	enum shell_cmd_mode mode;
+
+	shell_init();
+	KFS_ASSERT_EQ(0, cmd_lookup("spin", &fn, &args, &mode));
+	KFS_ASSERT_TRUE(fn == cmd_spin);
+	KFS_ASSERT_TRUE(args != 0 && args[0] == '\0');
+	KFS_ASSERT_EQ(SHELL_CMD_EXTERNAL, mode);
+}
+
 /**
  * test_shell_execute_beep_no_args
  * 検証対象: cmd_beep()
@@ -589,6 +659,9 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_spaces_only, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_invalid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_switch_layouts, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_sets_sched_normal, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_sets_pure_rr_for_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_spin_registered, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_no_args, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_zero_freq, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_jiffies, setup_test, teardown_test),

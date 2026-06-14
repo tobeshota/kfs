@@ -356,7 +356,6 @@ __attribute__((weak)) void shell_run(void)
 		}
 		line[line_len] = '\0';
 
-		/* 入力待ち中にゾンビ化した子を、次コマンド実行前に先に回収する。 */
 		execute_command(line);
 	}
 }

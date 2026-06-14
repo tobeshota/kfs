@@ -10,7 +10,7 @@ struct shell_builtin_entry
 	enum shell_cmd_mode mode; /* コマンドモード */
 };
 
-#define MAX_BUILTINS 16
+#define MAX_BUILTINS 24
 
 static struct shell_builtin_entry builtin_table[MAX_BUILTINS];
 static size_t builtin_count;
@@ -93,7 +93,9 @@ void cmd_registry_init(void)
 	extern void cmd_neofetch(void *args);
 	extern void cmd_sched(void *args);
 	extern void cmd_beep(void *args);
+	extern void cmd_chrt(void *args);
 	extern void cmd_sleep(void *args);
+	extern void cmd_spin(void *args);
 	extern void cmd_daiku(void *args);
 	extern void cmd_help(void *args);
 	extern void cmd_jobs(void *args);
@@ -110,7 +112,9 @@ void cmd_registry_init(void)
 	cmd_register("neofetch", cmd_neofetch, SHELL_CMD_EXTERNAL);
 	cmd_register("sched", cmd_sched, SHELL_CMD_EXTERNAL);
 	cmd_register("beep", cmd_beep, SHELL_CMD_EXTERNAL);
+	cmd_register("chrt", cmd_chrt, SHELL_CMD_EXTERNAL);
 	cmd_register("sleep", cmd_sleep, SHELL_CMD_EXTERNAL);
+	cmd_register("spin", cmd_spin, SHELL_CMD_EXTERNAL);
 	cmd_register("daiku", cmd_daiku, SHELL_CMD_EXTERNAL);
 	cmd_register("help", cmd_help, SHELL_CMD_EXTERNAL);
 	cmd_register("jobs", cmd_jobs, SHELL_CMD_BUILTIN);
