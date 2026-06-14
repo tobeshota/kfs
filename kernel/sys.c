@@ -259,6 +259,7 @@ static int sched_policy_supported(int policy)
 	case SCHED_NORMAL:
 	case SCHED_BATCH:
 	case SCHED_IDLE:
+	case SCHED_EXT:
 	case SCHED_PURE_RR:
 		return 1;
 	case SCHED_FIFO:
