@@ -10,6 +10,7 @@
 #include <kfs/prctl.h>
 #include <kfs/ps.h>
 #include <kfs/pty.h>
+#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/signal.h>
@@ -247,11 +248,32 @@ int sys_capset(pid_t pid, const kernel_cap_t *effective, const kernel_cap_t *per
 	return cap_capset(tsk, effective, permitted, inheritable);
 }
 
-/** スケジューリングポリシーとリアルタイム優先度を設定する
+/** policy が kfs で利用可能な scheduler class を持つか確認する
+ * @param policy 確認する SCHED_* policy
+ * @return 1=利用可能, 0=未実装または不正
+ */
+static int sched_policy_supported(int policy)
+{
+	switch (policy)
+	{
+	case SCHED_NORMAL:
+	case SCHED_BATCH:
+	case SCHED_IDLE:
+	case SCHED_PURE_RR:
+		return 1;
+	case SCHED_FIFO:
+	case SCHED_RR:
+	case SCHED_DEADLINE:
+	default:
+		return 0;
+	}
+}
+
+/** スケジューリングポリシーと優先度を設定する
  * @param pid      対象 PID（0の場合呼び出し元プロセス）
  * @param policy   設定するポリシー（SCHED_*）
- * @param priority RT 優先度（SCHED_FIFO/RR/DEADLINE 用、非 RT ポリシーでは 0 のみ有効）
- * @return 0: 成功, -ESRCH: PID 未存在, -EINVAL: 不正ポリシーまたは非 RT に priority != 0, -EPERM: 権限不足
+ * @param priority kfs 実装済み非 RT policy では 0 のみ有効
+ * @return 0: 成功, -ESRCH: PID 未存在, -EINVAL: 不正または未実装 policy / priority
  */
 int sys_sched_setscheduler(pid_t pid, int policy, int priority)
 {
@@ -259,30 +281,45 @@ int sys_sched_setscheduler(pid_t pid, int policy, int priority)
 
 	if (!tsk)
 	{
-		return -ESRCH;
+		return -ESRCH; /* PID 未存在 */
+	}
+	if (!sched_policy_supported(policy))
+	{
+		return -EINVAL; /* 未実装または不正なポリシー */
+	}
+	if (priority != 0)
+	{
+		return -EINVAL; /* 非 RT ポリシーでは priority は 0 のみ有効 */
 	}
 
-	/* 設定するpolicyが有効（SCHED_*）であるか確認 */
-	if (policy != SCHED_NORMAL && policy != SCHED_FIFO && policy != SCHED_RR && policy != SCHED_BATCH &&
-		policy != SCHED_IDLE && policy != SCHED_DEADLINE && policy != SCHED_PURE_RR)
+	const int queued = sched_task_queued(tsk); /* タスクがキューに存在するか */
+	if (queued)
 	{
-		return -EINVAL;
-	}
-
-	/* 非 RT ポリシーに priority != 0 は不正（Linux 6.18 準拠） */
-	if (priority != 0 && (policy != SCHED_FIFO && policy != SCHED_RR && policy != SCHED_DEADLINE))
-	{
-		return -EINVAL;
-	}
-
-	/* リアルタイム系ポリシー（FIFO/RR/DEADLINE）は CAP_SYS_NICE が必要 */
-	if ((policy == SCHED_FIFO || policy == SCHED_RR || policy == SCHED_DEADLINE) && !capable(CAP_SYS_NICE))
-	{
-		return -EPERM;
+		/* タスクがキューに存在する場合は一旦デキューする */
+		sched_dequeue_task(tsk);
 	}
 
 	tsk->policy = (unsigned int)policy;
-	tsk->rt_priority = priority;
+
+	/* 非 RT ポリシーでは rt_priority は 0 のみ有効 */
+	tsk->rt_priority = 0;
+
+	/** SCHED_PURE_RR の場合はタイムスライスを設定する
+	 * @note tsk->time_slice == 0を条件にある理由は，
+	 *       SCHED_PURE_RR から再度 SCHED_PURE_RR に変更された場合に
+	 *       タイムスライスがリセットされるのを防ぐため
+	 */
+	if (tsk->policy == SCHED_PURE_RR && tsk->time_slice == 0)
+	{
+		tsk->time_slice = RR_TIMESLICE;
+	}
+
+	if (queued)
+	{
+		/* タスクがキューに存在する場合は再度エンキューする */
+		sched_enqueue_task(tsk);
+	}
+
 	return 0;
 }
 

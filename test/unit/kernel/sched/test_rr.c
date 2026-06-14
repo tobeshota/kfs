@@ -306,14 +306,54 @@ static void test_sched_setscheduler_einval(void)
 	printk("sys_sched_setscheduler: -EINVAL OK\n");
 }
 
-/* CAP_SYS_NICE を持たないプロセスが RT ポリシー（SCHED_FIFO）を設定すると -EPERM になることを確かめる */
-static void test_sched_setscheduler_eperm(void)
+/* kfs 未実装の Linux RT policy は明示的に -EINVAL で拒否される */
+static void test_sched_setscheduler_rejects_linux_rt_policy(void)
 {
-	current->cap_effective = CAP_EMPTY_SET; /* 権限を剥奪 */
+	current->cap_effective = CAP_FULL_SET;
 
-	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_FIFO, 0) == -EPERM);
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_FIFO, 0) == -EINVAL);
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_RR, 0) == -EINVAL);
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_DEADLINE, 0) == -EINVAL);
 
-	printk("sys_sched_setscheduler: -EPERM OK\n");
+	printk("sys_sched_setscheduler: rejects Linux RT policies OK\n");
+}
+
+/* queued task を pure RR から fair runqueue へ移動できることを確かめる */
+static void test_sched_setscheduler_migrates_rr_to_fair(void)
+{
+	current->policy = SCHED_PURE_RR;
+	current->time_slice = RR_TIMESLICE;
+	sched_enqueue_task(current);
+
+	KFS_ASSERT_TRUE(sched_task_queued(current));
+	KFS_ASSERT_TRUE(!list_empty(&current->run_list));
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_NORMAL, 0) == 0);
+	KFS_ASSERT_TRUE(current->policy == SCHED_NORMAL);
+	KFS_ASSERT_TRUE(list_empty(&current->run_list));
+	KFS_ASSERT_TRUE(sched_task_queued(current));
+
+	sched_dequeue_task(current);
+	printk("sys_sched_setscheduler: migrates RR to fair OK\n");
+}
+
+/* queued task を fair から pure RR runqueue へ移動できることを確かめる */
+static void test_sched_setscheduler_migrates_fair_to_rr(void)
+{
+	current->policy = SCHED_NORMAL;
+	current->se.vruntime = 0;
+	sched_init_entity(current);
+	sched_enqueue_task(current);
+
+	KFS_ASSERT_TRUE(sched_task_queued(current));
+	KFS_ASSERT_TRUE(current->se.on_rq);
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_PURE_RR, 0) == 0);
+	KFS_ASSERT_TRUE(current->policy == SCHED_PURE_RR);
+	KFS_ASSERT_TRUE(!current->se.on_rq);
+	KFS_ASSERT_TRUE(sched_task_queued(current));
+	KFS_ASSERT_TRUE(!list_empty(&current->run_list));
+
+	sched_dequeue_task(current);
+	printk("sys_sched_setscheduler: migrates fair to RR OK\n");
 }
 
 /* sys_sched_getscheduler() が pid 0 のとき current のポリシーを返すことを確かめる */
@@ -354,7 +394,9 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_ok, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_accepts_sched_normal, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_einval, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_eperm, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_rejects_linux_rt_policy, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_rr_to_fair, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_fair_to_rr, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_getscheduler, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_non_rt_clears_priority, setup_test, teardown_test),
 };
