@@ -65,9 +65,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	INIT_LIST_HEAD(&tsk->sibling);
 	INIT_LIST_HEAD(&tsk->tasks);
 	INIT_LIST_HEAD(&tsk->run_list); /* RR ランキュー用リンク初期化 */
-	tsk->se.run_node.__rb_parent_color = 0;
-	tsk->se.run_node.rb_right = NULL;
-	tsk->se.run_node.rb_left = NULL;
+	sched_init_entity(tsk);
 
 	/** 新しいスタックを設定する
 	 * @note スタックの値は親プロセスから引き継がない（子プロセスは新しいスタックを使うため）

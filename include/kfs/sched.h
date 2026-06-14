@@ -48,15 +48,26 @@ struct sigpending
 	uint64_t signal;	   /* 保留中シグナルビットマスク */
 };
 
+/* nice 値の範囲と，CFSのvruntime計算に使用される重み */
+#define NICE_MIN (-20)							   /* 最小 nice 値 */
+#define NICE_MAX 19								   /* 最大 nice 値 */
+#define NICE_WIDTH (NICE_MAX - NICE_MIN + 1)	   /* nice 値の範囲 */
+#define NICE_0_LOAD 1024UL						   /* nice 0 の重み */
+#define NICE_0_INDEX (-NICE_MIN)				   /* nice 0 のインデックス */
+#define MAX_RT_PRIO 100							   /* 最大リアルタイム優先度 */
+#define DEFAULT_PRIO (MAX_RT_PRIO + NICE_0_INDEX)  /* デフォルトの優先度 */
+#define NICE_TO_PRIO(nice) ((nice) + DEFAULT_PRIO) /* nice 値から優先度への変換 */
+#define PRIO_TO_NICE(prio) ((prio) - DEFAULT_PRIO) /* 優先度から nice 値への変換 */
+
 /** CFS用スケジューリングエンティティ
  * CFS 実装で使用するための構造体。現在は一部のフィールドのみ使用する
  */
 struct sched_entity
 {
-	unsigned long load;		 /* エンティティの負荷重み */
+	unsigned long load;		 /* エンティティの重み */
 	struct rb_node run_node; /* CFSのrb-treeノード（vruntimeでソート） */
 	unsigned int on_rq;		 /* ランキューに登録されているか */
-	uint64_t vruntime;		 /* 仮想実行時間（ナノ秒単位） */
+	uint64_t vruntime;		 /* 仮想実行時間（tick 基準の重み付き時間） */
 };
 
 /** プロセスの状態
@@ -210,6 +221,7 @@ struct task_struct
 	struct pid *pid_struct;			   /* struct pid のポインタ（alloc_pid の返り値を保存） */
 
 	uint32_t cpu_time_ticks; /* 累積CPU時間（tick単位） */
+	int nice;				 /* nice値（-20..19、低いほど高優先） */
 };
 
 /* 現在実行中のプロセス（kernel/sched/core.c で定義） */
@@ -228,6 +240,8 @@ void sched_dequeue_task(struct task_struct *task);
 int sched_task_queued(struct task_struct *task);
 struct task_struct *sched_pick_next_task(void);
 void sched_task_tick(struct task_struct *task);
+unsigned long sched_weight_for_nice(int nice);
+void sched_init_entity(struct task_struct *task);
 void cpu_idle_loop(void) __attribute__((weak));
 pid_t kernel_thread(void (*fn)(void), const char *name);
 

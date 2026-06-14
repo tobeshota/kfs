@@ -9,14 +9,13 @@ static void init_fair_task(struct task_struct *task, pid_t pid, uint64_t vruntim
 	task->__state = TASK_RUNNING;
 	task->pid = pid;
 	task->policy = SCHED_NORMAL;
+	task->prio = DEFAULT_PRIO;
+	task->static_prio = DEFAULT_PRIO;
+	task->nice = 0;
 	task->time_slice = RR_TIMESLICE;
 	INIT_LIST_HEAD(&task->run_list);
-	task->se.load = 0;
-	task->se.run_node.__rb_parent_color = 0;
-	task->se.run_node.rb_left = NULL;
-	task->se.run_node.rb_right = NULL;
-	task->se.on_rq = 0;
 	task->se.vruntime = vruntime;
+	sched_init_entity(task);
 }
 
 static void setup_test(void)
@@ -117,11 +116,86 @@ static void test_fair_enqueue_no_duplicate(void)
 	printk("fair: enqueue no duplicate OK\n");
 }
 
+/* nice 0 は CFS の基準 weight になり、範囲外 nice は端に丸められる */
+static void test_fair_weight_table_nice_zero_and_clamp(void)
+{
+	KFS_ASSERT_TRUE(sched_weight_for_nice(0) == NICE_0_LOAD);
+	KFS_ASSERT_TRUE(sched_weight_for_nice(NICE_MIN) > NICE_0_LOAD);
+	KFS_ASSERT_TRUE(sched_weight_for_nice(NICE_MAX) < NICE_0_LOAD);
+	KFS_ASSERT_TRUE(sched_weight_for_nice(NICE_MIN - 1) == sched_weight_for_nice(NICE_MIN));
+	KFS_ASSERT_TRUE(sched_weight_for_nice(NICE_MAX + 1) == sched_weight_for_nice(NICE_MAX));
+
+	printk("fair: nice weight table OK\n");
+}
+
+/* fair tick は nice 0 task の vruntime を 1 tick 分進める */
+static void test_fair_tick_updates_vruntime(void)
+{
+	struct task_struct task;
+
+	init_fair_task(&task, 50, 0);
+	sched_task_tick(&task);
+
+	KFS_ASSERT_TRUE(task.se.vruntime == NICE_0_LOAD);
+
+	printk("fair: tick updates vruntime OK\n");
+}
+
+/* nice weight が大きい task ほど同じ実行時間で増える vruntime は小さい */
+static void test_fair_tick_scales_by_nice_weight(void)
+{
+	struct task_struct high;
+	struct task_struct base;
+	struct task_struct low;
+
+	init_fair_task(&high, 60, 0);
+	init_fair_task(&base, 61, 0);
+	init_fair_task(&low, 62, 0);
+	high.nice = NICE_MIN;
+	base.nice = 0;
+	low.nice = NICE_MAX;
+	high.se.load = sched_weight_for_nice(high.nice);
+	base.se.load = sched_weight_for_nice(base.nice);
+	low.se.load = sched_weight_for_nice(low.nice);
+
+	sched_task_tick(&high);
+	sched_task_tick(&base);
+	sched_task_tick(&low);
+
+	KFS_ASSERT_TRUE(high.se.vruntime < base.se.vruntime);
+	KFS_ASSERT_TRUE(low.se.vruntime > base.se.vruntime);
+
+	printk("fair: tick scales by nice weight OK\n");
+}
+
+/* tick 後に vruntime が進んだ task は tree 内で正しい位置へ戻される */
+static void test_fair_tick_reorders_runqueue(void)
+{
+	struct task_struct a;
+	struct task_struct b;
+
+	init_fair_task(&a, 70, 0);
+	init_fair_task(&b, 71, 1500);
+	sched_enqueue_task(&a);
+	sched_enqueue_task(&b);
+
+	KFS_ASSERT_TRUE(sched_pick_next_task() == &a);
+	sched_task_tick(&a);
+	sched_task_tick(&a);
+	KFS_ASSERT_TRUE(sched_pick_next_task() == &b);
+
+	printk("fair: tick reorders runqueue OK\n");
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_fair_pick_next_lowest_vruntime, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_fair_dequeue_updates_leftmost, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_fair_dequeue_node_with_two_children, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_fair_enqueue_no_duplicate, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_fair_weight_table_nice_zero_and_clamp, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_fair_tick_updates_vruntime, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_fair_tick_scales_by_nice_weight, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_fair_tick_reorders_runqueue, setup_test, teardown_test),
 };
 
 int register_unit_tests_fair(struct kfs_test_case **out)

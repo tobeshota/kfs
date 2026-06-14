@@ -58,8 +58,12 @@ void reset_all_state_for_test(void)
 	init_task.__state = TASK_RUNNING;
 	init_task.flags = PF_KTHREAD;
 	init_task.policy = SCHED_PURE_RR;
+	init_task.prio = DEFAULT_PRIO;
+	init_task.static_prio = DEFAULT_PRIO;
+	init_task.nice = 0;
 	init_task.rt_priority = 0;
 	init_task.time_slice = RR_TIMESLICE;
+	init_task.se.load = NICE_0_LOAD;
 	init_task.se.on_rq = 0;
 	init_task.se.vruntime = 0;
 	init_task.se.run_node.__rb_parent_color = 0;
