@@ -1,11 +1,23 @@
 #include <kfs/errno.h>
+#include <kfs/exit.h>
 #include <kfs/fair.h>
+#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/sched_ext.h>
 #include <kfs/stddef.h>
+#include <kfs/string.h>
 
-/* 現在有効な sched_ext backend */
+/** 現在有効な sched_ext backend
+ * @brief sched_ext_register() で登録され，
+ *        sched_ext_unregister() で解除される．
+ */
 static const struct sched_ext_ops *sched_ext_ops;
+
+/** backend所有プロセス
+ * @brief sched_ext_unregister()で0に初期化され，
+ *        sched_ext_load()でロードしたプロセスのpidに設定される．
+ */
+static pid_t sched_ext_owner_pid;
 
 /** sched_ext backend ops が最低限の操作を持つか確認する
  * @param ops 確認する backend ops
@@ -43,6 +55,35 @@ int sched_ext_register(const struct sched_ext_ops *ops)
 	return 0;
 }
 
+/** SCHED_EXT taskをbackendからfairへ移送する
+ * @param task 移送対象task
+ * @param ctx 未使用
+ * @return 常に0
+ */
+static int sched_ext_migrate_task_to_fair(struct task_struct *task, void *ctx)
+{
+	(void)ctx;
+
+	/* SCHED_EXT task でない場合や backend にキューされていない場合は何もしない */
+	if (task->policy != SCHED_EXT || !sched_ext_ops->task_queued(task))
+	{
+		return 0;
+	}
+
+	sched_ext_ops->dequeue_task(task);
+	/** task が実行中の場合は fair scheduler へ移送する
+	 * @note task が実行中でない場合は fair scheduler へ移送しない
+	 *      （fair scheduler の runqueue に載せない）
+	 *       これは、task が実行中でない場合は fair scheduler の runqueue に載せると、
+	 *       次の tick で fair scheduler が task を実行してしまうためである
+	 */
+	if (task->__state == TASK_RUNNING)
+	{
+		fair_sched_class.enqueue_task(task);
+	}
+	return 0;
+}
+
 /** sched_ext backend を解除する
  * @note backend 未登録の場合は何もしない
  */
@@ -54,8 +95,10 @@ void sched_ext_unregister(void)
 		return;
 	}
 
+	task_for_each(sched_ext_migrate_task_to_fair, NULL);
 	sched_ext_ops->exit();
 	sched_ext_ops = NULL;
+	sched_ext_owner_pid = 0;
 }
 
 /** sched_ext backend が有効か確認する
@@ -78,11 +121,106 @@ const char *sched_ext_name(void)
 	return sched_ext_ops->name;
 }
 
+/** sched_ext所有プロセスの終了を処理する
+ * @param task 終了するtask
+ */
+static void sched_ext_owner_exit(struct task_struct *task)
+{
+	/* sched_ext が有効で、かつ呼び出し元プロセスのPIDがbackend所有プロセスである場合 */
+	if (sched_ext_enabled() && task->pid == sched_ext_owner_pid)
+	{
+		sched_ext_unregister();
+	}
+}
+
+/** 名前を指定してsched_ext backendをロードする
+ * @param name backend名
+ * @return 0=成功, 負数=エラー
+ * @note sched_ext_owner_pid はロードしたプロセスの pid に設定される
+ */
+int sys_sched_ext_load(const char *name)
+{
+	/* 名前が無効な場合はエラーを返す */
+	if (!name || strcmp(name, "pure_rr") != 0)
+	{
+		return -EINVAL;
+	}
+
+	/* sched_ext が既に有効な場合はエラーを返す */
+	if (sched_ext_enabled())
+	{
+		return -EPERM;
+	}
+
+	int ret = sched_ext_register(&sched_ext_pure_rr_ops);
+	if (ret)
+	{
+		return ret;
+	}
+
+	/* sched_ext_owner_pid を設定する */
+	sched_ext_owner_pid = current->pid;
+
+	return 0;
+}
+
+/** 呼び出しプロセスが所有するsched_ext backendを解除する
+ * @return 0=成功, 負数=エラー
+ */
+int sys_sched_ext_unload(void)
+{
+	if (!sched_ext_enabled())
+	{
+		return 0;
+	}
+
+	/* 呼び出しプロセスが backend 所有プロセスでない場合はエラーを返す
+	 * その理由は，backend の所有権を持つプロセスのみが backend を解除できるようにするため．
+	 */
+	if (sched_ext_owner_pid != current->pid)
+	{
+		return -EPERM;
+	}
+
+	sched_ext_unregister();
+	return 0;
+}
+
+/** sched_extの現在状態を取得する
+ * @param status 状態の格納先
+ * @return 0=成功, 負数=エラー
+ */
+int sys_sched_ext_status(struct sched_ext_status *status)
+{
+	if (!status)
+	{
+		return -EINVAL;
+	}
+
+	status->enabled = sched_ext_enabled();
+	status->owner_pid = sched_ext_owner_pid;
+	strlcpy(status->name, sched_ext_name(), sizeof(status->name));
+	return 0;
+}
+
 /** sched_ext class を初期化する
  * @note 起動時や単体テストの再初期化では backend 未登録状態に戻す
  */
 static void ext_init(void)
 {
+	static int exit_hook_registered;
+
+	/* sched_ext が有効でない場合は exit hook を登録する．
+	 * exit_hook_registeredが必要な理由は，
+	 * exit hook が複数回登録されるのを防ぐためである．
+	 */
+	if (!exit_hook_registered)
+	{
+		/* exit hook を登録する． */
+		register_exit_hook(sched_ext_owner_exit);
+		exit_hook_registered = 1;
+	}
+
 	sched_ext_unregister();
 }
 

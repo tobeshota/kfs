@@ -1,10 +1,14 @@
 #include "../../test_reset.h"
 #include "unit_test_framework.h"
+#include <kfs/errno.h>
+#include <kfs/exit.h>
 #include <kfs/list.h>
 #include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/sched_ext.h>
 #include <kfs/string.h>
+
+extern struct list_head task_list;
 
 static struct task_struct *fake_next_task;
 static int fake_init_called;
@@ -233,6 +237,95 @@ static void test_sched_ext_pure_rr_isolated_from_legacy_queue(void)
 	printk("sched_ext: pure_rr queue is isolated from legacy RR OK\n");
 }
 
+static void test_sched_ext_syscall_load_status_unload(void)
+{
+	struct sched_ext_status status;
+	struct task_struct owner;
+	struct task_struct *saved_current = current;
+
+	memset(&owner, 0, sizeof(owner));
+	owner.pid = 42;
+	current = &owner;
+
+	KFS_ASSERT_TRUE(sys_sched_ext_load("pure_rr") == 0);
+	KFS_ASSERT_TRUE(sys_sched_ext_status(&status) == 0);
+	KFS_ASSERT_TRUE(status.enabled);
+	KFS_ASSERT_TRUE(status.owner_pid == 42);
+	KFS_ASSERT_TRUE(strcmp(status.name, "pure_rr") == 0);
+	KFS_ASSERT_TRUE(sys_sched_ext_unload() == 0);
+	KFS_ASSERT_TRUE(!sched_ext_enabled());
+
+	current = saved_current;
+	printk("sched_ext: load status unload syscall API OK\n");
+}
+
+static void test_sched_ext_unload_rejects_non_owner(void)
+{
+	struct task_struct owner;
+	struct task_struct other;
+	struct task_struct *saved_current = current;
+
+	memset(&owner, 0, sizeof(owner));
+	memset(&other, 0, sizeof(other));
+	owner.pid = 43;
+	other.pid = 44;
+	current = &owner;
+	KFS_ASSERT_TRUE(sys_sched_ext_load("pure_rr") == 0);
+
+	current = &other;
+	KFS_ASSERT_TRUE(sys_sched_ext_unload() == -EPERM);
+	KFS_ASSERT_TRUE(sched_ext_enabled());
+
+	current = &owner;
+	KFS_ASSERT_TRUE(sys_sched_ext_unload() == 0);
+	current = saved_current;
+	printk("sched_ext: non-owner unload rejected OK\n");
+}
+
+static void test_sched_ext_owner_exit_unloads_backend(void)
+{
+	struct task_struct owner;
+	struct task_struct *saved_current = current;
+
+	memset(&owner, 0, sizeof(owner));
+	owner.pid = 45;
+	current = &owner;
+	KFS_ASSERT_TRUE(sys_sched_ext_load("pure_rr") == 0);
+
+	invoke_exit_hooks(&owner);
+	KFS_ASSERT_TRUE(!sched_ext_enabled());
+
+	current = saved_current;
+	printk("sched_ext: owner exit unloads backend OK\n");
+}
+
+static void test_sched_ext_unload_migrates_tasks_to_fair(void)
+{
+	struct task_struct owner;
+	struct task_struct ext_task;
+	struct task_struct *saved_current = current;
+
+	memset(&owner, 0, sizeof(owner));
+	owner.pid = 46;
+	init_ext_test_task(&ext_task, 47);
+	INIT_LIST_HEAD(&ext_task.tasks);
+	list_add_tail(&ext_task.tasks, &task_list);
+
+	current = &owner;
+	KFS_ASSERT_TRUE(sys_sched_ext_load("pure_rr") == 0);
+	sched_enqueue_task(&ext_task);
+	KFS_ASSERT_TRUE(!ext_task.se.on_rq);
+
+	KFS_ASSERT_TRUE(sys_sched_ext_unload() == 0);
+	KFS_ASSERT_TRUE(ext_task.se.on_rq);
+	KFS_ASSERT_TRUE(sched_pick_next_task() == &ext_task);
+
+	sched_dequeue_task(&ext_task);
+	list_del(&ext_task.tasks);
+	current = saved_current;
+	printk("sched_ext: unload migrates tasks to fair OK\n");
+}
+
 static struct kfs_test_case ext_tests[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_starts_disabled, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_disabled_falls_back_to_fair, setup_test, teardown_test),
@@ -241,6 +334,10 @@ static struct kfs_test_case ext_tests[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_unregister_returns_to_fair_fallback, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_pure_rr_preserves_rr_order, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_pure_rr_isolated_from_legacy_queue, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_syscall_load_status_unload, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_unload_rejects_non_owner, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_owner_exit_unloads_backend, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_unload_migrates_tasks_to_fair, setup_test, teardown_test),
 };
 
 int register_unit_tests_ext(struct kfs_test_case **out)

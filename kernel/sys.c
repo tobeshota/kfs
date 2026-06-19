@@ -361,11 +361,23 @@ long sys_prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long
  */
 long sys_msleep(uint32_t ms)
 {
+	long remaining;
+
 	if (ms == 0)
 	{
 		return 0;
 	}
-	return schedule_timeout((long)ms);
+	if (signal_pending())
+	{
+		return -EINTR;
+	}
+
+	remaining = schedule_timeout((long)ms);
+	if (signal_pending())
+	{
+		return -EINTR;
+	}
+	return remaining;
 }
 
 struct pgrp_scan_ctx

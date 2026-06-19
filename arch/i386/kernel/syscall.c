@@ -8,6 +8,7 @@
 #include <kfs/pty.h>
 #include <kfs/reboot.h>
 #include <kfs/sched.h>
+#include <kfs/sched_ext.h>
 #include <kfs/signal.h>
 #include <kfs/stddef.h>
 #include <kfs/sys.h>
@@ -430,6 +431,37 @@ static long __attribute__((noreturn)) do_sys_panic(long arg1, long arg2, long ar
 	__builtin_unreachable();
 }
 
+/** sched_ext_load(name) syscall wrapper */
+static long do_sys_sched_ext_load(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_sched_ext_load((const char *)arg1);
+}
+
+/** sched_ext_unload() syscall wrapper */
+static long do_sys_sched_ext_unload(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_sched_ext_unload();
+}
+
+/** sched_ext_status(status) syscall wrapper */
+static long do_sys_sched_ext_status(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg2;
+	(void)arg3;
+	(void)arg4;
+	(void)arg5;
+	return (long)sys_sched_ext_status((struct sched_ext_status *)arg1);
+}
+
 static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_exit] = (syscall_fn_t)do_sys_exit,
 	[__NR_fork] = do_sys_fork,
@@ -466,6 +498,9 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_neofetch_info] = do_sys_neofetch_info,
 	[__NR_ttynr] = do_sys_ttynr,
 	[__NR_openpty] = do_sys_openpty,
+	[__NR_sched_ext_load] = do_sys_sched_ext_load,
+	[__NR_sched_ext_unload] = do_sys_sched_ext_unload,
+	[__NR_sched_ext_status] = do_sys_sched_ext_status,
 	[__NR_ioctl] = do_sys_ioctl,
 };
 

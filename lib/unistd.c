@@ -1,11 +1,12 @@
 #include <kfs/errno.h>
 #include <kfs/keyboard.h>
 #include <kfs/neofetch.h>
-#include <kfs/pid.h>	 /* pid_t */
-#include <kfs/ps.h>		 /* struct kfs_ps_entry */
-#include <kfs/sched.h>	 /* uid_t */
-#include <kfs/signal.h>	 /* sighandler_t */
-#include <kfs/syscall.h> /* __NR_fork, __NR_exit, __NR_wait */
+#include <kfs/pid.h> /* pid_t */
+#include <kfs/ps.h>	 /* struct kfs_ps_entry */
+#include <kfs/sched.h>
+#include <kfs/sched_ext.h> /* uid_t */
+#include <kfs/signal.h>	   /* sighandler_t */
+#include <kfs/syscall.h>   /* __NR_fork, __NR_exit, __NR_wait */
 
 /**
  * POSIX プロセス管理 API — ring-3 から INT 0x80 で syscall を発行する実装
@@ -165,6 +166,30 @@ int sched_getscheduler(pid_t pid)
 {
 	long ret;
 	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_sched_getscheduler), "b"((long)pid) : "memory");
+	return (int)ret;
+}
+
+/** sched_ext backendをロードする */
+int sched_ext_load(const char *name)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_sched_ext_load), "b"((long)name) : "memory");
+	return (int)ret;
+}
+
+/** 呼び出しプロセスが所有するsched_ext backendを解除する */
+int sched_ext_unload(void)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_sched_ext_unload) : "memory");
+	return (int)ret;
+}
+
+/** sched_extの状態を取得する */
+int sched_ext_status(struct sched_ext_status *status)
+{
+	long ret;
+	__asm__ __volatile__("int $0x80" : "=a"(ret) : "0"(__NR_sched_ext_status), "b"((long)status) : "memory");
 	return (int)ret;
 }
 

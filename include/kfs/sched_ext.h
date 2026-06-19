@@ -1,6 +1,10 @@
 #ifndef _KFS_SCHED_EXT_H
 #define _KFS_SCHED_EXT_H
 
+#include <kfs/pid.h>
+
+#define SCHED_EXT_NAME_LEN 16
+
 struct sched_class;
 struct task_struct;
 
@@ -20,11 +24,22 @@ struct sched_ext_ops
 	void (*task_tick)(struct task_struct *task);	/* task の tick 処理を行う */
 };
 
+/* sched_extの現在状態 */
+struct sched_ext_status
+{
+	int enabled;				   /* 1=有効, 0=無効 */
+	pid_t owner_pid;			   /* backend所有プロセス */
+	char name[SCHED_EXT_NAME_LEN]; /* backend名 */
+};
+
 extern const struct sched_class sched_ext_class;
 
 int sched_ext_register(const struct sched_ext_ops *ops);
 void sched_ext_unregister(void);
 int sched_ext_enabled(void);
 const char *sched_ext_name(void);
+int sys_sched_ext_load(const char *name);
+int sys_sched_ext_unload(void);
+int sys_sched_ext_status(struct sched_ext_status *status);
 
 #endif /* _KFS_SCHED_EXT_H */

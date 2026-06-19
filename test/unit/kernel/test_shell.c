@@ -15,6 +15,8 @@ extern void shell_init(void);
 extern void cmd_loadkeys(void *args);
 extern void cmd_chrt(void *args);
 extern void cmd_spin(void *args);
+extern void cmd_scx_pure_rr(void *args);
+extern void cmd_sched_ext_status(void *args);
 extern int shell_jobs_add(pid_t pid, pid_t pgrp, const char *cmd, int stopped);
 extern void shell_jobs_on_wait_event(pid_t pid, int wait_status);
 extern void shell_jobs_reset(void);
@@ -482,6 +484,21 @@ KFS_TEST(test_cmd_spin_registered)
 	KFS_ASSERT_EQ(SHELL_CMD_EXTERNAL, mode);
 }
 
+KFS_TEST(test_sched_ext_commands_registered)
+{
+	shell_cmd_fn fn;
+	const char *args;
+	enum shell_cmd_mode mode;
+
+	shell_init();
+	KFS_ASSERT_EQ(0, cmd_lookup("scx_pure_rr", &fn, &args, &mode));
+	KFS_ASSERT_TRUE(fn == cmd_scx_pure_rr);
+	KFS_ASSERT_EQ(SHELL_CMD_EXTERNAL, mode);
+	KFS_ASSERT_EQ(0, cmd_lookup("sched_ext_status", &fn, &args, &mode));
+	KFS_ASSERT_TRUE(fn == cmd_sched_ext_status);
+	KFS_ASSERT_EQ(SHELL_CMD_EXTERNAL, mode);
+}
+
 /**
  * test_shell_execute_beep_no_args
  * 検証対象: cmd_beep()
@@ -662,6 +679,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_sets_sched_normal, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_sets_pure_rr_for_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_spin_registered, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_commands_registered, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_no_args, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_zero_freq, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_jiffies, setup_test, teardown_test),

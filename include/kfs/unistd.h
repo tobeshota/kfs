@@ -7,6 +7,7 @@
 #include <kfs/pid.h> /* pid_t */
 #include <kfs/ps.h>
 #include <kfs/sched.h>
+#include <kfs/sched_ext.h>
 #include <kfs/signal.h>
 
 /* POSIX プロセス管理 API（lib/unistd.c で実装） */
@@ -28,6 +29,9 @@ int prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4
 int msleep(unsigned int ms);
 int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param);
 int sched_getscheduler(pid_t pid);
+int sched_ext_load(const char *name);
+int sched_ext_unload(void);
+int sched_ext_status(struct sched_ext_status *status);
 int psg_note(int ch, unsigned int freq_hz, unsigned int deadline_ms);
 int psg_stop(int ch);
 long ps_snapshot(struct kfs_ps_entry *entries, size_t max_entries);
