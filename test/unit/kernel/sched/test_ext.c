@@ -1,6 +1,7 @@
 #include "../../test_reset.h"
 #include "unit_test_framework.h"
 #include <kfs/list.h>
+#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/sched_ext.h>
 #include <kfs/string.h>
@@ -175,12 +176,71 @@ static void test_sched_ext_unregister_returns_to_fair_fallback(void)
 	printk("sched_ext: unregister returns to fair fallback OK\n");
 }
 
+static void test_sched_ext_pure_rr_preserves_rr_order(void)
+{
+	struct task_struct first;
+	struct task_struct second;
+
+	init_ext_test_task(&first, 20);
+	init_ext_test_task(&second, 21);
+	first.time_slice = 0;
+
+	KFS_ASSERT_TRUE(sched_ext_register(&sched_ext_pure_rr_ops) == 0);
+	KFS_ASSERT_TRUE(strcmp(sched_ext_name(), "pure_rr") == 0);
+
+	sched_enqueue_task(&first);
+	sched_enqueue_task(&second);
+
+	KFS_ASSERT_TRUE(first.policy == SCHED_EXT);
+	KFS_ASSERT_TRUE(second.policy == SCHED_EXT);
+	KFS_ASSERT_TRUE(!first.se.on_rq);
+	KFS_ASSERT_TRUE(!second.se.on_rq);
+	KFS_ASSERT_TRUE(sched_pick_next_task() == &first);
+
+	sched_task_tick(&first);
+	KFS_ASSERT_TRUE(first.time_slice == RR_TIMESLICE);
+	KFS_ASSERT_TRUE(sched_pick_next_task() == &second);
+
+	sched_dequeue_task(&first);
+	sched_dequeue_task(&second);
+
+	printk("sched_ext: pure_rr backend preserves RR order OK\n");
+}
+
+static void test_sched_ext_pure_rr_isolated_from_legacy_queue(void)
+{
+	struct task_struct ext_task;
+	struct task_struct legacy_task;
+
+	init_ext_test_task(&ext_task, 22);
+	memset(&legacy_task, 0, sizeof(legacy_task));
+	legacy_task.__state = TASK_RUNNING;
+	legacy_task.pid = 23;
+	legacy_task.policy = SCHED_PURE_RR;
+	legacy_task.time_slice = RR_TIMESLICE;
+	INIT_LIST_HEAD(&legacy_task.run_list);
+
+	KFS_ASSERT_TRUE(sched_ext_register(&sched_ext_pure_rr_ops) == 0);
+	rr_enqueue(&legacy_task);
+	sched_enqueue_task(&ext_task);
+
+	KFS_ASSERT_TRUE(sched_ext_class.pick_next_task() == &ext_task);
+	KFS_ASSERT_TRUE(rr_pick_next() == &legacy_task);
+
+	sched_dequeue_task(&ext_task);
+	rr_dequeue(&legacy_task);
+
+	printk("sched_ext: pure_rr queue is isolated from legacy RR OK\n");
+}
+
 static struct kfs_test_case ext_tests[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_starts_disabled, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_disabled_falls_back_to_fair, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_register_enables_backend, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_enabled_uses_backend, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_unregister_returns_to_fair_fallback, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_pure_rr_preserves_rr_order, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_pure_rr_isolated_from_legacy_queue, setup_test, teardown_test),
 };
 
 int register_unit_tests_ext(struct kfs_test_case **out)
