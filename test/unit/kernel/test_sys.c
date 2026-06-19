@@ -319,6 +319,16 @@ static void test_sys_msleep_zero_returns_immediately(void)
 	printk("test_sys_msleep_zero_returns_immediately: OK\n");
 }
 
+/** pending signalがある場合sys_msleepは即座に中断される */
+static void test_sys_msleep_pending_signal_returns_eintr(void)
+{
+	current->pending.signal |= (1UL << SIGTERM);
+
+	KFS_ASSERT_EQ(-EINTR, (int)sys_msleep(1000));
+	current->pending.signal = 0;
+	printk("test_sys_msleep_pending_signal_returns_eintr: OK\n");
+}
+
 /** sys_ioctl(TIOCSCTTY) でカレントプロセスの tty_console が設定される
  * 検証対象: kernel/sys.c sys_ioctl()
  * 検証項目: TIOCSCTTY コマンドで有効なコンソール番号を渡すと 0 が返り tty_console が更新される
@@ -452,6 +462,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_without_ctty_returns_enotty, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_rejects_pgrp_from_other_session, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_msleep_zero_returns_immediately, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_msleep_pending_signal_returns_eintr, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tiocsctty_sets_tty_console, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tiocsctty_invalid_console_returns_einval, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_unknown_cmd_returns_enotty, setup_test, teardown_test),

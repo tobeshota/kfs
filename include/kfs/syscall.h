@@ -38,9 +38,12 @@
 #define __NR_ttynr 261
 #define __NR_ioctl 54
 #define __NR_openpty 262
+#define __NR_sched_ext_load 263
+#define __NR_sched_ext_unload 264
+#define __NR_sched_ext_status 265
 
 /* サポートするシステムコールの数 */
-#define NR_syscalls 263
+#define NR_syscalls 266
 
 /* システムコールのエントリポイント(entry.Sで定義) */
 extern void system_call(void);
