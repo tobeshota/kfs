@@ -6,6 +6,7 @@
 #include <kfs/printk.h>
 #include <kfs/rr.h>
 #include <kfs/sched.h>
+#include <kfs/sched_ext.h>
 
 /** idle/swapperプロセス (PID=0)
  * @details すべてのプロセスの祖先．静的に定義され，カーネル起動時に実行される最初のプロセス．
@@ -95,8 +96,9 @@ static const struct sched_class *sched_class_for_policy(unsigned int policy)
 	case SCHED_NORMAL:
 	case SCHED_BATCH:
 	case SCHED_IDLE:
-	case SCHED_EXT:
 		return &fair_sched_class;
+	case SCHED_EXT:
+		return &sched_ext_class;
 	case SCHED_PURE_RR:
 	default:
 		return &pure_rr_sched_class;
@@ -149,6 +151,13 @@ struct task_struct *sched_pick_next_task(void)
 	{
 		return task;
 	}
+
+	task = sched_ext_class.pick_next_task();
+	if (task)
+	{
+		return task;
+	}
+
 	return pure_rr_sched_class.pick_next_task();
 }
 
@@ -243,6 +252,7 @@ void sched_init(void)
 {
 	INIT_LIST_HEAD(&init_task.run_list);
 	fair_sched_class.init();
+	sched_ext_class.init();
 	pure_rr_sched_class.init();
 	need_resched = 0;
 	/* init_task は runqueue に登録しない。
