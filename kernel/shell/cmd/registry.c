@@ -107,6 +107,7 @@ void cmd_registry_init(void)
 	extern void cmd_spin(void *args);
 	extern void cmd_scx_pure_rr(void *args);
 	extern void cmd_sched_ext_status(void *args);
+	extern void cmd_socketpair_test(void *args);
 	extern void cmd_daiku(void *args);
 	extern void cmd_help(void *args);
 	extern void cmd_jobs(void *args);
@@ -128,6 +129,7 @@ void cmd_registry_init(void)
 	cmd_register("spin", cmd_spin, SHELL_CMD_EXTERNAL);
 	cmd_register("scx_pure_rr", cmd_scx_pure_rr, SHELL_CMD_EXTERNAL);
 	cmd_register("sched_ext_status", cmd_sched_ext_status, SHELL_CMD_EXTERNAL);
+	cmd_register("socketpair_test", cmd_socketpair_test, SHELL_CMD_EXTERNAL);
 	cmd_register("daiku", cmd_daiku, SHELL_CMD_EXTERNAL);
 	cmd_register("help", cmd_help, SHELL_CMD_EXTERNAL);
 	cmd_register("jobs", cmd_jobs, SHELL_CMD_BUILTIN);

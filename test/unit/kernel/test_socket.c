@@ -1,3 +1,4 @@
+#include "../support/run_in_ring3.h"
 #include "../test_reset.h"
 #include "../unit_test_framework.h"
 #include <kfs/errno.h>
@@ -8,6 +9,7 @@
 #include <kfs/socket.h>
 #include <kfs/string.h>
 #include <kfs/syscall.h>
+#include <kfs/unistd.h>
 #include <kfs/wait.h>
 
 extern struct task_struct *current;
@@ -181,6 +183,55 @@ static void test_socketpair_blocking_read_wakes_after_write(void)
 	KFS_ASSERT_EQ((int)writer_pid, (int)do_wait(NULL, 0));
 }
 
+static volatile int fork_ipc_result;
+static volatile int fork_ipc_fd;
+
+/** ring-3で子から親へ文字列を送信する */
+static void socketpair_fork_ipc_ring3(void)
+{
+	int sv[2];
+	char buf[6] = {0};
+	pid_t pid;
+	int status;
+
+	fork_ipc_result = 0;
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) < 0)
+	{
+		exit(1);
+	}
+	fork_ipc_fd = sv[0];
+	pid = fork();
+	if (pid < 0)
+	{
+		exit(1);
+	}
+	if (pid == 0)
+	{
+		exit(write(sv[1], "hello", 5) == 5 ? 0 : 1);
+	}
+
+	if (read(sv[0], buf, 5) == 5 && waitpid(pid, &status, 0) == pid && memcmp(buf, "hello", 5) == 0)
+	{
+		fork_ipc_result = 1;
+	}
+	exit(fork_ipc_result ? 0 : 1);
+}
+
+/** fork後の親子IPC，owner終了時cleanup，slot再利用を確かめる */
+static void test_socketpair_fork_ipc_cleanup_and_reuse(void)
+{
+	int sv[2];
+
+	fork_ipc_result = 0;
+	fork_ipc_fd = -1;
+	run_in_ring3(socketpair_fork_ipc_ring3);
+	KFS_ASSERT_EQ(1, fork_ipc_result);
+	KFS_ASSERT_TRUE(fork_ipc_fd >= UNIX_SOCKET_FD_BASE);
+	KFS_ASSERT_TRUE(!unix_socket_is_fd(fork_ipc_fd));
+	KFS_ASSERT_EQ(0, unix_socket_pair(AF_UNIX, SOCK_STREAM, 0, sv));
+	KFS_ASSERT_EQ(fork_ipc_fd, sv[0]);
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_socketpair_returns_two_fds, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_socketpair_fd_range_does_not_overlap_pty, setup_test, teardown_test),
@@ -193,6 +244,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_socketpair_syscall_read_write, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_socketpair_read_returns_eintr_for_pending_signal, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_socketpair_blocking_read_wakes_after_write, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_socketpair_fork_ipc_cleanup_and_reuse, setup_test, teardown_test),
 };
 
 int register_unit_tests_socket(struct kfs_test_case **out)
