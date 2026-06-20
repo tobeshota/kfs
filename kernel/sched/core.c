@@ -272,6 +272,14 @@ void sched_init(void)
 void wake_up_process(struct task_struct *tsk)
 {
 	tsk->__state = TASK_RUNNING;
+
+	/* 二重登録防止のため
+	 * 現在実行中のタスクまたはランキューに既に存在するタスクは
+	 * ランキューに追加しない */
+	if (tsk == current || sched_task_queued(tsk))
+	{
+		return;
+	}
 	sched_enqueue_task(tsk);
 }
 
