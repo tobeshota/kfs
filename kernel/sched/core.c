@@ -418,9 +418,14 @@ int schedule(void)
 
 	next = sched_pick_next_task();
 
-	/* runqueue が空、または prev 以外に runnable なタスクがない
-	 * → init_task（cpu_idle_loop）へフォールバック */
-	if (!next || next == prev)
+	/* 現在 task が引き続き最適ならコンテキストスイッチしない */
+	if (next == prev)
+	{
+		return 0;
+	}
+
+	/* runqueue が空なら init_task（cpu_idle_loop）へフォールバック */
+	if (!next)
 	{
 		/* すでに init_task が動いている → スイッチ不要 */
 		if (prev == &init_task)
