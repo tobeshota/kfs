@@ -17,6 +17,7 @@ extern void cmd_chrt(void *args);
 extern void cmd_spin(void *args);
 extern void cmd_scx_pure_rr(void *args);
 extern void cmd_sched_ext_status(void *args);
+extern void cmd_socketpair_test(void *args);
 extern int shell_jobs_add(pid_t pid, pid_t pgrp, const char *cmd, int stopped);
 extern void shell_jobs_on_wait_event(pid_t pid, int wait_status);
 extern void shell_jobs_reset(void);
@@ -535,6 +536,20 @@ KFS_TEST(test_sched_ext_commands_registered)
 	KFS_ASSERT_EQ(SHELL_CMD_EXTERNAL, mode);
 }
 
+/** socketpair_testが外部commandとして登録されることを確かめる */
+KFS_TEST(test_socketpair_command_registered)
+{
+	shell_cmd_fn fn;
+	const char *args;
+	enum shell_cmd_mode mode;
+
+	shell_init();
+	KFS_ASSERT_EQ(0, cmd_lookup("socketpair_test", &fn, &args, &mode));
+	KFS_ASSERT_TRUE(fn == cmd_socketpair_test);
+	KFS_ASSERT_TRUE(args != 0 && args[0] == '\0');
+	KFS_ASSERT_EQ(SHELL_CMD_EXTERNAL, mode);
+}
+
 /**
  * test_shell_execute_beep_no_args
  * 検証対象: cmd_beep()
@@ -718,6 +733,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_queries_policy_for_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_spin_registered, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_commands_registered, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_socketpair_command_registered, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_no_args, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_zero_freq, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_jiffies, setup_test, teardown_test),

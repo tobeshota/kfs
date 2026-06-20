@@ -1,5 +1,6 @@
 #include <asm-i386/system.h>
 #include <kfs/errno.h>
+#include <kfs/exit.h>
 #include <kfs/sched.h>
 #include <kfs/signal.h>
 #include <kfs/socket.h>
@@ -23,6 +24,58 @@ struct unix_socket_pair
 
 /* 接続済みUnix socket pairの配列 */
 static struct unix_socket_pair unix_socket_pairs[UNIX_SOCKET_MAX_PAIRS];
+
+/** socket pairを解放し，待機中readerを起床する
+ * @param pair 解放対象socket pair
+ */
+static void unix_socket_release_pair(struct unix_socket_pair *pair)
+{
+	/* pairが未使用の場合は何もしない */
+	if (!pair->in_use)
+	{
+		return;
+	}
+
+	pair->in_use = 0;
+	pair->owner_pid = 0;
+	for (int endpoint = 0; endpoint < 2; endpoint++)
+	{
+		/* エンドポイントを初期化 */
+		pair->endpoints[endpoint].length = 0;
+		pair->endpoints[endpoint].reader = NULL;
+
+		/** 待機中のreaderがいる場合は起床させる
+		 * @brief 起床させる理由は，この関数はプロセス終了時に呼び出されるため，
+		 *        readerが待機したままになると永遠に起床できなくなってしまうため．
+		 */
+		struct task_struct *reader = pair->endpoints[endpoint].reader;
+		if (reader)
+		{
+			wake_up_process(reader);
+		}
+	}
+}
+
+/** 終了processが所有するsocket pairをすべて解放する
+ * @param task 終了するprocess
+ * @note この関数はunix_socket_init()でregister_exit_hook()されるため，
+ *       process終了時に自動的に呼び出される．
+ */
+static void unix_socket_owner_exit(struct task_struct *task)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+	for (int i = 0; i < UNIX_SOCKET_MAX_PAIRS; i++)
+	{
+		/* 終了するprocessが所有するsocket pairを解放 */
+		if (unix_socket_pairs[i].in_use && unix_socket_pairs[i].owner_pid == task->pid)
+		{
+			unix_socket_release_pair(&unix_socket_pairs[i]);
+		}
+	}
+	local_irq_restore(flags);
+}
 
 /** fdをsocket pair indexへ変換する
  * @param fd socket fd候補
@@ -64,6 +117,13 @@ static int unix_socket_endpoint_index(int fd)
 /* Unix socket subsystemを初期化する */
 void unix_socket_init(void)
 {
+	static int exit_hook_registered;
+
+	if (!exit_hook_registered)
+	{
+		register_exit_hook(unix_socket_owner_exit);
+		exit_hook_registered = 1;
+	}
 	unix_socket_reset();
 }
 
@@ -192,7 +252,8 @@ long unix_socket_read(int fd, char *buf, unsigned int size)
 	}
 
 	struct unix_socket_endpoint *endpoint =
-		&unix_socket_pairs[pair_index].endpoints[endpoint_index]; /* 読み取り対象のendpoint */
+		&unix_socket_pairs[pair_index].endpoints[endpoint_index];	/* 読み取り対象のendpoint */
+	struct unix_socket_pair *pair = &unix_socket_pairs[pair_index]; /* 読み取り対象のpair */
 
 	while (1)
 	{
@@ -203,6 +264,13 @@ long unix_socket_read(int fd, char *buf, unsigned int size)
 		 */
 		unsigned long flags;
 		local_irq_save(flags);
+
+		/* owner終了によってpairが解放された場合は待機を終了する */
+		if (!pair->in_use)
+		{
+			local_irq_restore(flags);
+			return -EBADF;
+		}
 
 		/* データがある場合は読み取る */
 		if (endpoint->length > 0)
