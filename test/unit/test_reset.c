@@ -57,7 +57,7 @@ void reset_all_state_for_test(void)
 	/* init_task の状態を起動直後に戻す */
 	init_task.__state = TASK_RUNNING;
 	init_task.flags = PF_KTHREAD;
-	init_task.policy = SCHED_PURE_RR;
+	init_task.policy = SCHED_NORMAL;
 	init_task.prio = DEFAULT_PRIO;
 	init_task.static_prio = DEFAULT_PRIO;
 	init_task.nice = 0;

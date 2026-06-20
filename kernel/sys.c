@@ -11,7 +11,6 @@
 #include <kfs/prctl.h>
 #include <kfs/ps.h>
 #include <kfs/pty.h>
-#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/signal.h>
@@ -261,7 +260,6 @@ static int sched_policy_supported(int policy)
 	case SCHED_BATCH:
 	case SCHED_IDLE:
 	case SCHED_EXT:
-	case SCHED_PURE_RR:
 		return 1;
 	case SCHED_FIFO:
 	case SCHED_RR:
@@ -310,16 +308,6 @@ int sys_sched_setscheduler(pid_t pid, int policy, int priority)
 
 	/* 非 RT ポリシーでは rt_priority は 0 のみ有効 */
 	tsk->rt_priority = 0;
-
-	/** SCHED_PURE_RR の場合はタイムスライスを設定する
-	 * @note tsk->time_slice == 0を条件にある理由は，
-	 *       SCHED_PURE_RR から再度 SCHED_PURE_RR に変更された場合に
-	 *       タイムスライスがリセットされるのを防ぐため
-	 */
-	if (tsk->policy == SCHED_PURE_RR && tsk->time_slice == 0)
-	{
-		tsk->time_slice = RR_TIMESLICE;
-	}
 
 	if (queued)
 	{

@@ -133,14 +133,13 @@ struct thread_struct
 /** スケジューリングポリシー定数
  * @note Linux 由来の値を含むが、kfs では一部 policy のみ実装する。
  */
-#define SCHED_NORMAL 0	  /* 通常プロセス用。CFS として実装する */
-#define SCHED_FIFO 1	  /* Linux 由来の RT FIFO。現在は未実装 */
-#define SCHED_RR 2		  /* Linux 由来の RT RR。現在は未実装 */
-#define SCHED_BATCH 3	  /* バッチ処理用。現在は未実装 */
-#define SCHED_IDLE 5	  /* 低優先度アイドル用。現在は未実装 */
-#define SCHED_DEADLINE 6  /* デッドライン scheduler。現在は未実装 */
-#define SCHED_EXT 7		  /* 拡張 scheduler。backend 未ロード時は fair に fallback する */
-#define SCHED_PURE_RR 100 /* deprecated: pure RR は SCHED_EXT backend へ移行予定 */
+#define SCHED_NORMAL 0	 /* 通常プロセス用。CFS として実装する */
+#define SCHED_FIFO 1	 /* Linux 由来の RT FIFO。現在は未実装 */
+#define SCHED_RR 2		 /* Linux 由来の RT RR。現在は未実装 */
+#define SCHED_BATCH 3	 /* バッチ処理用。現在は未実装 */
+#define SCHED_IDLE 5	 /* 低優先度アイドル用。現在は未実装 */
+#define SCHED_DEADLINE 6 /* デッドライン scheduler。現在は未実装 */
+#define SCHED_EXT 7		 /* 拡張 scheduler。backend 未ロード時は fair に fallback する */
 
 struct task_struct;
 

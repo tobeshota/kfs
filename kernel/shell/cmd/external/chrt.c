@@ -8,7 +8,6 @@
 #define CHRT_USAGE                                                                                                     \
 	"Usage: chrt -o -p 0 <pid>\n"                                                                                      \
 	"       chrt --ext -p 0 <pid>\n"                                                                                   \
-	"       chrt --pure-rr -p 0 <pid>\n"                                                                               \
 	"       chrt -p <pid>\n"
 
 struct chrt_request
@@ -113,11 +112,6 @@ static int chrt_parse_policy(const char *token, int *policy)
 		*policy = SCHED_EXT;
 		return 1;
 	}
-	if (strcmp(token, "--pure-rr") == 0 || strcmp(token, "pure_rr") == 0 || strcmp(token, "pure-rr") == 0)
-	{
-		*policy = SCHED_PURE_RR;
-		return 1;
-	}
 	return 0;
 }
 
@@ -137,8 +131,6 @@ static const char *chrt_policy_name(int policy)
 		return "SCHED_IDLE";
 	case SCHED_EXT:
 		return "SCHED_EXT";
-	case SCHED_PURE_RR:
-		return "SCHED_PURE_RR";
 	default:
 		return "SCHED_UNKNOWN";
 	}
@@ -249,10 +241,6 @@ static int chrt_parse_args(const char *arg, struct chrt_request *request)
  * `chrt --ext -p 0 5678`は
  * PID 5678 のスケジューリングポリシーを SCHED_EXT、
  * 優先度を 0 に設定することを意味する．
- * @example
- * `chrt --pure-rr -p 0 5678`は
- *  PID 5678 のスケジューリングポリシーを SCHED_PURE_RR、
- * 優先度を 0 に設定することを意味する．
  */
 void cmd_chrt(void *arg)
 {
@@ -272,11 +260,6 @@ void cmd_chrt(void *arg)
 
 	struct sched_param param;
 	param.sched_priority = request.priority;
-
-	if (request.policy == SCHED_PURE_RR)
-	{
-		printf("chrt: --pure-rr is deprecated; use --ext with scx_pure_rr\n");
-	}
 
 	/* sched_setscheduler() を呼び出して結果を報告する */
 	(void)chrt_report_result(sched_setscheduler((pid_t)request.pid, request.policy, &param), request.pid);
