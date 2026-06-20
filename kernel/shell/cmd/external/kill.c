@@ -15,6 +15,8 @@ static const struct signal_name signal_names[] = {
 	{SIGHUP, "SIGHUP"},	  {SIGINT, "SIGINT"},	{SIGQUIT, "SIGQUIT"}, {SIGILL, "SIGILL"},	{SIGTRAP, "SIGTRAP"},
 	{SIGABRT, "SIGABRT"}, {SIGBUS, "SIGBUS"},	{SIGFPE, "SIGFPE"},	  {SIGKILL, "SIGKILL"}, {SIGUSR1, "SIGUSR1"},
 	{SIGSEGV, "SIGSEGV"}, {SIGUSR2, "SIGUSR2"}, {SIGPIPE, "SIGPIPE"}, {SIGALRM, "SIGALRM"}, {SIGTERM, "SIGTERM"},
+	{SIGCHLD, "SIGCHLD"}, {SIGCONT, "SIGCONT"}, {SIGSTOP, "SIGSTOP"}, {SIGTSTP, "SIGTSTP"}, {SIGTTIN, "SIGTTIN"},
+	{SIGTTOU, "SIGTTOU"},
 };
 
 static const int signal_name_count = sizeof(signal_names) / sizeof(signal_names[0]);
