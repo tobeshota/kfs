@@ -40,6 +40,8 @@ static void unix_socket_release_pair(struct unix_socket_pair *pair)
 	pair->owner_pid = 0;
 	for (int endpoint = 0; endpoint < 2; endpoint++)
 	{
+		struct task_struct *reader = pair->endpoints[endpoint].reader;
+
 		/* エンドポイントを初期化 */
 		pair->endpoints[endpoint].length = 0;
 		pair->endpoints[endpoint].reader = NULL;
@@ -48,7 +50,6 @@ static void unix_socket_release_pair(struct unix_socket_pair *pair)
 		 * @brief 起床させる理由は，この関数はプロセス終了時に呼び出されるため，
 		 *        readerが待機したままになると永遠に起床できなくなってしまうため．
 		 */
-		struct task_struct *reader = pair->endpoints[endpoint].reader;
 		if (reader)
 		{
 			wake_up_process(reader);
