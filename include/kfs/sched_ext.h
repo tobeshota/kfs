@@ -5,6 +5,20 @@
 
 #define SCHED_EXT_NAME_LEN 16
 #define SCHED_EXT_FALLBACK_REASON_LEN 32
+#define SCHED_EXT_MODE_LEN 8
+
+/* sched_ext_modeをSCHED_EXT_MODE_PARTIALに設定するフラグ */
+#define SCX_OPS_SWITCH_PARTIAL (1U << 0)
+
+enum sched_ext_switch_mode
+{
+	/* sched_ext_class は
+	 * すべての sched_ext_policy_supported() なポリシーを管理する */
+	SCHED_EXT_MODE_FULL = 0,
+	/* sched_ext_class は
+	 * SCHED_EXT のみ管理する */
+	SCHED_EXT_MODE_PARTIAL,
+};
 
 struct sched_class;
 struct task_struct;
@@ -16,6 +30,7 @@ struct task_struct;
 struct sched_ext_ops
 {
 	const char *name;								/* backend 名 */
+	unsigned int flags;								/* backend 動作フラグ（SCX_OPS_SWITCH_*） */
 	int (*init)(void);								/* backend を有効化する */
 	void (*exit)(void);								/* backend を無効化する */
 	void (*enqueue_task)(struct task_struct *task); /* task を backend runqueue に追加する */
@@ -31,6 +46,7 @@ struct sched_ext_status
 	int enabled;										 /* 1=有効, 0=無効 */
 	pid_t owner_pid;									 /* backend所有プロセス */
 	char name[SCHED_EXT_NAME_LEN];						 /* backend名 */
+	char mode[SCHED_EXT_MODE_LEN];						 /* switch mode: full/partial */
 	char fallback_reason[SCHED_EXT_FALLBACK_REASON_LEN]; /* 最後に異常fallbackした理由 */
 };
 
@@ -39,6 +55,9 @@ extern const struct sched_class sched_ext_class;
 int sched_ext_register(const struct sched_ext_ops *ops);
 void sched_ext_unregister(void);
 int sched_ext_enabled(void);
+enum sched_ext_switch_mode sched_ext_switch_mode(void);
+const char *sched_ext_mode_name(void);
+int sched_ext_use_ext_class_for_policy(unsigned int policy);
 const char *sched_ext_name(void);
 int sys_sched_ext_load(const char *name);
 int sys_sched_ext_unload(void);

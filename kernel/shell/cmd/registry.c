@@ -69,13 +69,22 @@ int cmd_lookup(const char *cmd, shell_cmd_fn *fn, const char **args, enum shell_
  */
 void cmd_list(enum shell_cmd_mode mode)
 {
+	size_t printed = 0;
+
 	for (size_t i = 0; i < builtin_count; i++)
 	{
 		if (builtin_table[i].mode != mode)
 		{
 			continue;
 		}
-		printf("  %s\n", builtin_table[i].name);
+		printed++;
+		printf("  %s%s", builtin_table[i].name, (printed % 4 == 0) ? "\n" : "\t");
+	}
+
+	/* 行末がタブ終端にならないよう、最後は必ず改行する */
+	if (printed % 4 != 0)
+	{
+		printf("\n");
 	}
 }
 

@@ -93,6 +93,19 @@ static void fake_backend_task_tick(struct task_struct *task)
 
 static const struct sched_ext_ops fake_backend_ops = {
 	.name = "fake_ext",
+	.flags = 0,
+	.init = fake_backend_init,
+	.exit = fake_backend_exit,
+	.enqueue_task = fake_backend_enqueue,
+	.dequeue_task = fake_backend_dequeue,
+	.task_queued = fake_backend_task_queued,
+	.pick_next_task = fake_backend_pick_next_task,
+	.task_tick = fake_backend_task_tick,
+};
+
+static const struct sched_ext_ops fake_partial_backend_ops = {
+	.name = "fake_ext_partial",
+	.flags = SCX_OPS_SWITCH_PARTIAL,
 	.init = fake_backend_init,
 	.exit = fake_backend_exit,
 	.enqueue_task = fake_backend_enqueue,
@@ -278,6 +291,7 @@ static void test_sched_ext_syscall_load_status_unload(void)
 	KFS_ASSERT_TRUE(status.enabled);
 	KFS_ASSERT_TRUE(status.owner_pid == 42);
 	KFS_ASSERT_TRUE(strcmp(status.name, "pure_rr") == 0);
+	KFS_ASSERT_TRUE(strcmp(status.mode, "full") == 0);
 	KFS_ASSERT_TRUE(sys_sched_ext_unload() == 0);
 	KFS_ASSERT_TRUE(!sched_ext_enabled());
 
@@ -379,7 +393,7 @@ static void test_sched_ext_load_migrates_fair_fallback_tasks(void)
 	printk("sched_ext: load migrates fair fallback tasks to backend OK\n");
 }
 
-static void test_sched_ext_fair_class_precedes_backend(void)
+static void test_sched_ext_partial_mode_keeps_fair_precedence(void)
 {
 	struct task_struct fair_task;
 	struct task_struct ext_task;
@@ -395,7 +409,8 @@ static void test_sched_ext_fair_class_precedes_backend(void)
 	INIT_LIST_HEAD(&ext_task.tasks);
 	list_add_tail(&ext_task.tasks, &task_list);
 
-	KFS_ASSERT_TRUE(sched_ext_register(&sched_ext_pure_rr_ops) == 0);
+	KFS_ASSERT_TRUE(sched_ext_register(&fake_partial_backend_ops) == 0);
+	KFS_ASSERT_TRUE(sched_ext_switch_mode() == SCHED_EXT_MODE_PARTIAL);
 	sched_enqueue_task(&fair_task);
 	sched_enqueue_task(&ext_task);
 
@@ -405,7 +420,42 @@ static void test_sched_ext_fair_class_precedes_backend(void)
 	KFS_ASSERT_TRUE(sched_pick_next_task() == &ext_task);
 	sched_dequeue_task(&ext_task);
 	list_del(&ext_task.tasks);
-	printk("sched_ext: fair class precedes backend in partial switch OK\n");
+	printk("sched_ext: partial mode keeps fair precedence OK\n");
+}
+
+static void test_sched_ext_full_mode_routes_normal_and_ext_to_backend(void)
+{
+	struct task_struct normal_task;
+	struct task_struct ext_task;
+
+	memset(&normal_task, 0, sizeof(normal_task));
+	normal_task.__state = TASK_RUNNING;
+	normal_task.pid = 55;
+	normal_task.policy = SCHED_NORMAL;
+	normal_task.nice = 0;
+	INIT_LIST_HEAD(&normal_task.run_list);
+	sched_init_entity(&normal_task);
+	init_ext_test_task(&ext_task, 56);
+	INIT_LIST_HEAD(&normal_task.tasks);
+	INIT_LIST_HEAD(&ext_task.tasks);
+	list_add_tail(&normal_task.tasks, &task_list);
+	list_add_tail(&ext_task.tasks, &task_list);
+
+	KFS_ASSERT_TRUE(sched_ext_register(&sched_ext_pure_rr_ops) == 0);
+	KFS_ASSERT_TRUE(sched_ext_switch_mode() == SCHED_EXT_MODE_FULL);
+	sched_enqueue_task(&normal_task);
+	sched_enqueue_task(&ext_task);
+
+	KFS_ASSERT_TRUE(!normal_task.se.on_rq);
+	KFS_ASSERT_TRUE(!ext_task.se.on_rq);
+	KFS_ASSERT_TRUE(sched_ext_class.task_queued(&normal_task));
+	KFS_ASSERT_TRUE(sched_ext_class.task_queued(&ext_task));
+
+	sched_dequeue_task(&normal_task);
+	sched_dequeue_task(&ext_task);
+	list_del(&normal_task.tasks);
+	list_del(&ext_task.tasks);
+	printk("sched_ext: full mode routes normal and ext to backend OK\n");
 }
 
 /** backendがqueued taskをdispatchしない場合にfairへfallbackすることを確かめる */
@@ -473,7 +523,8 @@ static struct kfs_test_case ext_tests[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_owner_exit_unloads_backend, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_unload_migrates_tasks_to_fair, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_load_migrates_fair_fallback_tasks, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_fair_class_precedes_backend, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_partial_mode_keeps_fair_precedence, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_full_mode_routes_normal_and_ext_to_backend, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_dispatch_empty_falls_back_to_fair, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_invalid_task_falls_back_to_fair, setup_test, teardown_test),
 };

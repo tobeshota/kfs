@@ -14,6 +14,12 @@
  */
 static const struct sched_ext_ops *sched_ext_ops;
 
+/** sched_ext のスイッチモード
+ * @brief sched_init() で SCHED_EXT_MODE_FULL に初期化され，
+ *        sched_ext_register() で backend の flags をもとに設定される．
+ */
+static enum sched_ext_switch_mode sched_ext_mode = SCHED_EXT_MODE_FULL;
+
 /** backend所有プロセス
  * @brief sched_ext_unregister()で0に初期化され，
  *        sched_ext_load()でロードしたプロセスのpidに設定される．
@@ -29,6 +35,40 @@ enum sched_ext_fallback_reason
 };
 
 static enum sched_ext_fallback_reason sched_ext_last_fallback;
+
+/* sched_ext がサポートするポリシーか確認する */
+static int sched_ext_policy_supported(unsigned int policy)
+{
+	return policy == SCHED_NORMAL || policy == SCHED_BATCH || policy == SCHED_IDLE || policy == SCHED_EXT;
+}
+
+/** sched_ext が管理するポリシーか確認する
+ * @param policy スケジューリングポリシー
+ * @param mode スイッチモード
+ * @return 1=管理する, 0=管理しない
+ * @example
+ * mode が SCHED_EXT_MODE_PARTIAL の場合は SCHED_EXT のみ管理する
+ * mode が SCHED_EXT_MODE_FULL の場合はすべての sched_ext_policy_supported() なポリシーを管理する
+ */
+static int sched_ext_policy_managed(unsigned int policy, enum sched_ext_switch_mode mode)
+{
+	/* sched_ext backend が無効ならば管理しない */
+	if (!sched_ext_policy_supported(policy))
+	{
+		return 0;
+	}
+
+	/* mode が SCHED_EXT_MODE_PARTIAL の場合は
+	 * SCHED_EXT のみ管理する */
+	if (mode == SCHED_EXT_MODE_PARTIAL)
+	{
+		return policy == SCHED_EXT;
+	}
+
+	/* mode が SCHED_EXT_MODE_FULL の場合は
+	 * すべての sched_ext_policy_supported() なポリシーを管理する */
+	return 1;
+}
 
 /** fallback理由を表示用文字列へ変換する
  * @param reason fallback理由
@@ -57,8 +97,8 @@ static int sched_ext_migrate_task_from_fair(struct task_struct *task, void *ctx)
 {
 	(void)ctx;
 
-	/* SCHED_EXT task でない場合や fair scheduler にキューされていない場合は何もしない */
-	if (task->policy != SCHED_EXT || !fair_sched_class.task_queued(task))
+	/* mode で管理対象外の task や fair runqueue にいない task は何もしない */
+	if (!sched_ext_policy_managed(task->policy, sched_ext_mode) || !fair_sched_class.task_queued(task))
 	{
 		return 0;
 	}
@@ -107,6 +147,7 @@ int sched_ext_register(const struct sched_ext_ops *ops)
 	}
 
 	sched_ext_ops = ops;
+	sched_ext_mode = (ops->flags & SCX_OPS_SWITCH_PARTIAL) ? SCHED_EXT_MODE_PARTIAL : SCHED_EXT_MODE_FULL;
 	task_for_each(sched_ext_migrate_task_from_fair, NULL);
 	local_irq_restore(flags);
 	return 0;
@@ -121,8 +162,8 @@ static int sched_ext_migrate_task_to_fair(struct task_struct *task, void *ctx)
 {
 	(void)ctx;
 
-	/* SCHED_EXT task でない場合や backend にキューされていない場合は何もしない */
-	if (task->policy != SCHED_EXT || !sched_ext_ops->task_queued(task))
+	/* mode で管理対象外の task や backend runqueue にいない task は何もしない */
+	if (!sched_ext_policy_managed(task->policy, sched_ext_mode) || !sched_ext_ops->task_queued(task))
 	{
 		return 0;
 	}
@@ -177,6 +218,37 @@ void sched_ext_unregister(void)
 int sched_ext_enabled(void)
 {
 	return sched_ext_ops != NULL;
+}
+
+/* sched_ext のスイッチモードを取得する */
+enum sched_ext_switch_mode sched_ext_switch_mode(void)
+{
+	return sched_ext_mode;
+}
+
+/* sched_ext のスイッチモード名を取得する */
+const char *sched_ext_mode_name(void)
+{
+	if (sched_ext_mode == SCHED_EXT_MODE_PARTIAL)
+	{
+		return "partial";
+	}
+	return "full";
+}
+
+/** sched_ext backend を使用するか確認する
+ * @param policy スケジューリングポリシー
+ * @return 1=使用する, 0=使用しない
+ */
+int sched_ext_use_ext_class_for_policy(unsigned int policy)
+{
+	/* sched_ext backend が無効ならば使用しない */
+	if (!sched_ext_enabled())
+	{
+		return 0;
+	}
+
+	return sched_ext_policy_managed(policy, sched_ext_mode);
 }
 
 /** 現在有効な sched_ext backend 名を返す
@@ -270,6 +342,7 @@ int sys_sched_ext_status(struct sched_ext_status *status)
 	status->enabled = sched_ext_enabled();
 	status->owner_pid = sched_ext_owner_pid;
 	strlcpy(status->name, sched_ext_name(), sizeof(status->name));
+	strlcpy(status->mode, status->enabled ? sched_ext_mode_name() : "none", sizeof(status->mode));
 	strlcpy(status->fallback_reason, sched_ext_fallback_reason_name(sched_ext_last_fallback),
 			sizeof(status->fallback_reason));
 	return 0;
@@ -294,6 +367,7 @@ static void ext_init(void)
 	}
 
 	sched_ext_unregister();
+	sched_ext_mode = SCHED_EXT_MODE_FULL;
 }
 
 /** SCHED_EXT task を runqueue に追加する
@@ -302,8 +376,20 @@ static void ext_init(void)
  */
 static void ext_enqueue_task(struct task_struct *task)
 {
+	if (!sched_ext_policy_supported(task->policy))
+	{
+		fair_sched_class.enqueue_task(task);
+		return;
+	}
+
 	/* backend 未登録の場合は fair scheduler へ fallback する */
 	if (!sched_ext_ops)
+	{
+		fair_sched_class.enqueue_task(task);
+		return;
+	}
+
+	if (!sched_ext_policy_managed(task->policy, sched_ext_mode))
 	{
 		fair_sched_class.enqueue_task(task);
 		return;
@@ -318,8 +404,20 @@ static void ext_enqueue_task(struct task_struct *task)
  */
 static void ext_dequeue_task(struct task_struct *task)
 {
+	if (!sched_ext_policy_supported(task->policy))
+	{
+		fair_sched_class.dequeue_task(task);
+		return;
+	}
+
 	/* backend 未登録の場合は fair scheduler へ fallback する */
 	if (!sched_ext_ops)
+	{
+		fair_sched_class.dequeue_task(task);
+		return;
+	}
+
+	if (!sched_ext_policy_managed(task->policy, sched_ext_mode))
 	{
 		fair_sched_class.dequeue_task(task);
 		return;
@@ -335,8 +433,18 @@ static void ext_dequeue_task(struct task_struct *task)
  */
 static int ext_task_queued(struct task_struct *task)
 {
+	if (!sched_ext_policy_supported(task->policy))
+	{
+		return fair_sched_class.task_queued(task);
+	}
+
 	/* backend 未登録の場合は fair scheduler へ fallback する */
 	if (!sched_ext_ops)
+	{
+		return fair_sched_class.task_queued(task);
+	}
+
+	if (!sched_ext_policy_managed(task->policy, sched_ext_mode))
 	{
 		return fair_sched_class.task_queued(task);
 	}
@@ -353,7 +461,7 @@ static int sched_ext_find_queued_task(struct task_struct *task, void *ctx)
 {
 	(void)ctx;
 
-	if (task->policy == SCHED_EXT && sched_ext_ops->task_queued(task))
+	if (sched_ext_policy_managed(task->policy, sched_ext_mode) && sched_ext_ops->task_queued(task))
 	{
 		return 1;
 	}
@@ -400,8 +508,8 @@ static struct task_struct *ext_pick_next_task(void)
 	/* backend が返した task がグローバルな task リストに存在しない場合や
 	 * 状態が不正な場合は
 	 * fair scheduler へ fallback する */
-	if (task_for_each(sched_ext_find_task, task) <= 0 || task->policy != SCHED_EXT || task->__state != TASK_RUNNING ||
-		!sched_ext_ops->task_queued(task))
+	if (task_for_each(sched_ext_find_task, task) <= 0 || !sched_ext_policy_managed(task->policy, sched_ext_mode) ||
+		task->__state != TASK_RUNNING || !sched_ext_ops->task_queued(task))
 	{
 		sched_ext_disable(SCHED_EXT_FALLBACK_INVALID_TASK);
 		return fair_sched_class.pick_next_task();
@@ -416,8 +524,20 @@ static struct task_struct *ext_pick_next_task(void)
  */
 static void ext_task_tick(struct task_struct *task)
 {
+	if (!sched_ext_policy_supported(task->policy))
+	{
+		fair_sched_class.task_tick(task);
+		return;
+	}
+
 	/* backend 未登録の場合は fair scheduler へ fallback する */
 	if (!sched_ext_ops)
+	{
+		fair_sched_class.task_tick(task);
+		return;
+	}
+
+	if (!sched_ext_policy_managed(task->policy, sched_ext_mode))
 	{
 		fair_sched_class.task_tick(task);
 		return;
