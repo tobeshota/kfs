@@ -615,6 +615,27 @@ static int is_background_tty_process(void)
 	return current->pgrp != fg;
 }
 
+/** バックグラウンドtaskのTTY出力を停止すべきか返す
+ * @return TOSTOP有効かつバックグラウンドなら1、それ以外は0
+ */
+static int tty_background_write_should_stop(void)
+{
+	struct termios termios;
+
+	/* バックグラウンドプロセスでない場合は停止不要 */
+	if (!is_background_tty_process())
+	{
+		return 0;
+	}
+
+	/* TOSTOPが有効でない場合は停止不要 */
+	if (tty_get_termios_for_console(current->tty_console, &termios) < 0)
+	{
+		return 0;
+	}
+	return (termios.c_lflag & TOSTOP) != 0;
+}
+
 /** stdout/stderr への書き込みを VGA + COM1 の両方に tee する
  * @param fd    1=stdout/2=stderr → VGA端末 + COM1 両方、4=COM1 のみ
  * @param buf   書き込むバッファ
@@ -638,12 +659,12 @@ long sys_write(int fd, const char *buf, size_t count)
 	}
 	if (fd == 1 || fd == 2)
 	{
-		/** バックグラウンドプロセスが TTY へ書き込もうとした場合は SIGTTOU を送信する
+		/** TOSTOP有効時にバックグラウンドプロセスが TTY へ書き込もうとした場合は SIGTTOU を送信する
 		 * @brief 呼び出し元プロセスのプロセスグループが
 		 *        フォアグラウンドプロセスグループでない場合，
 		 *        呼び出し元プロセスに対してSIGTTOUを送信する
 		 */
-		if (is_background_tty_process())
+		if (tty_background_write_should_stop())
 		{
 			send_signal(SIGTTOU, current);
 			return -EINTR;

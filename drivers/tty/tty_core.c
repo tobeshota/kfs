@@ -529,7 +529,7 @@ int tty_set_termios_for_console(size_t console_index, const struct termios *term
 		return -EINVAL;
 	}
 
-	tty_line_states[console_index].lflag = termios->c_lflag & (ICANON | ECHO | ISIG);
+	tty_line_states[console_index].lflag = termios->c_lflag & (ICANON | ECHO | ISIG | TOSTOP);
 	memcpy(tty_line_states[console_index].cc, termios->c_cc, NCCS);
 
 	return 0;
