@@ -4,6 +4,7 @@
 #include <kfs/pid.h>
 
 #define SCHED_EXT_NAME_LEN 16
+#define SCHED_EXT_FALLBACK_REASON_LEN 32
 
 struct sched_class;
 struct task_struct;
@@ -27,9 +28,10 @@ struct sched_ext_ops
 /* sched_extの現在状態 */
 struct sched_ext_status
 {
-	int enabled;				   /* 1=有効, 0=無効 */
-	pid_t owner_pid;			   /* backend所有プロセス */
-	char name[SCHED_EXT_NAME_LEN]; /* backend名 */
+	int enabled;										 /* 1=有効, 0=無効 */
+	pid_t owner_pid;									 /* backend所有プロセス */
+	char name[SCHED_EXT_NAME_LEN];						 /* backend名 */
+	char fallback_reason[SCHED_EXT_FALLBACK_REASON_LEN]; /* 最後に異常fallbackした理由 */
 };
 
 extern const struct sched_class sched_ext_class;

@@ -11,6 +11,8 @@
 extern struct list_head task_list;
 
 static struct task_struct *fake_next_task;
+static struct task_struct *fake_pick_override;
+static int fake_pick_returns_null;
 static int fake_init_called;
 static int fake_exit_called;
 static int fake_tick_called;
@@ -31,6 +33,8 @@ static void init_ext_test_task(struct task_struct *tsk, pid_t pid)
 static void reset_fake_backend(void)
 {
 	fake_next_task = NULL;
+	fake_pick_override = NULL;
+	fake_pick_returns_null = 0;
 	fake_init_called = 0;
 	fake_exit_called = 0;
 	fake_tick_called = 0;
@@ -46,6 +50,8 @@ static void fake_backend_exit(void)
 {
 	fake_exit_called++;
 	fake_next_task = NULL;
+	fake_pick_override = NULL;
+	fake_pick_returns_null = 0;
 }
 
 static void fake_backend_enqueue(struct task_struct *task)
@@ -68,6 +74,14 @@ static int fake_backend_task_queued(struct task_struct *task)
 
 static struct task_struct *fake_backend_pick_next_task(void)
 {
+	if (fake_pick_returns_null)
+	{
+		return NULL;
+	}
+	if (fake_pick_override)
+	{
+		return fake_pick_override;
+	}
 	return fake_next_task;
 }
 
@@ -144,6 +158,8 @@ static void test_sched_ext_enabled_uses_backend(void)
 	struct task_struct tsk;
 
 	init_ext_test_task(&tsk, 11);
+	INIT_LIST_HEAD(&tsk.tasks);
+	list_add_tail(&tsk.tasks, &task_list);
 	KFS_ASSERT_TRUE(sched_ext_register(&fake_backend_ops) == 0);
 
 	sched_enqueue_task(&tsk);
@@ -157,6 +173,7 @@ static void test_sched_ext_enabled_uses_backend(void)
 
 	sched_dequeue_task(&tsk);
 	KFS_ASSERT_TRUE(!sched_task_queued(&tsk));
+	list_del(&tsk.tasks);
 
 	printk("sched_ext: enabled backend handles SCHED_EXT task OK\n");
 }
@@ -187,6 +204,10 @@ static void test_sched_ext_pure_rr_preserves_rr_order(void)
 
 	init_ext_test_task(&first, 20);
 	init_ext_test_task(&second, 21);
+	INIT_LIST_HEAD(&first.tasks);
+	INIT_LIST_HEAD(&second.tasks);
+	list_add_tail(&first.tasks, &task_list);
+	list_add_tail(&second.tasks, &task_list);
 	first.time_slice = 0;
 
 	KFS_ASSERT_TRUE(sched_ext_register(&sched_ext_pure_rr_ops) == 0);
@@ -207,6 +228,8 @@ static void test_sched_ext_pure_rr_preserves_rr_order(void)
 
 	sched_dequeue_task(&first);
 	sched_dequeue_task(&second);
+	list_del(&first.tasks);
+	list_del(&second.tasks);
 
 	printk("sched_ext: pure_rr backend preserves RR order OK\n");
 }
@@ -217,6 +240,8 @@ static void test_sched_ext_pure_rr_isolated_from_legacy_queue(void)
 	struct task_struct legacy_task;
 
 	init_ext_test_task(&ext_task, 22);
+	INIT_LIST_HEAD(&ext_task.tasks);
+	list_add_tail(&ext_task.tasks, &task_list);
 	memset(&legacy_task, 0, sizeof(legacy_task));
 	legacy_task.__state = TASK_RUNNING;
 	legacy_task.pid = 23;
@@ -233,6 +258,7 @@ static void test_sched_ext_pure_rr_isolated_from_legacy_queue(void)
 
 	sched_dequeue_task(&ext_task);
 	rr_dequeue(&legacy_task);
+	list_del(&ext_task.tasks);
 
 	printk("sched_ext: pure_rr queue is isolated from legacy RR OK\n");
 }
@@ -366,6 +392,8 @@ static void test_sched_ext_fair_class_precedes_backend(void)
 	INIT_LIST_HEAD(&fair_task.run_list);
 	sched_init_entity(&fair_task);
 	init_ext_test_task(&ext_task, 51);
+	INIT_LIST_HEAD(&ext_task.tasks);
+	list_add_tail(&ext_task.tasks, &task_list);
 
 	KFS_ASSERT_TRUE(sched_ext_register(&sched_ext_pure_rr_ops) == 0);
 	sched_enqueue_task(&fair_task);
@@ -376,7 +404,60 @@ static void test_sched_ext_fair_class_precedes_backend(void)
 	sched_dequeue_task(&fair_task);
 	KFS_ASSERT_TRUE(sched_pick_next_task() == &ext_task);
 	sched_dequeue_task(&ext_task);
+	list_del(&ext_task.tasks);
 	printk("sched_ext: fair class precedes backend in partial switch OK\n");
+}
+
+/** backendがqueued taskをdispatchしない場合にfairへfallbackすることを確かめる */
+static void test_sched_ext_dispatch_empty_falls_back_to_fair(void)
+{
+	struct task_struct ext_task;
+	struct sched_ext_status status;
+
+	init_ext_test_task(&ext_task, 52);
+	INIT_LIST_HEAD(&ext_task.tasks);
+	list_add_tail(&ext_task.tasks, &task_list);
+	KFS_ASSERT_TRUE(sched_ext_register(&fake_backend_ops) == 0);
+	sched_enqueue_task(&ext_task);
+	fake_pick_returns_null = 1;
+
+	KFS_ASSERT_TRUE(sched_ext_class.pick_next_task() == &ext_task);
+	KFS_ASSERT_TRUE(!sched_ext_enabled());
+	KFS_ASSERT_TRUE(ext_task.se.on_rq);
+	KFS_ASSERT_TRUE(fake_exit_called == 1);
+	KFS_ASSERT_TRUE(sys_sched_ext_status(&status) == 0);
+	KFS_ASSERT_TRUE(strcmp(status.fallback_reason, "dispatch_empty") == 0);
+
+	sched_dequeue_task(&ext_task);
+	list_del(&ext_task.tasks);
+	printk("sched_ext: empty dispatch falls back to fair OK\n");
+}
+
+/** backendが管理外taskを返した場合にfairへfallbackすることを確かめる */
+static void test_sched_ext_invalid_task_falls_back_to_fair(void)
+{
+	struct task_struct ext_task;
+	struct task_struct invalid_task;
+	struct sched_ext_status status;
+
+	init_ext_test_task(&ext_task, 53);
+	init_ext_test_task(&invalid_task, 54);
+	INIT_LIST_HEAD(&ext_task.tasks);
+	list_add_tail(&ext_task.tasks, &task_list);
+	KFS_ASSERT_TRUE(sched_ext_register(&fake_backend_ops) == 0);
+	sched_enqueue_task(&ext_task);
+	fake_pick_override = &invalid_task;
+
+	KFS_ASSERT_TRUE(sched_ext_class.pick_next_task() == &ext_task);
+	KFS_ASSERT_TRUE(!sched_ext_enabled());
+	KFS_ASSERT_TRUE(ext_task.se.on_rq);
+	KFS_ASSERT_TRUE(fake_exit_called == 1);
+	KFS_ASSERT_TRUE(sys_sched_ext_status(&status) == 0);
+	KFS_ASSERT_TRUE(strcmp(status.fallback_reason, "invalid_task") == 0);
+
+	sched_dequeue_task(&ext_task);
+	list_del(&ext_task.tasks);
+	printk("sched_ext: invalid task falls back to fair OK\n");
 }
 
 static struct kfs_test_case ext_tests[] = {
@@ -393,6 +474,8 @@ static struct kfs_test_case ext_tests[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_unload_migrates_tasks_to_fair, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_load_migrates_fair_fallback_tasks, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_fair_class_precedes_backend, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_dispatch_empty_falls_back_to_fair, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_invalid_task_falls_back_to_fair, setup_test, teardown_test),
 };
 
 int register_unit_tests_ext(struct kfs_test_case **out)

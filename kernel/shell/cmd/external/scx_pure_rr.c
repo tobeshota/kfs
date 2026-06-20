@@ -36,6 +36,14 @@ void cmd_scx_pure_rr(void *arg)
 		return;
 	}
 
+	struct sched_ext_status status;
+	if (sched_ext_status(&status) < 0)
+	{
+		(void)sched_ext_unload();
+		return;
+	}
+	pid_t owner_pid = status.owner_pid;
+
 	/** 無限ループで待機する
 	 * @brief 無限ループで待機する理由は，
 	 *        sys_sched_ext_load() でsched_ext schedulerをロードするプロセス（== cmd_scx_pure_rr()
@@ -59,5 +67,9 @@ void cmd_scx_pure_rr(void *arg)
 		/* 終了シグナルはuser mode復帰前に処理される。
 		 * 無視されるシグナルによる-EINTRではowner processを終了しない。 */
 		(void)msleep(1000);
+		if (sched_ext_status(&status) < 0 || !status.enabled || status.owner_pid != owner_pid)
+		{
+			return;
+		}
 	}
 }

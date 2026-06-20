@@ -32,4 +32,5 @@ void cmd_sched_ext_status(void *arg)
 	printf("enabled: %s\n", status.enabled ? "yes" : "no");
 	printf("backend: %s\n", status.name);
 	printf("owner: %d\n", status.owner_pid);
+	printf("fallback: %s\n", status.fallback_reason);
 }
