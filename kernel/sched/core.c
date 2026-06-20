@@ -1,3 +1,4 @@
+#include <asm-i386/system.h>
 #include <kfs/errno.h>
 #include <kfs/fair.h>
 #include <kfs/list.h>
@@ -119,7 +120,12 @@ static const struct sched_class *sched_class_for_task(struct task_struct *task)
  */
 void sched_enqueue_task(struct task_struct *task)
 {
+	unsigned long flags;
+
+	local_irq_save(flags);
+
 	sched_class_for_task(task)->enqueue_task(task);
+	local_irq_restore(flags);
 }
 
 /** task を対応する scheduler class の runqueue から外す
@@ -127,7 +133,12 @@ void sched_enqueue_task(struct task_struct *task)
  */
 void sched_dequeue_task(struct task_struct *task)
 {
+	unsigned long flags;
+
+	local_irq_save(flags);
+
 	sched_class_for_task(task)->dequeue_task(task);
+	local_irq_restore(flags);
 }
 
 /** task が対応する scheduler class の runqueue に載っているかを返す
@@ -136,7 +147,14 @@ void sched_dequeue_task(struct task_struct *task)
  */
 int sched_task_queued(struct task_struct *task)
 {
-	return sched_class_for_task(task)->task_queued(task);
+	unsigned long flags;
+	int queued;
+
+	local_irq_save(flags);
+	queued = sched_class_for_task(task)->task_queued(task);
+
+	local_irq_restore(flags);
+	return queued;
 }
 
 /** 次に実行する task を scheduler class から取得する
@@ -272,6 +290,14 @@ void sched_init(void)
 void wake_up_process(struct task_struct *tsk)
 {
 	tsk->__state = TASK_RUNNING;
+
+	/* 二重登録防止のため
+	 * 現在実行中のタスクまたはランキューに既に存在するタスクは
+	 * ランキューに追加しない */
+	if (tsk == current || sched_task_queued(tsk))
+	{
+		return;
+	}
 	sched_enqueue_task(tsk);
 }
 
@@ -410,9 +436,14 @@ int schedule(void)
 
 	next = sched_pick_next_task();
 
-	/* runqueue が空、または prev 以外に runnable なタスクがない
-	 * → init_task（cpu_idle_loop）へフォールバック */
-	if (!next || next == prev)
+	/* 現在 task が引き続き最適ならコンテキストスイッチしない */
+	if (next == prev)
+	{
+		return 0;
+	}
+
+	/* runqueue が空なら init_task（cpu_idle_loop）へフォールバック */
+	if (!next)
 	{
 		/* すでに init_task が動いている → スイッチ不要 */
 		if (prev == &init_task)

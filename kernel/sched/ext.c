@@ -1,3 +1,4 @@
+#include <asm-i386/system.h>
 #include <kfs/errno.h>
 #include <kfs/exit.h>
 #include <kfs/fair.h>
@@ -18,6 +19,28 @@ static const struct sched_ext_ops *sched_ext_ops;
  *        sched_ext_load()でロードしたプロセスのpidに設定される．
  */
 static pid_t sched_ext_owner_pid;
+
+/** fair fallback中のSCHED_EXT taskをbackendへ移送する
+ * @param task 移送対象task
+ * @param ctx 未使用
+ * @return 常に0
+ */
+static int sched_ext_migrate_task_from_fair(struct task_struct *task, void *ctx)
+{
+	(void)ctx;
+
+	/* SCHED_EXT task でない場合や fair scheduler にキューされていない場合は何もしない */
+	if (task->policy != SCHED_EXT || !fair_sched_class.task_queued(task))
+	{
+		return 0;
+	}
+
+	/* fair scheduler から backend へ移送する */
+	fair_sched_class.dequeue_task(task);
+	sched_ext_ops->enqueue_task(task);
+
+	return 0;
+}
 
 /** sched_ext backend ops が最低限の操作を持つか確認する
  * @param ops 確認する backend ops
@@ -41,6 +64,9 @@ int sched_ext_register(const struct sched_ext_ops *ops)
 		return -EINVAL;
 	}
 
+	unsigned long flags;
+	local_irq_save(flags);
+
 	/* 既に backend が登録されている場合は解除する */
 	sched_ext_unregister();
 
@@ -48,10 +74,13 @@ int sched_ext_register(const struct sched_ext_ops *ops)
 	if (ret)
 	{
 		/* 新しい backend の初期化に失敗した場合は何もしない */
+		local_irq_restore(flags);
 		return ret;
 	}
 
 	sched_ext_ops = ops;
+	task_for_each(sched_ext_migrate_task_from_fair, NULL);
+	local_irq_restore(flags);
 	return 0;
 }
 
@@ -95,10 +124,14 @@ void sched_ext_unregister(void)
 		return;
 	}
 
+	unsigned long flags;
+	local_irq_save(flags);
+
 	task_for_each(sched_ext_migrate_task_to_fair, NULL);
 	sched_ext_ops->exit();
 	sched_ext_ops = NULL;
 	sched_ext_owner_pid = 0;
+	local_irq_restore(flags);
 }
 
 /** sched_ext backend が有効か確認する

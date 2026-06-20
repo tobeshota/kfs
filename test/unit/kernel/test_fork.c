@@ -114,6 +114,19 @@ KFS_TEST(test_copy_process_basic)
 	printk("copy_process basic test passed\n");
 }
 
+/* copy_process()が親の保留シグナルを子へ継承しないことを確かめる */
+KFS_TEST(test_copy_process_does_not_inherit_pending_signals)
+{
+	struct task_struct *child;
+
+	init_task.pending.signal = (1UL << SIGCHLD);
+	child = copy_process(&init_task);
+
+	KFS_ASSERT_TRUE(child != NULL);
+	KFS_ASSERT_EQ(0, child->pending.signal);
+	KFS_ASSERT_TRUE(list_empty(&child->pending.list));
+}
+
 /** copy_process()のメモリコピーテスト
  * @note Phase 4で修正：copy_page_tables()によるページテーブルコピー
  */
@@ -335,6 +348,7 @@ KFS_TEST(test_fork_bomb)
 
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_basic, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_does_not_inherit_pending_signals, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_mm, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_independent_pgd, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_copy_process_parent_child, setup_test, teardown_test),

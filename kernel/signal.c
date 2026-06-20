@@ -63,6 +63,20 @@ static void setup_sigframe(struct pt_regs *regs, int sig, sighandler_t handler)
 	regs->eip = (unsigned long)handler;
 }
 
+/** 子taskの状態変化を親へ通知する
+ * @param task 状態が変化した子task
+ */
+static void notify_parent_of_child_state(struct task_struct *task)
+{
+	/* 親が存在しない、親が自分自身、親が終了している場合は通知不要 */
+	if (!task->parent || task->parent == task || task->parent->exit_state == EXIT_DEAD)
+	{
+		return;
+	}
+
+	(void)send_signal(SIGCHLD, task->parent);
+}
+
 /** 保留中シグナルを処理する（pt_regs あり版）
  * @param regs  例外/syscall ハンドラの pt_regs。NULL の場合は ring-0 から直接呼び出す（テスト用）
  */
@@ -115,6 +129,9 @@ void do_signal_with_regs(struct pt_regs *regs)
 				current->flags |= PF_WAIT_STOP_PENDING;	 /* 停止待ちフラグをセット */
 				current->flags &= ~PF_WAIT_CONT_PENDING; /* 再開待ちフラグをクリア */
 				current->__state = __TASK_STOPPED;		 /* プロセス状態を__TASK_STOPPEDにセット */
+
+				/* waitpid(WUNTRACED)中の親へ停止を通知して起床させる */
+				notify_parent_of_child_state(current);
 
 				/* スケジューラを呼び出して他のプロセスに CPU を譲る */
 				schedule();
@@ -215,6 +232,12 @@ int send_signal(int sig, struct task_struct *p)
 
 	/* シグナル到来時は割り込み可能スリープ中のプロセスを起床させる */
 	wake_up_process(p);
+
+	/* waitpid(WCONTINUED)中の親へ再開を通知する */
+	if (sig == SIGCONT)
+	{
+		notify_parent_of_child_state(p);
+	}
 
 	return 0;
 }

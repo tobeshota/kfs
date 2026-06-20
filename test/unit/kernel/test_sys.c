@@ -12,6 +12,7 @@
 #include <kfs/ps.h>
 #include <kfs/pty.h>
 #include <kfs/sched.h>
+#include <kfs/signal.h>
 #include <kfs/string.h>
 #include <kfs/sys.h>
 #include <kfs/timer.h>
@@ -400,6 +401,33 @@ static void test_sys_ioctl_tcsets_null_arg_returns_einval(void)
 	KFS_ASSERT_EQ(-EINVAL, (int)sys_ioctl(0, TCSETS, 0UL));
 }
 
+/** TOSTOPが無効ならバックグラウンドtaskもTTYへ出力できる */
+static void test_sys_write_background_allowed_without_tostop(void)
+{
+	current->pgrp = 20;
+	current->pending.signal = 0;
+	KFS_ASSERT_EQ(0, kfs_terminal_set_foreground_pgrp_for_console(0, 10));
+
+	KFS_ASSERT_EQ(1, (int)sys_write(1, "x", 1));
+	KFS_ASSERT_EQ(0, (int)(current->pending.signal & (1UL << SIGTTOU)));
+}
+
+/** TOSTOPが有効ならバックグラウンドtaskのTTY出力を停止する */
+static void test_sys_write_background_stops_with_tostop(void)
+{
+	struct termios tio;
+
+	current->pgrp = 20;
+	current->pending.signal = 0;
+	KFS_ASSERT_EQ(0, kfs_terminal_set_foreground_pgrp_for_console(0, 10));
+	KFS_ASSERT_EQ(0, tty_get_termios_for_console(0, &tio));
+	tio.c_lflag |= TOSTOP;
+	KFS_ASSERT_EQ(0, tty_set_termios_for_console(0, &tio));
+
+	KFS_ASSERT_EQ(-EINTR, (int)sys_write(1, "x", 1));
+	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGTTOU));
+}
+
 static void test_sys_ps_snapshot_formats_tty_console_and_time(void)
 {
 	struct kfs_ps_entry entries[16];
@@ -470,6 +498,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tcsets_updates_termios_lflag, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tcgets_without_ctty_returns_enotty, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tcsets_null_arg_returns_einval, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_write_background_allowed_without_tostop, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_write_background_stops_with_tostop, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ps_snapshot_formats_tty_console_and_time, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ps_snapshot_formats_pts_tty, setup_test, teardown_test),
 };

@@ -317,10 +317,23 @@ static void test_scheduler_return_work_handles_pending_signal(void)
 	printk("scheduler_return_to_user_work: pending signal handled OK\n");
 }
 
+/** 実行中 task への wake-up で runqueue へ二重登録しないことを確かめる */
+static void test_wake_up_current_does_not_enqueue(void)
+{
+	KFS_ASSERT_TRUE(current->__state == TASK_RUNNING);
+	KFS_ASSERT_TRUE(!sched_task_queued(current));
+
+	wake_up_process(current);
+
+	KFS_ASSERT_TRUE(!sched_task_queued(current));
+	printk("wake_up_process: current task is not enqueued twice OK\n");
+}
+
 static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_init_task_initialization, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_list_operations, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_task_state_constants, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_wake_up_current_does_not_enqueue, setup_test_sched, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_does_not_reenqueue_interruptible, setup_test_sched, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_reenqueues_running, setup_test_sched, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_scheduler_tick_rr_no_resched_before_expiry, setup_test_sched, teardown_test),

@@ -503,6 +503,31 @@ KFS_TEST(test_sys_sigreturn_restores_context)
 	KFS_ASSERT_EQ((long)fake_frame.saved_regs.eax, (long)fake_kstack.eax);
 }
 
+/** 停止した子taskがwait中の親へSIGCHLDを通知して起床させる */
+KFS_TEST(test_stop_signal_notifies_parent)
+{
+	struct task_struct parent = init_task;
+
+	parent.pid = 99;
+	parent.policy = SCHED_PURE_RR;
+	parent.__state = TASK_INTERRUPTIBLE;
+	parent.pending.signal = 0;
+	INIT_LIST_HEAD(&parent.run_list);
+	current->parent = &parent;
+
+	send_signal(SIGTSTP, current);
+	do_signal();
+
+	KFS_ASSERT_EQ(__TASK_STOPPED, current->__state);
+	KFS_ASSERT_EQ(TASK_RUNNING, parent.__state);
+	KFS_ASSERT_TRUE(parent.pending.signal & (1UL << SIGCHLD));
+	KFS_ASSERT_TRUE(sched_task_queued(&parent));
+
+	sched_dequeue_task(&parent);
+	current->parent = &init_task;
+	current->__state = TASK_RUNNING;
+}
+
 /* SIGTTIN のデフォルト動作はプロセスを停止させる */
 KFS_TEST(test_sigttin_default_stops_process)
 {
@@ -565,6 +590,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_with_regs_sets_eip_to_handler, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_with_regs_lowers_esp, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_sigreturn_restores_context, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_stop_signal_notifies_parent, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sigttin_default_stops_process, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sigttou_default_stops_process, setup_test, teardown_test),
 };

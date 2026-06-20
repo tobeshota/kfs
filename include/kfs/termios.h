@@ -9,6 +9,7 @@ typedef uint32_t tcflag_t;
 #define ISIG 0000001   /* シグナルの生成を有効にする */
 #define ICANON 0000002 /* カノニカルモードを有効にする */
 #define ECHO 0000010   /* 入力文字のエコーを有効にする */
+#define TOSTOP 0000400 /* バックグラウンド出力時にSIGTTOUを送信する */
 
 /** 制御文字のインデックス
  * @see https://linuxjm.sourceforge.io/html/LDP_man-pages/man3/termios.3.html

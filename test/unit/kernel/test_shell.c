@@ -470,6 +470,42 @@ KFS_TEST(test_cmd_chrt_sets_pure_rr_for_pid)
 	list_del(&target.tasks);
 }
 
+/* chrt --ext -p 0 <pid> は対象プロセスを SCHED_EXT に変更する */
+KFS_TEST(test_cmd_chrt_sets_sched_ext_for_pid)
+{
+	struct task_struct target = init_task;
+
+	target.pid = 78;
+	target.policy = SCHED_NORMAL;
+	INIT_LIST_HEAD(&target.children);
+	INIT_LIST_HEAD(&target.sibling);
+	INIT_LIST_HEAD(&target.tasks);
+	INIT_LIST_HEAD(&target.run_list);
+	sched_init_entity(&target);
+	list_add_tail(&target.tasks, &task_list);
+	run_chrt_cmd("--ext -p 0 78");
+	KFS_ASSERT_TRUE(target.policy == SCHED_EXT);
+	list_del(&target.tasks);
+}
+
+/* chrt -p <pid> は対象processのpolicyを変更せず照会する */
+KFS_TEST(test_cmd_chrt_queries_policy_for_pid)
+{
+	struct task_struct target = init_task;
+
+	target.pid = 79;
+	target.policy = SCHED_EXT;
+	INIT_LIST_HEAD(&target.children);
+	INIT_LIST_HEAD(&target.sibling);
+	INIT_LIST_HEAD(&target.tasks);
+	INIT_LIST_HEAD(&target.run_list);
+	sched_init_entity(&target);
+	list_add_tail(&target.tasks, &task_list);
+	run_chrt_cmd("-p 79");
+	KFS_ASSERT_TRUE(target.policy == SCHED_EXT);
+	list_del(&target.tasks);
+}
+
 /* spin コマンドは CPU 負荷確認用コマンドとして登録される */
 KFS_TEST(test_cmd_spin_registered)
 {
@@ -678,6 +714,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_switch_layouts, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_sets_sched_normal, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_sets_pure_rr_for_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_sets_sched_ext_for_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_queries_policy_for_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_spin_registered, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_commands_registered, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_shell_execute_beep_no_args, setup_test, teardown_test),

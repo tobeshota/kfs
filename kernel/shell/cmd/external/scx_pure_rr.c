@@ -56,10 +56,8 @@ void cmd_scx_pure_rr(void *arg)
 	 */
 	while (1)
 	{
-		if (msleep(1000) < 0)
-		{
-			/* エラーが発生した場合はループを抜ける */
-			return;
-		}
+		/* 終了シグナルはuser mode復帰前に処理される。
+		 * 無視されるシグナルによる-EINTRではowner processを終了しない。 */
+		(void)msleep(1000);
 	}
 }

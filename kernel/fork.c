@@ -67,6 +67,10 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	INIT_LIST_HEAD(&tsk->run_list); /* RR ランキュー用リンク初期化 */
 	sched_init_entity(tsk);
 
+	/* forkした子は親の保留シグナルを継承しない */
+	INIT_LIST_HEAD(&tsk->pending.list);
+	tsk->pending.signal = 0;
+
 	/** 新しいスタックを設定する
 	 * @note スタックの値は親プロセスから引き継がない（子プロセスは新しいスタックを使うため）
 	 */
