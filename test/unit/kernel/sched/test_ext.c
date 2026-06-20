@@ -245,7 +245,7 @@ static void test_sched_ext_pure_rr_isolated_from_legacy_queue(void)
 	memset(&legacy_task, 0, sizeof(legacy_task));
 	legacy_task.__state = TASK_RUNNING;
 	legacy_task.pid = 23;
-	legacy_task.policy = SCHED_PURE_RR;
+	legacy_task.policy = SCHED_NORMAL;
 	legacy_task.time_slice = RR_TIMESLICE;
 	INIT_LIST_HEAD(&legacy_task.run_list);
 

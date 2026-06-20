@@ -5,7 +5,6 @@
 #include <kfs/mm_types.h>
 #include <kfs/pid.h>
 #include <kfs/printk.h>
-#include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/sched_ext.h>
 
@@ -60,8 +59,8 @@ struct task_struct init_task = {
 		},
 
 	/* スケジューリングポリシー */
-	.policy = SCHED_PURE_RR, /* 起動直後は既存の純粋ラウンドロビンで動かす */
-	.prio = DEFAULT_PRIO,	 /* デフォルト優先度 */
+	.policy = SCHED_NORMAL, /* PID 1以降の通常taskが継承するデフォルトpolicy */
+	.prio = DEFAULT_PRIO,	/* デフォルト優先度 */
 	.static_prio = DEFAULT_PRIO,
 	.nice = 0,
 	.rt_priority = 0,
@@ -100,9 +99,8 @@ static const struct sched_class *sched_class_for_policy(unsigned int policy)
 		return &fair_sched_class;
 	case SCHED_EXT:
 		return &sched_ext_class;
-	case SCHED_PURE_RR:
 	default:
-		return &pure_rr_sched_class;
+		return &fair_sched_class;
 	}
 }
 
@@ -176,7 +174,7 @@ struct task_struct *sched_pick_next_task(void)
 		return task;
 	}
 
-	return pure_rr_sched_class.pick_next_task();
+	return NULL;
 }
 
 /** 現在実行中 task の tick 処理を scheduler class へ渡す
@@ -271,7 +269,6 @@ void sched_init(void)
 	INIT_LIST_HEAD(&init_task.run_list);
 	fair_sched_class.init();
 	sched_ext_class.init();
-	pure_rr_sched_class.init();
 	need_resched = 0;
 	/* init_task は runqueue に登録しない。
 	 * schedule() が sched_pick_next_task()==NULL のとき init_task へフォールバックする。
@@ -319,14 +316,8 @@ void scheduler_tick(void)
 	}
 	sched_task_tick(current);
 
-	if (current->policy == SCHED_PURE_RR && current->time_slice == 0)
-	{
-		/* タイムスライスが切れた場合は再スケジュールを要求する */
-		current->time_slice = RR_TIMESLICE;
-		need_resched = 1;
-	}
-	else if (current->policy == SCHED_NORMAL || current->policy == SCHED_BATCH || current->policy == SCHED_IDLE ||
-			 current->policy == SCHED_EXT)
+	if (current->policy == SCHED_NORMAL || current->policy == SCHED_BATCH || current->policy == SCHED_IDLE ||
+		current->policy == SCHED_EXT)
 	{
 		/* 通常のスケジューリングポリシーの場合も再スケジュールを要求する */
 		need_resched = 1;

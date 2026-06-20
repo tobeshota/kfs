@@ -440,7 +440,7 @@ KFS_TEST(test_cmd_chrt_sets_sched_normal)
 	struct task_struct target = init_task;
 
 	target.pid = 76;
-	target.policy = SCHED_PURE_RR;
+	target.policy = SCHED_EXT;
 	INIT_LIST_HEAD(&target.children);
 	INIT_LIST_HEAD(&target.sibling);
 	INIT_LIST_HEAD(&target.tasks);
@@ -452,8 +452,8 @@ KFS_TEST(test_cmd_chrt_sets_sched_normal)
 	list_del(&target.tasks);
 }
 
-/* chrt --pure-rr -p 0 <pid> は対象プロセスを SCHED_PURE_RR に変更する */
-KFS_TEST(test_cmd_chrt_sets_pure_rr_for_pid)
+/* chrt --pure-rr -p 0 <pid> は未対応で、対象プロセスを変更しない */
+KFS_TEST(test_cmd_chrt_rejects_pure_rr_option)
 {
 	struct task_struct target = init_task;
 
@@ -466,7 +466,7 @@ KFS_TEST(test_cmd_chrt_sets_pure_rr_for_pid)
 	sched_init_entity(&target);
 	list_add_tail(&target.tasks, &task_list);
 	run_chrt_cmd("--pure-rr -p 0 77");
-	KFS_ASSERT_TRUE(target.policy == SCHED_PURE_RR);
+	KFS_ASSERT_TRUE(target.policy == SCHED_NORMAL);
 	list_del(&target.tasks);
 }
 
@@ -713,7 +713,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_invalid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_loadkeys_switch_layouts, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_sets_sched_normal, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_sets_pure_rr_for_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_rejects_pure_rr_option, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_sets_sched_ext_for_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_chrt_queries_policy_for_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_cmd_spin_registered, setup_test, teardown_test),

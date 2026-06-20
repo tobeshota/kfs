@@ -19,7 +19,10 @@ extern struct list_head task_list;
 static void init_test_task(struct task_struct *tsk, unsigned int time_slice)
 {
 	tsk->__state = TASK_RUNNING;
-	tsk->policy = SCHED_PURE_RR;
+	tsk->policy = SCHED_NORMAL;
+	tsk->nice = 0;
+	tsk->se.vruntime = 0;
+	sched_init_entity(tsk);
 	tsk->time_slice = time_slice;
 	INIT_LIST_HEAD(&tsk->run_list);
 }
@@ -188,7 +191,7 @@ static void test_schedule_noop_when_same(void)
 	struct task_struct tsk;
 
 	init_test_task(&tsk, RR_TIMESLICE);
-	rr_enqueue(&tsk);
+	sched_enqueue_task(&tsk);
 	current = &tsk; /* current と先頭が同じ */
 
 	schedule();
@@ -213,83 +216,83 @@ static void test_wake_up_process_enqueues(void)
 	wake_up_process(&tsk);
 
 	KFS_ASSERT_TRUE(tsk.__state == TASK_RUNNING); /* 起床した */
-	KFS_ASSERT_TRUE(!list_empty(&tsk.run_list));  /* キューに登録された */
-	KFS_ASSERT_TRUE(rr_pick_next() == &tsk);	  /* キュー先頭に現れる */
+	KFS_ASSERT_TRUE(sched_task_queued(&tsk));	  /* キューに登録された */
+	KFS_ASSERT_TRUE(tsk.se.on_rq);				  /* fair runqueue に載る */
 
 	printk("wake_up_process: task enqueued as TASK_RUNNING OK\n");
 }
 
-/* scheduler core の enqueue API が SCHED_PURE_RR を pure RR runqueue に委譲することを確かめる */
-static void test_sched_enqueue_task_pure_rr_uses_rr_queue(void)
+/* scheduler core の enqueue API が SCHED_EXT task を backend未ロード時に fair runqueue へ委譲することを確かめる */
+static void test_sched_enqueue_task_sched_ext_fallback_uses_fair_queue(void)
 {
 	struct task_struct tsk;
 
 	init_test_task(&tsk, RR_TIMESLICE);
-	tsk.policy = SCHED_PURE_RR;
+	tsk.policy = SCHED_EXT;
 
 	sched_enqueue_task(&tsk);
 
 	KFS_ASSERT_TRUE(sched_task_queued(&tsk));
-	KFS_ASSERT_TRUE(rr_pick_next() == &tsk);
+	KFS_ASSERT_TRUE(tsk.se.on_rq);
 
-	printk("sched_enqueue_task: SCHED_PURE_RR uses RR runqueue OK\n");
+	printk("sched_enqueue_task: SCHED_EXT fallback uses fair runqueue OK\n");
 }
 
-/* scheduler core の dequeue API が SCHED_PURE_RR task を pure RR runqueue から外すことを確かめる */
-static void test_sched_dequeue_task_pure_rr_removes_from_rr_queue(void)
+/* scheduler core の dequeue API が SCHED_EXT fallback task を fair runqueue から外すことを確かめる */
+static void test_sched_dequeue_task_sched_ext_fallback_removes_from_fair_queue(void)
 {
 	struct task_struct tsk;
 
 	init_test_task(&tsk, RR_TIMESLICE);
-	tsk.policy = SCHED_PURE_RR;
+	tsk.policy = SCHED_EXT;
 	sched_enqueue_task(&tsk);
 
 	sched_dequeue_task(&tsk);
 
 	KFS_ASSERT_TRUE(!sched_task_queued(&tsk));
-	KFS_ASSERT_TRUE(rr_pick_next() == 0);
+	KFS_ASSERT_TRUE(!tsk.se.on_rq);
 
-	printk("sched_dequeue_task: SCHED_PURE_RR removed from RR runqueue OK\n");
+	printk("sched_dequeue_task: SCHED_EXT fallback removed from fair runqueue OK\n");
 }
 
-/* scheduler core の tick API が SCHED_PURE_RR task の RR time slice を進めることを確かめる */
-static void test_sched_task_tick_pure_rr_decrements_slice(void)
+/* scheduler core の tick API が SCHED_EXT fallback task で処理可能なことを確かめる */
+static void test_sched_task_tick_sched_ext_fallback_runs(void)
 {
 	struct task_struct tsk;
 
 	init_test_task(&tsk, RR_TIMESLICE);
-	tsk.policy = SCHED_PURE_RR;
+	tsk.policy = SCHED_EXT;
 	sched_enqueue_task(&tsk);
 
 	sched_task_tick(&tsk);
 
-	KFS_ASSERT_TRUE(tsk.time_slice == RR_TIMESLICE - 1);
 	KFS_ASSERT_TRUE(sched_task_queued(&tsk));
+	KFS_ASSERT_TRUE(tsk.se.on_rq);
 
-	printk("sched_task_tick: SCHED_PURE_RR decrements RR slice OK\n");
+	printk("sched_task_tick: SCHED_EXT fallback tick OK\n");
 }
 
 /* ------------------------------------------------------------------ */
 /* テスト: sys_sched_setscheduler() / sys_sched_getscheduler()          */
 /* ------------------------------------------------------------------ */
 
-/* SCHED_PURE_RR は RT ではないため CAP_SYS_NICE なしでも設定できることを確かめる */
-static void test_sched_setscheduler_ok(void)
+/* SCHED_PURE_RR は public policy から削除されているため -EINVAL で拒否される */
+static void test_sched_setscheduler_rejects_sched_pure_rr(void)
 {
 	current->cap_effective = CAP_EMPTY_SET; /* 権限なし */
 	current->policy = SCHED_NORMAL;
 
-	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_PURE_RR, 0) == 0);
-	KFS_ASSERT_TRUE(current->policy == SCHED_PURE_RR);
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, 100, 0) == -EINVAL);
+	KFS_ASSERT_TRUE(current->policy == SCHED_NORMAL);
 
-	printk("sys_sched_setscheduler: ok OK\n");
+	printk("sys_sched_setscheduler: rejects removed SCHED_PURE_RR OK\n");
 }
 
 /* SCHED_NORMAL は通常プロセス用 policy として受理されることを確かめる */
 static void test_sched_setscheduler_accepts_sched_normal(void)
 {
 	current->cap_effective = CAP_EMPTY_SET;
-	current->policy = SCHED_PURE_RR;
+	current->policy = SCHED_EXT;
 	current->rt_priority = 7;
 
 	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_NORMAL, 0) == 0); /* SCHED_NORMAL に設定できることを確かめる */
@@ -334,61 +337,23 @@ static void test_sched_setscheduler_rejects_linux_rt_policy(void)
 	printk("sys_sched_setscheduler: rejects Linux RT policies OK\n");
 }
 
-/* queued task を pure RR から fair runqueue へ移動できることを確かめる */
-static void test_sched_setscheduler_migrates_rr_to_fair(void)
-{
-	current->policy = SCHED_PURE_RR;
-	current->time_slice = RR_TIMESLICE;
-	sched_enqueue_task(current);
-
-	KFS_ASSERT_TRUE(sched_task_queued(current));
-	KFS_ASSERT_TRUE(!list_empty(&current->run_list));
-	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_NORMAL, 0) == 0);
-	KFS_ASSERT_TRUE(current->policy == SCHED_NORMAL);
-	KFS_ASSERT_TRUE(list_empty(&current->run_list));
-	KFS_ASSERT_TRUE(sched_task_queued(current));
-
-	sched_dequeue_task(current);
-	printk("sys_sched_setscheduler: migrates RR to fair OK\n");
-}
-
 /* SCHED_EXT は backend 未ロード時に fair runqueue へ fallback する */
 static void test_sched_setscheduler_ext_fallback_uses_fair(void)
 {
-	current->policy = SCHED_PURE_RR;
-	current->time_slice = RR_TIMESLICE;
-	sched_enqueue_task(current);
-
-	KFS_ASSERT_TRUE(sched_task_queued(current));
-	KFS_ASSERT_TRUE(!list_empty(&current->run_list));
-	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_EXT, 0) == 0);
-	KFS_ASSERT_TRUE(current->policy == SCHED_EXT);
-	KFS_ASSERT_TRUE(list_empty(&current->run_list));
-	KFS_ASSERT_TRUE(current->se.on_rq);
-	KFS_ASSERT_TRUE(sched_task_queued(current));
-
-	sched_dequeue_task(current);
-	printk("sys_sched_setscheduler: SCHED_EXT fair fallback OK\n");
-}
-
-/* queued task を fair から pure RR runqueue へ移動できることを確かめる */
-static void test_sched_setscheduler_migrates_fair_to_rr(void)
-{
 	current->policy = SCHED_NORMAL;
-	current->se.vruntime = 0;
+	current->time_slice = RR_TIMESLICE;
 	sched_init_entity(current);
 	sched_enqueue_task(current);
 
 	KFS_ASSERT_TRUE(sched_task_queued(current));
 	KFS_ASSERT_TRUE(current->se.on_rq);
-	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_PURE_RR, 0) == 0);
-	KFS_ASSERT_TRUE(current->policy == SCHED_PURE_RR);
-	KFS_ASSERT_TRUE(!current->se.on_rq);
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_EXT, 0) == 0);
+	KFS_ASSERT_TRUE(current->policy == SCHED_EXT);
+	KFS_ASSERT_TRUE(current->se.on_rq);
 	KFS_ASSERT_TRUE(sched_task_queued(current));
-	KFS_ASSERT_TRUE(!list_empty(&current->run_list));
 
 	sched_dequeue_task(current);
-	printk("sys_sched_setscheduler: migrates fair to RR OK\n");
+	printk("sys_sched_setscheduler: SCHED_EXT fair fallback OK\n");
 }
 
 /* backend有効時にqueued taskをfairからsched_ext runqueueへ移動できることを確かめる */
@@ -452,9 +417,9 @@ static void test_sched_setscheduler_sleeping_task_stays_dequeued(void)
 /* sys_sched_getscheduler() が pid 0 のとき current のポリシーを返すことを確かめる */
 static void test_sched_getscheduler(void)
 {
-	current->policy = SCHED_PURE_RR;
+	current->policy = SCHED_NORMAL;
 
-	KFS_ASSERT_TRUE(sys_sched_getscheduler(0) == SCHED_PURE_RR);
+	KFS_ASSERT_TRUE(sys_sched_getscheduler(0) == SCHED_NORMAL);
 
 	printk("sys_sched_getscheduler: returns policy OK\n");
 }
@@ -524,7 +489,7 @@ static void test_sched_setscheduler_ext_round_trip_preserves_fair_runqueue(void)
 /* 非 RT ポリシーに priority != 0 を渡すと -EINVAL になることを確かめる（Linux 6.18 準拠） */
 static void test_sched_setscheduler_non_rt_clears_priority(void)
 {
-	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_PURE_RR, 42) == -EINVAL);
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_EXT, 42) == -EINVAL);
 
 	printk("sys_sched_setscheduler: non-RT with priority!=0 returns -EINVAL OK\n");
 }
@@ -551,17 +516,16 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_rr_task_tick_rotates_on_expiry, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_schedule_noop_when_same, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_wake_up_process_enqueues, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_sched_enqueue_task_pure_rr_uses_rr_queue, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_sched_dequeue_task_pure_rr_removes_from_rr_queue, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_sched_task_tick_pure_rr_decrements_slice, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_ok, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_enqueue_task_sched_ext_fallback_uses_fair_queue, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_dequeue_task_sched_ext_fallback_removes_from_fair_queue, setup_test,
+								 teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_task_tick_sched_ext_fallback_runs, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_rejects_sched_pure_rr, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_accepts_sched_normal, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_accepts_sched_ext, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_einval, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_rejects_linux_rt_policy, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_rr_to_fair, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_ext_fallback_uses_fair, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_fair_to_rr, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_fair_to_ext_backend, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_ext_backend_to_fair, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_sleeping_task_stays_dequeued, setup_test, teardown_test),

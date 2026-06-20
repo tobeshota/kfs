@@ -509,7 +509,7 @@ KFS_TEST(test_stop_signal_notifies_parent)
 	struct task_struct parent = init_task;
 
 	parent.pid = 99;
-	parent.policy = SCHED_PURE_RR;
+	parent.policy = SCHED_NORMAL;
 	parent.__state = TASK_INTERRUPTIBLE;
 	parent.pending.signal = 0;
 	INIT_LIST_HEAD(&parent.run_list);

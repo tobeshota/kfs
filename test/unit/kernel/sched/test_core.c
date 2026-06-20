@@ -106,12 +106,15 @@ static void test_task_state_constants(void)
 		   TASK_RUNNING, TASK_INTERRUPTIBLE, TASK_UNINTERRUPTIBLE);
 }
 
-/* rr_enqueue/dequeue を直接呼んで schedule() の TASK_INTERRUPTIBLE パスを再現する */
+/* schedule() テストで使う task を current/scheduler API と整合する形で初期化する */
 static void init_test_task_for_sched(struct task_struct *tsk)
 {
-	tsk->policy = SCHED_PURE_RR;
+	memset(tsk, 0, sizeof(*tsk));
+	tsk->policy = SCHED_NORMAL;
+	tsk->nice = 0;
 	tsk->time_slice = 10;
 	INIT_LIST_HEAD(&tsk->run_list);
+	sched_init_entity(tsk);
 }
 
 static void setup_test_sched(void)
@@ -137,8 +140,8 @@ static void test_schedule_does_not_reenqueue_interruptible(void)
 	/* current を差し替え，schedule() に prev として認識させる */
 	saved_current = current;
 	current = &tsk;
-	rr_enqueue(&tsk);
-	KFS_ASSERT_TRUE(!list_empty(&tsk.run_list)); /* エンキュー済み */
+	sched_enqueue_task(&tsk);
+	KFS_ASSERT_TRUE(sched_task_queued(&tsk)); /* エンキュー済み */
 
 	/* 実際に schedule() を呼ぶ.
 	 * キューに tsk しかいないため rr_pick_next() は NULL を返し
@@ -148,7 +151,7 @@ static void test_schedule_does_not_reenqueue_interruptible(void)
 	current = saved_current;
 
 	/* TASK_INTERRUPTIBLE なので再エンキューされていない */
-	KFS_ASSERT_TRUE(list_empty(&tsk.run_list));
+	KFS_ASSERT_TRUE(!sched_task_queued(&tsk));
 	printk("test_schedule_does_not_reenqueue_interruptible: OK\n");
 }
 
@@ -168,7 +171,7 @@ static void test_schedule_reenqueues_running(void)
 	/* current を差し替え，schedule() に prev として認識させる */
 	saved_current = current;
 	current = &tsk;
-	rr_enqueue(&tsk);
+	sched_enqueue_task(&tsk);
 
 	/* 実際に schedule() を呼ぶ.
 	 * tsk は再エンキューされるが next == prev となるため
@@ -178,11 +181,11 @@ static void test_schedule_reenqueues_running(void)
 	current = saved_current;
 
 	/* TASK_RUNNING なので再エンキューされている */
-	KFS_ASSERT_TRUE(!list_empty(&tsk.run_list));
+	KFS_ASSERT_TRUE(sched_task_queued(&tsk));
 	printk("test_schedule_reenqueues_running: OK\n");
 }
 
-/** RR のタイムスライスが残っている間は再スケジュール要求を出さない */
+/** SCHED_NORMAL(fair) では tick で RR の time_slice を消費しない */
 static void test_scheduler_tick_rr_no_resched_before_expiry(void)
 {
 	struct task_struct tsk;
@@ -198,13 +201,14 @@ static void test_scheduler_tick_rr_no_resched_before_expiry(void)
 
 	scheduler_tick();
 
-	KFS_ASSERT_TRUE(tsk.time_slice == 1);
-	KFS_ASSERT_TRUE(!scheduler_need_resched());
+	KFS_ASSERT_TRUE(tsk.time_slice == 2);
+	KFS_ASSERT_TRUE(scheduler_need_resched());
+	scheduler_clear_need_resched();
 	current = saved_current;
-	printk("scheduler_tick: RR no resched before expiry OK\n");
+	printk("scheduler_tick: fair keeps RR slice field unchanged OK\n");
 }
 
-/** RR のタイムスライスが切れたら再スケジュール要求を出す */
+/** SCHED_NORMAL(fair) では time_slice==1 でも RR リセットは行わない */
 static void test_scheduler_tick_rr_sets_resched_on_expiry(void)
 {
 	struct task_struct tsk;
@@ -220,11 +224,11 @@ static void test_scheduler_tick_rr_sets_resched_on_expiry(void)
 
 	scheduler_tick();
 
-	KFS_ASSERT_TRUE(tsk.time_slice == RR_TIMESLICE);
+	KFS_ASSERT_TRUE(tsk.time_slice == 1);
 	KFS_ASSERT_TRUE(scheduler_need_resched());
 	scheduler_clear_need_resched();
 	current = saved_current;
-	printk("scheduler_tick: RR resched on expiry OK\n");
+	printk("scheduler_tick: fair does not apply RR expiry logic OK\n");
 }
 
 /** CFS task は tick ごとに再スケジュール候補になる */
