@@ -1,6 +1,9 @@
+#include <asm-i386/system.h>
 #include <kfs/errno.h>
 #include <kfs/sched.h>
+#include <kfs/signal.h>
 #include <kfs/socket.h>
+#include <kfs/string.h>
 
 /* Unix socket endpointの受信状態 */
 struct unix_socket_endpoint
@@ -33,8 +36,29 @@ static int unix_socket_pair_index(int fd)
 		return -1;
 	}
 
-	/* fdをpair indexに変換 */
+	/* この計算でpair indexが求まる理由は，
+	 * fdはpairごとに2つ割り当てられており，
+	 * 0番目のfdは0番目のpair，
+	 * 1番目のfdは0番目のpairに対応するため． */
 	return (fd - UNIX_SOCKET_FD_BASE) / 2;
+}
+
+/** fdをsocket endpoint indexへ変換する
+ * @param fd socket fd
+ * @return endpoint index 0または1。範囲外なら-1
+ */
+static int unix_socket_endpoint_index(int fd)
+{
+	if (unix_socket_pair_index(fd) < 0)
+	{
+		return -1;
+	}
+
+	/* この計算でendpoint indexが求まる理由は，
+	 * fdはpairごとに2つ割り当てられており，
+	 * 0番目のfdは0番目のendpoint，
+	 * 1番目のfdは1番目のendpointに対応するため． */
+	return (fd - UNIX_SOCKET_FD_BASE) % 2;
 }
 
 /* Unix socket subsystemを初期化する */
@@ -96,8 +120,8 @@ int unix_socket_pair(int domain, int type, int protocol, int sv[2])
 			unix_socket_pairs[i].endpoints[0].reader = NULL;
 			unix_socket_pairs[i].endpoints[1].length = 0;
 			unix_socket_pairs[i].endpoints[1].reader = NULL;
-			sv[0] = UNIX_SOCKET_FD_BASE + i * 2;	/* 1つ目のfd */
-			sv[1] = sv[0] + 1;	/* 2つ目のfd */
+			sv[0] = UNIX_SOCKET_FD_BASE + i * 2; /* 1つ目のfd */
+			sv[1] = sv[0] + 1;					 /* 2つ目のfd */
 			return 0;
 		}
 	}
@@ -137,6 +161,155 @@ pid_t unix_socket_owner(int fd)
 	}
 
 	return unix_socket_pairs[pair_index].owner_pid;
+}
+
+/** Unix socket endpointからデータを読み取る
+ * @param fd 読み取り元endpoint fd
+ * @param buf 読み取り先buffer
+ * @param size 読み取り上限byte数
+ * @return 読み取ったbyte数，負数=エラー
+ * @note データがない場合はTASK_INTERRUPTIBLEで待機する
+ */
+long unix_socket_read(int fd, char *buf, unsigned int size)
+{
+	int pair_index = unix_socket_pair_index(fd);
+	int endpoint_index = unix_socket_endpoint_index(fd);
+
+	/* 無効なfdまたは未使用のsocket pairの場合 */
+	if (pair_index < 0 || endpoint_index < 0 || !unix_socket_pairs[pair_index].in_use)
+	{
+		return -EBADF;
+	}
+	/* 無効なバッファの場合 */
+	if (!buf)
+	{
+		return -EINVAL;
+	}
+	/* 読み取りサイズが0の場合 */
+	if (size == 0)
+	{
+		return 0;
+	}
+
+	struct unix_socket_endpoint *endpoint =
+		&unix_socket_pairs[pair_index].endpoints[endpoint_index]; /* 読み取り対象のendpoint */
+
+	while (1)
+	{
+		/** EFLAGS
+		 * @brief EFLAGSを保存・復元する理由は，
+		 *        データの読み取り中に割り込みが発生すると，
+		 *        データの整合性が崩れる可能性があるため
+		 */
+		unsigned long flags;
+		local_irq_save(flags);
+
+		/* データがある場合は読み取る */
+		if (endpoint->length > 0)
+		{
+			unsigned int count = endpoint->length < size ? endpoint->length : size; /* 読み取りbyte数 */
+
+			memcpy(buf, endpoint->buffer, count);
+
+			/* endpoint->bufferの一部が読み取られていない場合，
+			 * その残りデータを先頭に移動する */
+			if (endpoint->length > count)
+			{
+				memmove(endpoint->buffer, endpoint->buffer + count, endpoint->length - count);
+			}
+
+			/* 読み取り後のバッファ長を更新する */
+			endpoint->length -= count;
+
+			/* 読み取り後のreaderをクリアする */
+			if (endpoint->reader == current)
+			{
+				endpoint->reader = NULL;
+			}
+
+			local_irq_restore(flags);
+			return (long)count;
+		}
+
+		/* シグナルが保留中の場合，returnで抜ける */
+		if (signal_pending())
+		{
+			/* 読み取り後のreaderをクリアする */
+			if (endpoint->reader == current)
+			{
+				endpoint->reader = NULL;
+			}
+
+			local_irq_restore(flags);
+			return -EINTR; /* シグナルによる割り込み */
+		}
+
+		/* データがない場合はTASK_INTERRUPTIBLEで待機する */
+		endpoint->reader = current;
+		current->__state = TASK_INTERRUPTIBLE;
+		local_irq_restore(flags);
+		schedule();
+	}
+}
+
+/** Unix socket endpointからpeerへデータを書き込む
+ * @param fd 書き込み元endpoint fd
+ * @param buf 書き込み元buffer
+ * @param size 書き込み要求byte数
+ * @return 書き込んだbyte数，負数=エラー
+ * @note peer受信bufferの空き容量分だけ書き込む
+ */
+long unix_socket_write(int fd, const char *buf, unsigned int size)
+{
+	int pair_index = unix_socket_pair_index(fd);
+	int endpoint_index = unix_socket_endpoint_index(fd);
+
+	/* 無効なfdまたは未使用のsocket pairの場合 */
+	if (pair_index < 0 || endpoint_index < 0 || !unix_socket_pairs[pair_index].in_use)
+	{
+		return -EBADF;
+	}
+	/* 無効なバッファの場合 */
+	if (!buf)
+	{
+		return -EINVAL;
+	}
+	/* 読み取りサイズが0の場合 */
+	if (size == 0)
+	{
+		return 0;
+	}
+
+	struct unix_socket_endpoint *peer =
+		&unix_socket_pairs[pair_index].endpoints[endpoint_index ^ 1]; /* 書き込み対象のpeer endpoint */
+
+	/** EFLAGS
+	 * @brief EFLAGSを保存・復元する理由は，
+	 *        データの書き込み中に割り込みが発生すると，
+	 *        データの整合性が崩れる可能性があるため
+	 */
+	unsigned long flags;
+	local_irq_save(flags);
+
+	unsigned int space = UNIX_SOCKET_BUF_SIZE - peer->length; /* peerのバッファの空き容量 */
+	unsigned int count = size < space ? size : space;		  /* 書き込みbyte数 */
+
+	/* 書き込み可能な場合はデータをコピーする */
+	if (count > 0)
+	{
+		memcpy(peer->buffer + peer->length, buf, count);
+		peer->length += count;
+	}
+
+	/* 読み取り待機中のプロセスがいる場合は起床させる */
+	if (peer->reader)
+	{
+		wake_up_process(peer->reader);
+		peer->reader = NULL; /* 読み取り待機中のプロセスをクリアする */
+	}
+
+	local_irq_restore(flags);
+	return (long)count;
 }
 
 /** socketpairシステムコール本体
