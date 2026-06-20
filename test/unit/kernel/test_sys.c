@@ -435,6 +435,7 @@ static void test_sys_ps_snapshot_formats_tty_console_and_time(void)
 	long count;
 
 	current->pid = 42;
+	current->euid.val = 1000;
 	current->tty_console = 1;
 	current->cpu_time_ticks = 3665U * HZ;
 
@@ -442,6 +443,7 @@ static void test_sys_ps_snapshot_formats_tty_console_and_time(void)
 	KFS_ASSERT_TRUE(count > 0);
 	entry = find_ps_entry_by_pid(entries, count, 42);
 	KFS_ASSERT_TRUE(entry != NULL);
+	KFS_ASSERT_EQ(1000, (int)entry->uid);
 	KFS_ASSERT_TRUE(strcmp(entry->tty, "tty2") == 0);
 	KFS_ASSERT_TRUE(strcmp(entry->time, "1:01:05") == 0);
 }
