@@ -469,6 +469,58 @@ static void test_sched_getscheduler_returns_sched_ext(void)
 	printk("sys_sched_getscheduler: returns SCHED_EXT OK\n");
 }
 
+/* SCHED_EXT と SCHED_NORMAL の往復後も、他の fair task の順序と参照が保たれることを確かめる */
+static void test_sched_setscheduler_ext_round_trip_preserves_fair_runqueue(void)
+{
+	struct task_struct first = {0};
+	struct task_struct second = {0};
+	struct task_struct target = {0};
+
+	first.__state = TASK_RUNNING;
+	first.pid = 60;
+	first.policy = SCHED_NORMAL;
+	first.nice = 0;
+	first.se.vruntime = 10;
+	INIT_LIST_HEAD(&first.run_list);
+	sched_init_entity(&first);
+
+	second.__state = TASK_RUNNING;
+	second.pid = 61;
+	second.policy = SCHED_NORMAL;
+	second.nice = 0;
+	second.se.vruntime = 20;
+	INIT_LIST_HEAD(&second.run_list);
+	sched_init_entity(&second);
+
+	target.__state = TASK_RUNNING;
+	target.pid = 62;
+	target.policy = SCHED_NORMAL;
+	target.nice = 0;
+	target.se.vruntime = 30;
+	INIT_LIST_HEAD(&target.tasks);
+	INIT_LIST_HEAD(&target.run_list);
+	sched_init_entity(&target);
+	list_add_tail(&target.tasks, &task_list);
+
+	sched_enqueue_task(&first);
+	sched_enqueue_task(&second);
+	sched_enqueue_task(&target);
+	KFS_ASSERT_TRUE(sched_ext_register(&sched_ext_pure_rr_ops) == 0);
+
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(target.pid, SCHED_EXT, 0) == 0);
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(target.pid, SCHED_NORMAL, 0) == 0);
+	KFS_ASSERT_TRUE(sched_pick_next_task() == &first);
+	sched_dequeue_task(&first);
+	KFS_ASSERT_TRUE(sched_pick_next_task() == &second);
+	sched_dequeue_task(&second);
+	KFS_ASSERT_TRUE(sched_pick_next_task() == &target);
+	sched_dequeue_task(&target);
+
+	list_del(&target.tasks);
+	sched_ext_unregister();
+	printk("sys_sched_setscheduler: EXT round trip preserves fair runqueue OK\n");
+}
+
 /* 非 RT ポリシーに priority != 0 を渡すと -EINVAL になることを確かめる（Linux 6.18 準拠） */
 static void test_sched_setscheduler_non_rt_clears_priority(void)
 {
@@ -513,6 +565,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_fair_to_ext_backend, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_ext_backend_to_fair, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_sleeping_task_stays_dequeued, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_ext_round_trip_preserves_fair_runqueue, setup_test,
+								 teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_getscheduler, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_getscheduler_returns_sched_ext, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_non_rt_clears_priority, setup_test, teardown_test),

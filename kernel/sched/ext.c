@@ -1,3 +1,4 @@
+#include <asm-i386/system.h>
 #include <kfs/errno.h>
 #include <kfs/exit.h>
 #include <kfs/fair.h>
@@ -63,6 +64,9 @@ int sched_ext_register(const struct sched_ext_ops *ops)
 		return -EINVAL;
 	}
 
+	unsigned long flags;
+	local_irq_save(flags);
+
 	/* 既に backend が登録されている場合は解除する */
 	sched_ext_unregister();
 
@@ -70,11 +74,13 @@ int sched_ext_register(const struct sched_ext_ops *ops)
 	if (ret)
 	{
 		/* 新しい backend の初期化に失敗した場合は何もしない */
+		local_irq_restore(flags);
 		return ret;
 	}
 
 	sched_ext_ops = ops;
 	task_for_each(sched_ext_migrate_task_from_fair, NULL);
+	local_irq_restore(flags);
 	return 0;
 }
 
@@ -118,10 +124,14 @@ void sched_ext_unregister(void)
 		return;
 	}
 
+	unsigned long flags;
+	local_irq_save(flags);
+
 	task_for_each(sched_ext_migrate_task_to_fair, NULL);
 	sched_ext_ops->exit();
 	sched_ext_ops = NULL;
 	sched_ext_owner_pid = 0;
+	local_irq_restore(flags);
 }
 
 /** sched_ext backend が有効か確認する

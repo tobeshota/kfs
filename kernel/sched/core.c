@@ -1,3 +1,4 @@
+#include <asm-i386/system.h>
 #include <kfs/errno.h>
 #include <kfs/fair.h>
 #include <kfs/list.h>
@@ -119,7 +120,12 @@ static const struct sched_class *sched_class_for_task(struct task_struct *task)
  */
 void sched_enqueue_task(struct task_struct *task)
 {
+	unsigned long flags;
+
+	local_irq_save(flags);
+
 	sched_class_for_task(task)->enqueue_task(task);
+	local_irq_restore(flags);
 }
 
 /** task を対応する scheduler class の runqueue から外す
@@ -127,7 +133,12 @@ void sched_enqueue_task(struct task_struct *task)
  */
 void sched_dequeue_task(struct task_struct *task)
 {
+	unsigned long flags;
+
+	local_irq_save(flags);
+
 	sched_class_for_task(task)->dequeue_task(task);
+	local_irq_restore(flags);
 }
 
 /** task が対応する scheduler class の runqueue に載っているかを返す
@@ -136,7 +147,14 @@ void sched_dequeue_task(struct task_struct *task)
  */
 int sched_task_queued(struct task_struct *task)
 {
-	return sched_class_for_task(task)->task_queued(task);
+	unsigned long flags;
+	int queued;
+
+	local_irq_save(flags);
+	queued = sched_class_for_task(task)->task_queued(task);
+
+	local_irq_restore(flags);
+	return queued;
 }
 
 /** 次に実行する task を scheduler class から取得する

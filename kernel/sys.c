@@ -1,3 +1,4 @@
+#include <asm-i386/system.h>
 #include <kfs/capability.h>
 #include <kfs/console.h>
 #include <kfs/errno.h>
@@ -293,6 +294,11 @@ int sys_sched_setscheduler(pid_t pid, int policy, int priority)
 		return -EINVAL; /* 非 RT ポリシーでは priority は 0 のみ有効 */
 	}
 
+	/* policy と所属 runqueue は一体として変更する．
+	 * タイマー IRQ の scheduler_tick() が途中状態の runqueue を操作しないよう．
+	 * ローカル割り込みを禁止する． */
+	unsigned long flags;
+	local_irq_save(flags);
 	const int queued = sched_task_queued(tsk); /* タスクがキューに存在するか */
 	if (queued)
 	{
@@ -321,6 +327,7 @@ int sys_sched_setscheduler(pid_t pid, int policy, int priority)
 		sched_enqueue_task(tsk);
 	}
 
+	local_irq_restore(flags);
 	return 0;
 }
 
