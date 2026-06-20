@@ -91,6 +91,11 @@ LIST_HEAD(task_list);
  */
 static const struct sched_class *sched_class_for_policy(unsigned int policy)
 {
+	if (sched_ext_use_ext_class_for_policy(policy))
+	{
+		return &sched_ext_class;
+	}
+
 	switch (policy)
 	{
 	case SCHED_NORMAL:

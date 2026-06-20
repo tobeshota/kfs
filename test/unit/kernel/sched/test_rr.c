@@ -374,7 +374,7 @@ static void test_sched_setscheduler_migrates_fair_to_ext_backend(void)
 	printk("sys_sched_setscheduler: migrates fair to ext backend OK\n");
 }
 
-/* backend有効時にqueued taskをsched_extからfair runqueueへ戻せることを確かめる */
+/* full switch backend有効時は SCHED_NORMAL へ戻しても ext runqueue 管理を継続する */
 static void test_sched_setscheduler_migrates_ext_backend_to_fair(void)
 {
 	current->policy = SCHED_EXT;
@@ -385,12 +385,13 @@ static void test_sched_setscheduler_migrates_ext_backend_to_fair(void)
 	KFS_ASSERT_TRUE(sched_ext_class.task_queued(current));
 	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_NORMAL, 0) == 0);
 	KFS_ASSERT_TRUE(current->policy == SCHED_NORMAL);
-	KFS_ASSERT_TRUE(list_empty(&current->run_list));
-	KFS_ASSERT_TRUE(current->se.on_rq);
+	KFS_ASSERT_TRUE(!list_empty(&current->run_list));
+	KFS_ASSERT_TRUE(!current->se.on_rq);
+	KFS_ASSERT_TRUE(sched_ext_class.task_queued(current));
 	KFS_ASSERT_TRUE(sched_task_queued(current));
 
 	sched_dequeue_task(current);
-	printk("sys_sched_setscheduler: migrates ext backend to fair OK\n");
+	printk("sys_sched_setscheduler: full switch keeps normal on ext backend OK\n");
 }
 
 /* sleep中のtaskはpolicy変更後もrunqueue外に留まることを確かめる */
@@ -446,6 +447,7 @@ static void test_sched_setscheduler_ext_round_trip_preserves_fair_runqueue(void)
 	first.policy = SCHED_NORMAL;
 	first.nice = 0;
 	first.se.vruntime = 10;
+	INIT_LIST_HEAD(&first.tasks);
 	INIT_LIST_HEAD(&first.run_list);
 	sched_init_entity(&first);
 
@@ -454,6 +456,7 @@ static void test_sched_setscheduler_ext_round_trip_preserves_fair_runqueue(void)
 	second.policy = SCHED_NORMAL;
 	second.nice = 0;
 	second.se.vruntime = 20;
+	INIT_LIST_HEAD(&second.tasks);
 	INIT_LIST_HEAD(&second.run_list);
 	sched_init_entity(&second);
 
@@ -465,6 +468,8 @@ static void test_sched_setscheduler_ext_round_trip_preserves_fair_runqueue(void)
 	INIT_LIST_HEAD(&target.tasks);
 	INIT_LIST_HEAD(&target.run_list);
 	sched_init_entity(&target);
+	list_add_tail(&first.tasks, &task_list);
+	list_add_tail(&second.tasks, &task_list);
 	list_add_tail(&target.tasks, &task_list);
 
 	sched_enqueue_task(&first);
@@ -481,6 +486,8 @@ static void test_sched_setscheduler_ext_round_trip_preserves_fair_runqueue(void)
 	KFS_ASSERT_TRUE(sched_pick_next_task() == &target);
 	sched_dequeue_task(&target);
 
+	list_del(&first.tasks);
+	list_del(&second.tasks);
 	list_del(&target.tasks);
 	sched_ext_unregister();
 	printk("sys_sched_setscheduler: EXT round trip preserves fair runqueue OK\n");
