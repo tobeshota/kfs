@@ -12,6 +12,7 @@
 /* プロセス情報を表示用にまとめた構造 */
 struct kfs_ps_entry
 {
+	unsigned int uid;			/* 実効ユーザーID */
 	pid_t pid;					/* プロセスID*/
 	pid_t ppid;					/* 親プロセスID */
 	char tty[KFS_PS_TTY_LEN];	/* 制御端末（未解決時は "-" を入れる） */

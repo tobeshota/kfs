@@ -145,6 +145,7 @@ static int ps_snapshot_collect(struct task_struct *task, void *ctx)
 	}
 
 	entry = &snapshot->entries[snapshot->count++];
+	entry->uid = task->euid.val;
 	entry->pid = task->pid;
 	entry->ppid = task->parent ? task->parent->pid : 0;
 	ps_fill_tty(entry->tty, sizeof(entry->tty), task->tty_console);
