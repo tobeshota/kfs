@@ -19,6 +19,28 @@ static const struct sched_ext_ops *sched_ext_ops;
  */
 static pid_t sched_ext_owner_pid;
 
+/** fair fallback中のSCHED_EXT taskをbackendへ移送する
+ * @param task 移送対象task
+ * @param ctx 未使用
+ * @return 常に0
+ */
+static int sched_ext_migrate_task_from_fair(struct task_struct *task, void *ctx)
+{
+	(void)ctx;
+
+	/* SCHED_EXT task でない場合や fair scheduler にキューされていない場合は何もしない */
+	if (task->policy != SCHED_EXT || !fair_sched_class.task_queued(task))
+	{
+		return 0;
+	}
+
+	/* fair scheduler から backend へ移送する */
+	fair_sched_class.dequeue_task(task);
+	sched_ext_ops->enqueue_task(task);
+
+	return 0;
+}
+
 /** sched_ext backend ops が最低限の操作を持つか確認する
  * @param ops 確認する backend ops
  * @return 1=有効, 0=無効
@@ -52,6 +74,7 @@ int sched_ext_register(const struct sched_ext_ops *ops)
 	}
 
 	sched_ext_ops = ops;
+	task_for_each(sched_ext_migrate_task_from_fair, NULL);
 	return 0;
 }
 

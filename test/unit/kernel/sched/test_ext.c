@@ -326,6 +326,59 @@ static void test_sched_ext_unload_migrates_tasks_to_fair(void)
 	printk("sched_ext: unload migrates tasks to fair OK\n");
 }
 
+static void test_sched_ext_load_migrates_fair_fallback_tasks(void)
+{
+	struct task_struct owner;
+	struct task_struct ext_task;
+	struct task_struct *saved_current = current;
+
+	memset(&owner, 0, sizeof(owner));
+	owner.pid = 48;
+	init_ext_test_task(&ext_task, 49);
+	INIT_LIST_HEAD(&ext_task.tasks);
+	list_add_tail(&ext_task.tasks, &task_list);
+
+	sched_enqueue_task(&ext_task);
+	KFS_ASSERT_TRUE(ext_task.se.on_rq);
+
+	current = &owner;
+	KFS_ASSERT_TRUE(sys_sched_ext_load("pure_rr") == 0);
+	KFS_ASSERT_TRUE(!ext_task.se.on_rq);
+	KFS_ASSERT_TRUE(sched_ext_class.task_queued(&ext_task));
+	KFS_ASSERT_TRUE(sched_ext_class.pick_next_task() == &ext_task);
+
+	sched_dequeue_task(&ext_task);
+	list_del(&ext_task.tasks);
+	current = saved_current;
+	printk("sched_ext: load migrates fair fallback tasks to backend OK\n");
+}
+
+static void test_sched_ext_fair_class_precedes_backend(void)
+{
+	struct task_struct fair_task;
+	struct task_struct ext_task;
+
+	memset(&fair_task, 0, sizeof(fair_task));
+	fair_task.__state = TASK_RUNNING;
+	fair_task.pid = 50;
+	fair_task.policy = SCHED_NORMAL;
+	fair_task.nice = 0;
+	INIT_LIST_HEAD(&fair_task.run_list);
+	sched_init_entity(&fair_task);
+	init_ext_test_task(&ext_task, 51);
+
+	KFS_ASSERT_TRUE(sched_ext_register(&sched_ext_pure_rr_ops) == 0);
+	sched_enqueue_task(&fair_task);
+	sched_enqueue_task(&ext_task);
+
+	KFS_ASSERT_TRUE(sched_pick_next_task() == &fair_task);
+
+	sched_dequeue_task(&fair_task);
+	KFS_ASSERT_TRUE(sched_pick_next_task() == &ext_task);
+	sched_dequeue_task(&ext_task);
+	printk("sched_ext: fair class precedes backend in partial switch OK\n");
+}
+
 static struct kfs_test_case ext_tests[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_starts_disabled, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_disabled_falls_back_to_fair, setup_test, teardown_test),
@@ -338,6 +391,8 @@ static struct kfs_test_case ext_tests[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_unload_rejects_non_owner, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_owner_exit_unloads_backend, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_unload_migrates_tasks_to_fair, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_load_migrates_fair_fallback_tasks, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_ext_fair_class_precedes_backend, setup_test, teardown_test),
 };
 
 int register_unit_tests_ext(struct kfs_test_case **out)

@@ -5,13 +5,18 @@
 #include <kfs/string.h>
 #include <kfs/unistd.h>
 
-#define CHRT_USAGE "Usage: chrt -o -p 0 <pid>\n       chrt --pure-rr -p 0 <pid>\n"
+#define CHRT_USAGE                                                                                                     \
+	"Usage: chrt -o -p 0 <pid>\n"                                                                                      \
+	"       chrt --ext -p 0 <pid>\n"                                                                                   \
+	"       chrt --pure-rr -p 0 <pid>\n"                                                                               \
+	"       chrt -p <pid>\n"
 
 struct chrt_request
 {
-	int policy;
-	int priority;
-	int pid;
+	int query;	  /* クエリフラグ．スケジューリング情報を取得するかどうかを決める */
+	int policy;	  /* スケジューリングポリシー */
+	int priority; /* スケジューリング優先度 */
+	int pid;	  /* 対象プロセスの PID */
 };
 
 /** 空白を読み飛ばす
@@ -103,12 +108,62 @@ static int chrt_parse_policy(const char *token, int *policy)
 		*policy = SCHED_NORMAL;
 		return 1;
 	}
+	if (strcmp(token, "--ext") == 0 || strcmp(token, "ext") == 0)
+	{
+		*policy = SCHED_EXT;
+		return 1;
+	}
 	if (strcmp(token, "--pure-rr") == 0 || strcmp(token, "pure_rr") == 0 || strcmp(token, "pure-rr") == 0)
 	{
 		*policy = SCHED_PURE_RR;
 		return 1;
 	}
 	return 0;
+}
+
+/** policy値をchrt表示用の名前へ変換する
+ * @param policy SCHED_* policy
+ * @return policy名
+ */
+static const char *chrt_policy_name(int policy)
+{
+	switch (policy)
+	{
+	case SCHED_NORMAL:
+		return "SCHED_OTHER";
+	case SCHED_BATCH:
+		return "SCHED_BATCH";
+	case SCHED_IDLE:
+		return "SCHED_IDLE";
+	case SCHED_EXT:
+		return "SCHED_EXT";
+	case SCHED_PURE_RR:
+		return "SCHED_PURE_RR";
+	default:
+		return "SCHED_UNKNOWN";
+	}
+}
+
+/** 対象processのスケジューリング情報を表示する
+ * @param pid 対象PID
+ */
+static void chrt_print_policy(int pid)
+{
+	int policy = sched_getscheduler((pid_t)pid);
+
+	if (policy == -ESRCH)
+	{
+		printf("chrt: pid not found: %d\n", pid);
+		return;
+	}
+	if (policy < 0)
+	{
+		printf("chrt: failed: %d\n", policy);
+		return;
+	}
+
+	printf("pid %d's current scheduling policy: %s\n", pid, chrt_policy_name(policy));
+	printf("pid %d's current scheduling priority: 0\n", pid);
 }
 
 /** sched_setscheduler() の戻り値を chrt のエラー表示へ変換する
@@ -151,33 +206,48 @@ static int chrt_parse_args(const char *arg, struct chrt_request *request)
 	const char *cursor = arg;
 	char token[32];
 
-	/* request->policyを解析する */
-	if (!chrt_next_token(&cursor, token, sizeof(token)) || !chrt_parse_policy(token, &request->policy))
+	if (!chrt_next_token(&cursor, token, sizeof(token)))
 	{
 		return 0;
 	}
 
-	/* "-p"が指定されているか確認する */
+	if (strcmp(token, "-p") == 0)
+	{
+		request->query = 1;
+		if (!chrt_parse_int_token(&cursor, &request->pid))
+		{
+			return 0;
+		}
+		return *chrt_skip_spaces(cursor) == 0;
+	}
+
+	request->query = 0;
+	if (!chrt_parse_policy(token, &request->policy))
+	{
+		return 0;
+	}
 	if (!chrt_next_token(&cursor, token, sizeof(token)) || strcmp(token, "-p") != 0)
 	{
 		return 0;
 	}
-
-	/* request->priority と request->pid を解析する */
 	if (!chrt_parse_int_token(&cursor, &request->priority) || !chrt_parse_int_token(&cursor, &request->pid))
 	{
 		return 0;
 	}
-
-	/* 入力の末尾に余分な文字がないか確認する */
-	return *chrt_skip_spaces(cursor) == '\0';
+	return *chrt_skip_spaces(cursor) == 0;
 }
 
 /** chrt コマンド
  * @param arg コマンド引数
  * @example
+ * `chrt -p 1234`はPID 1234の現在のpolicyとpriorityを表示する．
+ * @example
  * `chrt -o -p 0 1234`は
  * PID 1234 のスケジューリングポリシーを SCHED_NORMAL、
+ * 優先度を 0 に設定することを意味する．
+ * @example
+ * `chrt --ext -p 0 5678`は
+ * PID 5678 のスケジューリングポリシーを SCHED_EXT、
  * 優先度を 0 に設定することを意味する．
  * @example
  * `chrt --pure-rr -p 0 5678`は
@@ -194,8 +264,19 @@ void cmd_chrt(void *arg)
 		return;
 	}
 
+	if (request.query)
+	{
+		chrt_print_policy(request.pid);
+		return;
+	}
+
 	struct sched_param param;
 	param.sched_priority = request.priority;
+
+	if (request.policy == SCHED_PURE_RR)
+	{
+		printf("chrt: --pure-rr is deprecated; use --ext with scx_pure_rr\n");
+	}
 
 	/* sched_setscheduler() を呼び出して結果を報告する */
 	(void)chrt_report_result(sched_setscheduler((pid_t)request.pid, request.policy, &param), request.pid);

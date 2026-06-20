@@ -9,6 +9,7 @@
 #include <kfs/unistd.h>
 
 extern struct task_struct init_task;
+extern struct list_head task_list;
 
 /* ------------------------------------------------------------------ */
 /* ヘルパ                                                               */
@@ -390,6 +391,64 @@ static void test_sched_setscheduler_migrates_fair_to_rr(void)
 	printk("sys_sched_setscheduler: migrates fair to RR OK\n");
 }
 
+/* backend有効時にqueued taskをfairからsched_ext runqueueへ移動できることを確かめる */
+static void test_sched_setscheduler_migrates_fair_to_ext_backend(void)
+{
+	current->policy = SCHED_NORMAL;
+	current->se.vruntime = 0;
+	sched_init_entity(current);
+	sched_enqueue_task(current);
+	KFS_ASSERT_TRUE(sched_ext_register(&sched_ext_pure_rr_ops) == 0);
+
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_EXT, 0) == 0);
+	KFS_ASSERT_TRUE(current->policy == SCHED_EXT);
+	KFS_ASSERT_TRUE(!current->se.on_rq);
+	KFS_ASSERT_TRUE(sched_ext_class.task_queued(current));
+
+	sched_dequeue_task(current);
+	printk("sys_sched_setscheduler: migrates fair to ext backend OK\n");
+}
+
+/* backend有効時にqueued taskをsched_extからfair runqueueへ戻せることを確かめる */
+static void test_sched_setscheduler_migrates_ext_backend_to_fair(void)
+{
+	current->policy = SCHED_EXT;
+	current->time_slice = RR_TIMESLICE;
+	KFS_ASSERT_TRUE(sched_ext_register(&sched_ext_pure_rr_ops) == 0);
+	sched_enqueue_task(current);
+
+	KFS_ASSERT_TRUE(sched_ext_class.task_queued(current));
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(0, SCHED_NORMAL, 0) == 0);
+	KFS_ASSERT_TRUE(current->policy == SCHED_NORMAL);
+	KFS_ASSERT_TRUE(list_empty(&current->run_list));
+	KFS_ASSERT_TRUE(current->se.on_rq);
+	KFS_ASSERT_TRUE(sched_task_queued(current));
+
+	sched_dequeue_task(current);
+	printk("sys_sched_setscheduler: migrates ext backend to fair OK\n");
+}
+
+/* sleep中のtaskはpolicy変更後もrunqueue外に留まることを確かめる */
+static void test_sched_setscheduler_sleeping_task_stays_dequeued(void)
+{
+	struct task_struct target = *current;
+
+	target.pid = 52;
+	target.policy = SCHED_NORMAL;
+	target.__state = TASK_INTERRUPTIBLE;
+	INIT_LIST_HEAD(&target.tasks);
+	INIT_LIST_HEAD(&target.run_list);
+	sched_init_entity(&target);
+	list_add_tail(&target.tasks, &task_list);
+
+	KFS_ASSERT_TRUE(sys_sched_setscheduler(target.pid, SCHED_EXT, 0) == 0);
+	KFS_ASSERT_TRUE(target.policy == SCHED_EXT);
+	KFS_ASSERT_TRUE(!sched_task_queued(&target));
+
+	list_del(&target.tasks);
+	printk("sys_sched_setscheduler: sleeping task stays dequeued OK\n");
+}
+
 /* sys_sched_getscheduler() が pid 0 のとき current のポリシーを返すことを確かめる */
 static void test_sched_getscheduler(void)
 {
@@ -451,6 +510,9 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_rr_to_fair, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_ext_fallback_uses_fair, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_fair_to_rr, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_fair_to_ext_backend, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_migrates_ext_backend_to_fair, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_sleeping_task_stays_dequeued, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_getscheduler, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_getscheduler_returns_sched_ext, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sched_setscheduler_non_rt_clears_priority, setup_test, teardown_test),
