@@ -63,8 +63,8 @@ pid_t do_wait(int *wstatus, int options)
 			return 0;
 		}
 
-		/* ゾンビ子がまだいない: 子プロセスが実行できるよう CPU を譲る。
-		 * init_task が cpu_idle_loop() で hlt するため呼び出し元は hlt 不要。 */
+		/* ゾンビ子がまだいないため SIGCHLD で起床するまで眠る */
+		tsk->__state = TASK_INTERRUPTIBLE;
 		schedule();
 	}
 }
@@ -162,6 +162,7 @@ pid_t do_waitpid(pid_t pid, int *wstatus, int options)
 			return 0;
 		}
 
+		tsk->__state = TASK_INTERRUPTIBLE;
 		schedule();
 	}
 }
