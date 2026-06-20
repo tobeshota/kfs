@@ -322,6 +322,24 @@ int openpty(int *master_fd, int *slave_fd)
 	return (int)ret;
 }
 
+/** 接続済みUnix stream socket pairを作成する
+ * @param domain AF_UNIXのみ対応
+ * @param type SOCK_STREAMのみ対応
+ * @param protocol 0のみ対応
+ * @param sv 作成した2つのfdを書き込む配列
+ * @return 0=成功，負数=エラー
+ */
+int socketpair(int domain, int type, int protocol, int sv[2])
+{
+	long ret;
+
+	__asm__ __volatile__("int $0x80"
+						 : "=a"(ret)
+						 : "0"(__NR_socketpair), "b"((long)domain), "c"((long)type), "d"((long)protocol), "S"((long)sv)
+						 : "memory");
+	return (int)ret;
+}
+
 /* カーネルパニックを発生させる */
 void __attribute__((noreturn)) trigger_panic(void)
 {

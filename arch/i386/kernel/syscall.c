@@ -10,6 +10,7 @@
 #include <kfs/sched.h>
 #include <kfs/sched_ext.h>
 #include <kfs/signal.h>
+#include <kfs/socket.h>
 #include <kfs/stddef.h>
 #include <kfs/sys.h>
 #include <kfs/syscall.h>
@@ -85,6 +86,13 @@ static long do_sys_read(long arg1, long arg2, long arg3, long arg4, long arg5)
 		return pty_read((int)arg1, (char *)arg2, (unsigned int)arg3);
 	}
 	return -EBADF;
+}
+
+/* socketpair(domain, type, protocol, sv)システムコール */
+static long do_sys_socketpair(long arg1, long arg2, long arg3, long arg4, long arg5)
+{
+	(void)arg5;
+	return sys_socketpair((int)arg1, (int)arg2, (int)arg3, (int *)arg4);
 }
 
 static long do_sys_kbd_read_event(long arg1, long arg2, long arg3, long arg4, long arg5)
@@ -501,6 +509,7 @@ static syscall_fn_t sys_call_table[NR_syscalls] = {
 	[__NR_sched_ext_load] = do_sys_sched_ext_load,
 	[__NR_sched_ext_unload] = do_sys_sched_ext_unload,
 	[__NR_sched_ext_status] = do_sys_sched_ext_status,
+	[__NR_socketpair] = do_sys_socketpair,
 	[__NR_ioctl] = do_sys_ioctl,
 };
 

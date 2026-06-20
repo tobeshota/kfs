@@ -9,6 +9,7 @@
 #include <kfs/sched.h>
 #include <kfs/sched_ext.h>
 #include <kfs/signal.h>
+#include <kfs/socket.h>
 
 /* POSIX プロセス管理 API（lib/unistd.c で実装） */
 pid_t fork(void);
@@ -46,6 +47,7 @@ int kbd_read_event(struct kfs_keyboard_raw_event *event);
 int kbd_clear_events(void);
 int kbd_set_raw_mode(int enabled);
 int openpty(int *master_fd, int *slave_fd);
+int socketpair(int domain, int type, int protocol, int sv[2]);
 int ioctl(int fd, unsigned int cmd, unsigned long arg);
 void __attribute__((noreturn)) trigger_panic(void);
 
