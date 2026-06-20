@@ -39,6 +39,7 @@ int register_unit_tests_psg(struct kfs_test_case **out);
 int register_unit_tests_exec(struct kfs_test_case **out);
 int register_unit_tests_mmap(struct kfs_test_case **out);
 int register_unit_tests_piano(struct kfs_test_case **out);
+int register_unit_tests_socket(struct kfs_test_case **out);
 
 #define KFS_MAX_TESTS 600
 
@@ -127,6 +128,8 @@ int register_unit_tests(struct kfs_test_case **out)
 		int count_mmap = register_unit_tests_mmap(&cases_mmap);
 		struct kfs_test_case *cases_piano = 0;
 		int count_piano = register_unit_tests_piano(&cases_piano);
+		struct kfs_test_case *cases_socket = 0;
+		int count_socket = register_unit_tests_socket(&cases_socket);
 		// 動的確保は避け、静的最大数 (今は少数) を想定してスタック上に置けないので静的配列
 		static struct kfs_test_case merged[KFS_MAX_TESTS];
 		int idx = 0;
@@ -281,6 +284,10 @@ int register_unit_tests(struct kfs_test_case **out)
 		for (int i = 0; i < count_piano && idx < KFS_MAX_TESTS; i++)
 		{
 			merged[idx++] = cases_piano[i];
+		}
+		for (int i = 0; i < count_socket && idx < KFS_MAX_TESTS; i++)
+		{
+			merged[idx++] = cases_socket[i];
 		}
 		all_cases = merged;
 		all_count = idx;

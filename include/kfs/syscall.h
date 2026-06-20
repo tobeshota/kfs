@@ -41,9 +41,10 @@
 #define __NR_sched_ext_load 263
 #define __NR_sched_ext_unload 264
 #define __NR_sched_ext_status 265
+#define __NR_socketpair 266
 
 /* サポートするシステムコールの数 */
-#define NR_syscalls 266
+#define NR_syscalls 267
 
 /* システムコールのエントリポイント(entry.Sで定義) */
 extern void system_call(void);

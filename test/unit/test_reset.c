@@ -10,6 +10,7 @@
 #include <kfs/rr.h>
 #include <kfs/sched.h>
 #include <kfs/slab.h>
+#include <kfs/socket.h>
 #include <kfs/vmalloc.h>
 
 /* core.c 内部のグローバルシンボルへのアクセス */
@@ -44,6 +45,7 @@ void reset_all_state_for_test(void)
 	/* vmallocアロケータを初期化（Slabアロケータに依存） */
 	vmalloc_init();
 	pty_reset();
+	unix_socket_reset();
 
 	/* スケジューラ状態をリセット（init_task.run_list の不整合を防ぐ） */
 	/* グローバルタスクリストをクリア */

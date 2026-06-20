@@ -13,6 +13,7 @@
 #include <kfs/serial.h>
 #include <kfs/shell.h>
 #include <kfs/slab.h>
+#include <kfs/socket.h>
 #include <kfs/timer.h>
 #include <kfs/unistd.h>
 #include <kfs/vmalloc.h>
@@ -95,6 +96,7 @@ void start_kernel(void)
 
 	/* PTY 初期化 */
 	pty_reset();
+	unix_socket_init();
 
 	/* PS/2キーボードドライバを初期化する */
 	kfs_keyboard_init();
