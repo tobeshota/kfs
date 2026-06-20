@@ -246,9 +246,42 @@ struct pgrp_signal_ctx
 {
 	pid_t pgrp;	   /* 対象プロセスグループID */
 	int sig;	   /* 送信するシグナル番号 */
+	int matched;   /* 対象グループに属するプロセス数 */
 	int delivered; /* 送信したシグナルの数 */
+	int denied;	   /* 権限不足で拒否された送信数 */
 	int error;	   /* 送信中にエラーが発生した場合は負のエラーコードをセット */
 };
+
+/* kill送信権限: CAP_KILL を持つか、送信元 UID/EUID が対象 UID/EUID のいずれかと一致 */
+static int can_send_kill_signal(const struct task_struct *sender, const struct task_struct *target)
+{
+	/* 送信元または送信先が無効な場合は送信不可 */
+	if (!sender || !target)
+	{
+		return 0;
+	}
+
+	/* 送信元と送信先が同じ場合は送信可能 */
+	if (sender == target)
+	{
+		return 1;
+	}
+
+	/* CAP_KILL 権限を持つ場合は送信可能 */
+	if (cap_raised(sender->cap_effective, CAP_KILL))
+	{
+		return 1;
+	}
+
+	/* UID または EUID が一致する場合は送信可能 */
+	if (sender->uid.val == target->uid.val || sender->uid.val == target->euid.val ||
+		sender->euid.val == target->uid.val || sender->euid.val == target->euid.val)
+	{
+		return 1;
+	}
+
+	return 0;
+}
 
 static int kill_pg_cb(struct task_struct *task, void *ctx)
 {
@@ -263,6 +296,17 @@ static int kill_pg_cb(struct task_struct *task, void *ctx)
 		return 0;
 	}
 
+	/* 対象グループに属するプロセス数をカウント */
+	signal_ctx->matched++;
+
+	/* 送信権限がない場合は拒否 */
+	if (!can_send_kill_signal(current, task))
+	{
+		signal_ctx->denied++;
+		return 0;
+	}
+
+	/* シグナルを送信 */
 	if (send_signal(signal_ctx->sig, task) == 0)
 	{
 		signal_ctx->delivered++;
@@ -294,20 +338,31 @@ int kill_pg(pid_t pgrp, int sig)
 
 	ctx.pgrp = pgrp;
 	ctx.sig = sig;
+	ctx.matched = 0;
 	ctx.delivered = 0;
+	ctx.denied = 0;
 	ctx.error = 0;
 
+	/* 対象プロセスグループの全メンバにシグナルを送信 */
 	if (task_for_each(kill_pg_cb, &ctx) < 0)
 	{
 		return -EINVAL;
 	}
+
+	/* シグナル送信中にエラーが発生した場合はエラーコードを返す */
 	if (ctx.error)
 	{
 		return ctx.error;
 	}
-	if (ctx.delivered == 0)
+	/* 対象プロセスグループに属するプロセスが存在しない場合はエラーを返す */
+	if (ctx.matched == 0)
 	{
 		return -ESRCH;
+	}
+	/* 対象プロセスグループに属するプロセスが存在するが、送信権限がない場合はエラーを返す */
+	if (ctx.delivered == 0 && ctx.denied > 0)
+	{
+		return -EPERM;
 	}
 	return 0;
 }
@@ -354,6 +409,12 @@ int sys_kill(pid_t pid, int sig)
 	if (p == (struct task_struct *)0)
 	{
 		return -ESRCH; /* プロセスが存在しない */
+	}
+
+	/* 送信権限がない場合は拒否 */
+	if (!can_send_kill_signal(current, p))
+	{
+		return -EPERM;
 	}
 
 	/* シグナルを送信 */

@@ -43,6 +43,9 @@ static void setup_test(void)
 
 	/* currentをinit_taskにリセット */
 	current = &init_task;
+	current->uid.val = 0;
+	current->euid.val = 0;
+	current->cap_effective = CAP_FULL_SET;
 
 	/* 保留シグナルをクリア */
 	current->pending.signal = 0;
@@ -61,6 +64,10 @@ static void setup_test(void)
 /* 全テストで共通のクリーンアップ関数 */
 static void teardown_test(void)
 {
+	current->uid.val = 0;
+	current->euid.val = 0;
+	current->cap_effective = CAP_FULL_SET;
+
 	/* 保留シグナルをクリア */
 	current->pending.signal = 0;
 
@@ -377,6 +384,82 @@ KFS_TEST(test_sys_kill_invalid_pid)
 	KFS_ASSERT_EQ(-ESRCH, ret);
 }
 
+/* sys_kill() が権限不足時に -EPERM を返すことをテスト */
+KFS_TEST(test_sys_kill_permission_denied)
+{
+	struct task_struct target = init_task;
+	int ret;
+
+	target.pid = 42;
+	target.pgrp = 42;
+	target.parent = &init_task;
+	target.uid.val = 2000;
+	target.euid.val = 2000;
+	target.cap_effective = CAP_EMPTY_SET;
+	target.pending.signal = 0;
+	INIT_LIST_HEAD(&target.tasks);
+	list_add(&target.tasks, &task_list);
+
+	current->uid.val = 1000;
+	current->euid.val = 1000;
+	current->cap_effective = CAP_EMPTY_SET;
+
+	ret = sys_kill(target.pid, SIGTERM);
+	KFS_ASSERT_EQ(-EPERM, ret);
+	KFS_ASSERT_EQ(0, (int)(target.pending.signal & (1UL << SIGTERM)));
+}
+
+/* CAP_KILL を持つ場合は UID 不一致でも sys_kill() が成功することをテスト */
+KFS_TEST(test_sys_kill_cap_kill_allows)
+{
+	struct task_struct target = init_task;
+	int ret;
+
+	target.pid = 43;
+	target.pgrp = 43;
+	target.parent = &init_task;
+	target.uid.val = 2000;
+	target.euid.val = 2000;
+	target.cap_effective = CAP_EMPTY_SET;
+	target.pending.signal = 0;
+	INIT_LIST_HEAD(&target.tasks);
+	list_add(&target.tasks, &task_list);
+
+	current->uid.val = 1000;
+	current->euid.val = 1000;
+	current->cap_effective = CAP_EMPTY_SET;
+	cap_raise(current->cap_effective, CAP_KILL);
+
+	ret = sys_kill(target.pid, SIGTERM);
+	KFS_ASSERT_EQ(0, ret);
+	KFS_ASSERT_TRUE(target.pending.signal & (1UL << SIGTERM));
+}
+
+/* kill_pg() が一致プロセスは存在するが権限不足のみの場合に -EPERM を返すことをテスト */
+KFS_TEST(test_kill_pgrp_permission_denied)
+{
+	struct task_struct target = init_task;
+	int ret;
+
+	target.pid = 44;
+	target.pgrp = 77;
+	target.parent = &init_task;
+	target.uid.val = 2000;
+	target.euid.val = 2000;
+	target.cap_effective = CAP_EMPTY_SET;
+	target.pending.signal = 0;
+	INIT_LIST_HEAD(&target.tasks);
+	list_add(&target.tasks, &task_list);
+
+	current->uid.val = 1000;
+	current->euid.val = 1000;
+	current->cap_effective = CAP_EMPTY_SET;
+
+	ret = kill_pg(77, SIGINT);
+	KFS_ASSERT_EQ(-EPERM, ret);
+	KFS_ASSERT_EQ(0, (int)(target.pending.signal & (1UL << SIGINT)));
+}
+
 /* sys_signal()がsignal()と同等に動作することをテスト */
 KFS_TEST(test_sys_signal_same_as_signal)
 {
@@ -579,6 +662,9 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_kill_pgrp_invalid_args, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_kill_valid_pid, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_kill_invalid_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_kill_permission_denied, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_sys_kill_cap_kill_allows, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_kill_pgrp_permission_denied, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_signal_same_as_signal, setup_test, teardown_test),
 	/* Phase 13: IDT とプロセス連携 */
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_sigsegv_pending, setup_test, teardown_test),
