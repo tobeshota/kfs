@@ -20,6 +20,34 @@ static const struct sched_ext_ops *sched_ext_ops;
  */
 static pid_t sched_ext_owner_pid;
 
+/* fallback理由 */
+enum sched_ext_fallback_reason
+{
+	SCHED_EXT_FALLBACK_NONE = 0,	   /* 正常なunload */
+	SCHED_EXT_FALLBACK_DISPATCH_EMPTY, /* dispatchが空 */
+	SCHED_EXT_FALLBACK_INVALID_TASK,   /* 無効なタスク */
+};
+
+static enum sched_ext_fallback_reason sched_ext_last_fallback;
+
+/** fallback理由を表示用文字列へ変換する
+ * @param reason fallback理由
+ * @return reasonに対応する固定文字列
+ */
+static const char *sched_ext_fallback_reason_name(enum sched_ext_fallback_reason reason)
+{
+	switch (reason)
+	{
+	case SCHED_EXT_FALLBACK_DISPATCH_EMPTY:
+		return "dispatch_empty";
+	case SCHED_EXT_FALLBACK_INVALID_TASK:
+		return "invalid_task";
+	case SCHED_EXT_FALLBACK_NONE:
+	default:
+		return "none";
+	}
+}
+
 /** fair fallback中のSCHED_EXT taskをbackendへ移送する
  * @param task 移送対象task
  * @param ctx 未使用
@@ -113,14 +141,14 @@ static int sched_ext_migrate_task_to_fair(struct task_struct *task, void *ctx)
 	return 0;
 }
 
-/** sched_ext backend を解除する
- * @note backend 未登録の場合は何もしない
+/** sched_ext backendを停止してtaskをfairへfallbackする
+ * @param reason 停止理由。正常なunloadではSCHED_EXT_FALLBACK_NONE
  */
-void sched_ext_unregister(void)
+static void sched_ext_disable(enum sched_ext_fallback_reason reason)
 {
-	/* backend 未登録の場合は何もしない */
 	if (!sched_ext_ops)
 	{
+		sched_ext_last_fallback = reason;
 		return;
 	}
 
@@ -131,7 +159,16 @@ void sched_ext_unregister(void)
 	sched_ext_ops->exit();
 	sched_ext_ops = NULL;
 	sched_ext_owner_pid = 0;
+	sched_ext_last_fallback = reason;
 	local_irq_restore(flags);
+}
+
+/** sched_ext backendを正常に解除する
+ * @note backend未登録の場合はfallback理由をnoneへ戻す
+ */
+void sched_ext_unregister(void)
+{
+	sched_ext_disable(SCHED_EXT_FALLBACK_NONE);
 }
 
 /** sched_ext backend が有効か確認する
@@ -233,6 +270,8 @@ int sys_sched_ext_status(struct sched_ext_status *status)
 	status->enabled = sched_ext_enabled();
 	status->owner_pid = sched_ext_owner_pid;
 	strlcpy(status->name, sched_ext_name(), sizeof(status->name));
+	strlcpy(status->fallback_reason, sched_ext_fallback_reason_name(sched_ext_last_fallback),
+			sizeof(status->fallback_reason));
 	return 0;
 }
 
@@ -305,18 +344,70 @@ static int ext_task_queued(struct task_struct *task)
 	return sched_ext_ops->task_queued(task);
 }
 
-/** sched_ext backend から次の task を取得する
- * @return 次に実行する task。backend 未登録または空なら NULL
+/** backendにqueuedされたtaskがあるか確認する
+ * @param task 確認対象task
+ * @param ctx 未使用
+ * @return backendにqueuedされたSCHED_EXT taskなら1，それ以外は0
+ */
+static int sched_ext_find_queued_task(struct task_struct *task, void *ctx)
+{
+	(void)ctx;
+
+	if (task->policy == SCHED_EXT && sched_ext_ops->task_queued(task))
+	{
+		return 1;
+	}
+	return 0;
+}
+
+/** backendが返したtaskがグローバルな task リストに存在するか確認する
+ * @param task task list上のtask
+ * @param ctx backendが返したtask pointer
+ * @return pointerが一致すれば1，それ以外は0
+ */
+static int sched_ext_find_task(struct task_struct *task, void *ctx)
+{
+	return task == (struct task_struct *)ctx;
+}
+
+/** sched_ext backendから次のtaskを取得する
+ * @return 次に実行するtask。backend未登録または空ならNULL
+ * @note backend bookkeepingに矛盾があればbackendを停止してfairへfallbackする
  */
 static struct task_struct *ext_pick_next_task(void)
 {
-	/* backend 未登録の場合は NULL を返す */
+	struct task_struct *task;
+
 	if (!sched_ext_ops)
 	{
 		return NULL;
 	}
 
-	return sched_ext_ops->pick_next_task();
+	task = sched_ext_ops->pick_next_task();
+
+	/* backend が返した task が NULL の場合は
+	 * fair scheduler へ fallback する */
+	if (!task)
+	{
+		if (task_for_each(sched_ext_find_queued_task, NULL) > 0)
+		{
+			sched_ext_disable(SCHED_EXT_FALLBACK_DISPATCH_EMPTY);
+			return fair_sched_class.pick_next_task();
+		}
+		return NULL;
+	}
+
+	/* backend が返した task がグローバルな task リストに存在しない場合や
+	 * 状態が不正な場合は
+	 * fair scheduler へ fallback する */
+	if (task_for_each(sched_ext_find_task, task) <= 0 || task->policy != SCHED_EXT || task->__state != TASK_RUNNING ||
+		!sched_ext_ops->task_queued(task))
+	{
+		sched_ext_disable(SCHED_EXT_FALLBACK_INVALID_TASK);
+		return fair_sched_class.pick_next_task();
+	}
+
+	return task;
 }
 
 /** SCHED_EXT task の tick 処理を行う
