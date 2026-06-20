@@ -23,6 +23,8 @@ void unix_socket_reset(void);
 int unix_socket_pair(int domain, int type, int protocol, int sv[2]);
 int unix_socket_is_fd(int fd);
 pid_t unix_socket_owner(int fd);
+long unix_socket_read(int fd, char *buf, unsigned int size);
+long unix_socket_write(int fd, const char *buf, unsigned int size);
 long sys_socketpair(int domain, int type, int protocol, int sv[2]);
 
 #endif /* _KFS_SOCKET_H */

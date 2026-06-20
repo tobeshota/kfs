@@ -14,6 +14,7 @@
 #include <kfs/sched.h>
 #include <kfs/serial.h>
 #include <kfs/signal.h>
+#include <kfs/socket.h>
 #include <kfs/stdio.h>
 #include <kfs/string.h>
 #include <kfs/sys.h>
@@ -640,9 +641,16 @@ static int tty_background_write_should_stop(void)
  */
 long sys_write(int fd, const char *buf, size_t count)
 {
+	/* PTYの場合 */
 	if (pty_is_fd(fd))
 	{
 		return pty_write(fd, buf, (unsigned int)count);
+	}
+
+	/* Unix socketの場合 */
+	if (unix_socket_is_fd(fd))
+	{
+		return unix_socket_write(fd, buf, (unsigned int)count);
 	}
 
 	if (fd != 1 && fd != 2 && fd != 4)

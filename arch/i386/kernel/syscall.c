@@ -77,14 +77,26 @@ static long do_sys_read(long arg1, long arg2, long arg3, long arg4, long arg5)
 {
 	(void)arg4;
 	(void)arg5;
+
+	/* 標準入力の場合 */
 	if (arg1 == 0)
 	{
 		return tty_read_line_for_console(current->tty_console, (char *)arg2, (unsigned int)arg3);
 	}
+
+	/* PTYの場合 */
 	if (pty_is_fd((int)arg1))
 	{
 		return pty_read((int)arg1, (char *)arg2, (unsigned int)arg3);
 	}
+
+	/* Unix socketの場合 */
+	if (unix_socket_is_fd((int)arg1))
+	{
+		return unix_socket_read((int)arg1, (char *)arg2, (unsigned int)arg3);
+	}
+
+	/* その他の場合 */
 	return -EBADF;
 }
 
