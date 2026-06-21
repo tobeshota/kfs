@@ -3,7 +3,6 @@
 #include <kfs/pid.h>
 #include <kfs/sched.h>
 #include <kfs/signal.h>
-#include <kfs/slab.h>
 #include <kfs/stddef.h>
 
 /** entry.S が sys_sigreturn のために保存する ring-0 の pt_regs ポインタ
@@ -13,118 +12,6 @@ struct pt_regs *g_current_regs;
 
 /** 現在実行中プロセス（kernel/sched/core.cで定義） */
 extern struct task_struct *current;
-
-/* 保留シグナルエントリ */
-struct pending_signal_entry
-{
-	struct list_head list; /* リストノード */
-	unsigned int magic;	   /* マジックナンバー */
-	int sig;			   /* シグナル番号 */
-};
-
-#define PENDING_SIGNAL_MAGIC 0x53494751U /* シグナルキューのマジックナンバー */
-
-/* シグナルキューを全解放し、保留シグナル状態を初期化する */
-void signal_flush_pending(struct task_struct *task)
-{
-	/* タスクが存在しない場合は何もしない */
-	if (!task)
-	{
-		return;
-	}
-
-	int guard = 0; /* 不正なリスト構造による無限ループを防ぐためのガード */
-	while (!list_empty(&task->pending.list) && guard++ < (_NSIG + 4))
-	{
-		struct pending_signal_entry *entry =
-			list_entry(task->pending.list.next, struct pending_signal_entry, list); /* リストからエントリを取得 */
-		if (entry->magic != PENDING_SIGNAL_MAGIC)
-		{
-			/* マジックナンバーが一致しない場合は
-			 * リストが壊れているとみなして終了 */
-			break;
-		}
-
-		/* エントリをリストから削除して解放 */
-		list_del(&entry->list);
-		entry->magic = 0;
-		kfree(entry);
-	}
-
-	/* シグナルキューを初期化 */
-	INIT_LIST_HEAD(&task->pending.list);
-	task->pending.signal = 0;
-}
-
-/** 保留シグナルキューにエントリを追加する
- * @param task 保留シグナルを持つタスク
- * @param sig  追加するシグナル番号
- * @return 成功時は0、エラー時は-1
- * @note 同一番号の多重追加はしない前提である
- */
-static int signal_enqueue_pending(struct task_struct *task, int sig)
-{
-	struct pending_signal_entry *entry = kmalloc(sizeof(*entry));
-	if (!entry)
-	{
-		return -1;
-	}
-
-	entry->sig = sig;
-	entry->magic = PENDING_SIGNAL_MAGIC; /* マジックナンバーを設定 */
-	INIT_LIST_HEAD(&entry->list);
-	list_add_tail(&entry->list, &task->pending.list);
-	return 0;
-}
-
-/** 保留シグナルキューから次のシグナルを1つ取り出す
- * @param task 保留シグナルを持つタスク
- * @param sig  取り出したシグナル番号を格納するポインタ
- * @return 取り出せた場合は1、取り出せなかった場合は0
- */
-static int signal_dequeue_pending(struct task_struct *task, int *sig)
-{
-	/* タスクが空またはシグナルポインタが無効な場合は何もしない */
-	if (!task || !sig)
-	{
-		return 0;
-	}
-
-	/* 保留シグナルキューにエントリが存在する場合は先頭から取り出す */
-	if (!list_empty(&task->pending.list))
-	{
-		struct pending_signal_entry *entry = list_entry(task->pending.list.next, struct pending_signal_entry, list);
-		/* マジックナンバーが一致しない場合はリストが壊れているとみなして初期化 */
-		if (entry->magic != PENDING_SIGNAL_MAGIC)
-		{
-			INIT_LIST_HEAD(&task->pending.list);
-			return 0;
-		}
-
-		/* エントリからシグナル番号を取得 */
-		*sig = entry->sig;
-
-		/* エントリをリストから削除して解放 */
-		list_del(&entry->list);
-		entry->magic = 0;
-		kfree(entry);
-		task->pending.signal &= ~(1UL << *sig);
-		return 1;
-	}
-
-	/* 旧経路互換: bitmask のみ立っている場合は従来通り番号順で処理 */
-	for (int i = 1; i < _NSIG; i++)
-	{
-		if (task->pending.signal & (1UL << i))
-		{
-			*sig = i;
-			task->pending.signal &= ~(1UL << i);
-			return 1;
-		}
-	}
-
-	return 0;
-}
 
 /** シグナル番号が有効範囲内かを検証する
  * @param sig 検証するシグナル番号
@@ -204,9 +91,17 @@ void do_signal_with_regs(struct pt_regs *regs)
 		return;
 	}
 
-	/* 保留キューから順に取り出して処理 */
-	while (signal_dequeue_pending(current, &sig))
+	/* 各シグナルを順番にチェックして処理 */
+	for (sig = 1; sig < _NSIG; sig++)
 	{
+		/* このシグナルが保留中でなければスキップ */
+		if (!(current->pending.signal & (1UL << sig)))
+		{
+			continue;
+		}
+
+		/* 保留ビットをクリア（処理済みにする） */
+		current->pending.signal &= ~(1UL << sig);
 		handler = current->sig_actions[sig].sa_handler;
 
 		/* SIG_IGN なら無視 */
@@ -241,7 +136,9 @@ void do_signal_with_regs(struct pt_regs *regs)
 				/* スケジューラを呼び出して他のプロセスに CPU を譲る */
 				schedule();
 
-				/* 復帰後はキューの先頭から続行する */
+				/* 復帰後は走査を先頭からやり直し，
+				 * 番号の小さい保留シグナルを取りこぼさない */
+				sig = 0;
 				continue;
 			}
 
@@ -323,18 +220,8 @@ int send_signal(int sig, struct task_struct *p)
 		return -1;
 	}
 
-	unsigned long mask = (1UL << sig);
-
-	/* 非リアルタイムシグナルの場合，
-	 * 同じシグナルが既に保留中であれば新たに追加しない */
-	if (!(p->pending.signal & mask))
-	{
-		if (signal_enqueue_pending(p, sig) != 0)
-		{
-			return -1;
-		}
-		p->pending.signal |= mask;
-	}
+	/* 対象プロセスの保留シグナルビットマスクにセット */
+	p->pending.signal |= (1UL << sig);
 
 	/* SIGCONT の場合は停止中フラグをクリアして再開フラグをセット */
 	if (sig == SIGCONT)

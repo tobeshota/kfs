@@ -55,9 +55,6 @@ __attribute__((noreturn)) void do_exit(int code)
 	/* デバイス固有の終了後始末はフック経由で実行する */
 	invoke_exit_hooks(tsk);
 
-	/* 保留中シグナルキューを解放 */
-	signal_flush_pending(tsk);
-
 	/* 終了中フラグを設定 */
 	tsk->flags |= PF_EXITING;
 
@@ -169,7 +166,6 @@ void release_task(struct task_struct *p)
 	}
 
 	/* シグナル構造体を解放 */
-	signal_flush_pending(p);
 	if (p->signal)
 	{
 		kfree(p->signal);

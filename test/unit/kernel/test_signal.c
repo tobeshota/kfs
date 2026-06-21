@@ -46,7 +46,6 @@ static void setup_test(void)
 	current->uid.val = 0;
 	current->euid.val = 0;
 	current->cap_effective = CAP_FULL_SET;
-	INIT_LIST_HEAD(&current->pending.list);
 
 	/* 保留シグナルをクリア */
 	current->pending.signal = 0;
@@ -68,8 +67,6 @@ static void teardown_test(void)
 	current->uid.val = 0;
 	current->euid.val = 0;
 	current->cap_effective = CAP_FULL_SET;
-	signal_flush_pending(current);
-	INIT_LIST_HEAD(&current->pending.list);
 
 	/* 保留シグナルをクリア */
 	current->pending.signal = 0;
@@ -93,19 +90,6 @@ static void counting_handler(int sig)
 {
 	(void)sig;
 	handler_count++;
-}
-
-static int pending_list_len(struct task_struct *task)
-{
-	int cnt = 0;
-	struct list_head *pos;
-
-	list_for_each(pos, &task->pending.list)
-	{
-		cnt++;
-	}
-
-	return cnt;
 }
 
 /* sys_signal()で有効なシグナルにハンドラを登録できることをテスト */
@@ -348,55 +332,6 @@ KFS_TEST(test_send_signal_invalid_signum)
 
 	ret = send_signal(_NSIG, current);
 	KFS_ASSERT_EQ(-1, ret);
-}
-
-/* send_signal() が sigpending.list にエントリを積むことをテスト */
-KFS_TEST(test_send_signal_enqueues_pending_list)
-{
-	struct task_struct target;
-	int i;
-
-	target.pending.signal = 0;
-	INIT_LIST_HEAD(&target.pending.list);
-	for (i = 0; i < _NSIG; i++)
-	{
-		target.sig_actions[i].sa_handler = SIG_DFL;
-		target.sig_actions[i].sa_flags = 0;
-	}
-
-	KFS_ASSERT_EQ(0, send_signal(SIGUSR1, &target));
-	KFS_ASSERT_EQ(1, pending_list_len(&target));
-	KFS_ASSERT_TRUE(target.pending.signal & (1UL << SIGUSR1));
-
-	signal_flush_pending(&target);
-}
-
-/* 同一番号シグナルは list 上で合流（1エントリ）することをテスト */
-KFS_TEST(test_send_signal_coalesces_same_signum)
-{
-	KFS_ASSERT_EQ(0, send_signal(SIGUSR1, current));
-	KFS_ASSERT_EQ(0, send_signal(SIGUSR1, current));
-
-	KFS_ASSERT_EQ(1, pending_list_len(current));
-	KFS_ASSERT_TRUE(current->pending.signal & (1UL << SIGUSR1));
-}
-
-/* do_signal() 実行で sigpending.list が消費されることをテスト */
-KFS_TEST(test_do_signal_drains_pending_list)
-{
-	handler_count = 0;
-	sys_signal(SIGUSR1, counting_handler);
-	sys_signal(SIGUSR2, counting_handler);
-
-	KFS_ASSERT_EQ(0, send_signal(SIGUSR1, current));
-	KFS_ASSERT_EQ(0, send_signal(SIGUSR2, current));
-	KFS_ASSERT_EQ(2, pending_list_len(current));
-
-	do_signal();
-
-	KFS_ASSERT_EQ(2, handler_count);
-	KFS_ASSERT_EQ(0, pending_list_len(current));
-	KFS_ASSERT_EQ(0, signal_pending());
 }
 
 /* kill_pg() が同一 pgrp のプロセスへシグナルを送ることをテスト */
@@ -722,9 +657,6 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_sets_pending, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_null_process, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_invalid_signum, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_enqueues_pending_list, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_send_signal_coalesces_same_signum, setup_test, teardown_test),
-	KFS_REGISTER_TEST_WITH_SETUP(test_do_signal_drains_pending_list, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_kill_pgrp_delivers_to_group, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_kill_pgrp_invalid_group, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_kill_pgrp_invalid_args, setup_test, teardown_test),
