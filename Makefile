@@ -27,7 +27,7 @@ FMT_IMAGE ?= kfs-fmt
 DOCKER ?= docker
 ISA	?= i386
 PWD := $(shell pwd)
-DOCKER_RUN = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -u $(shell id -u):$(shell id -g) -v "$(PWD)":/work -w /work $(IMAGE)
+DOCKER_RUN = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(PWD)":/work -w /work $(IMAGE)
 
 # ===== Toolchain (used inside container) =====
 CROSS        ?= i686-elf
