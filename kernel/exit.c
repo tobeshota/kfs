@@ -17,7 +17,12 @@ extern struct list_head task_list;
 
 static exit_hook_t exit_hooks[MAX_EXIT_HOOKS];
 static int exit_hook_count;
+static stop_hook_t stop_hooks[MAX_EXIT_HOOKS];
+static int stop_hook_count;
 
+/** プロセス終了時に呼び出すフックを登録する
+ * @param hook 登録する終了フック
+ */
 void register_exit_hook(exit_hook_t hook)
 {
 	if (!hook || exit_hook_count >= MAX_EXIT_HOOKS)
@@ -27,6 +32,9 @@ void register_exit_hook(exit_hook_t hook)
 	exit_hooks[exit_hook_count++] = hook;
 }
 
+/** 登録済みのプロセス終了フックを呼び出す
+ * @param tsk 終了するプロセス
+ */
 void invoke_exit_hooks(struct task_struct *tsk)
 {
 	for (int i = 0; i < exit_hook_count; i++)
@@ -34,6 +42,32 @@ void invoke_exit_hooks(struct task_struct *tsk)
 		if (exit_hooks[i])
 		{
 			exit_hooks[i](tsk);
+		}
+	}
+}
+
+/** プロセス停止時に呼び出すフックを登録する
+ * @param hook 登録する停止フック
+ */
+void register_stop_hook(stop_hook_t hook)
+{
+	if (!hook || stop_hook_count >= MAX_EXIT_HOOKS)
+	{
+		return;
+	}
+	stop_hooks[stop_hook_count++] = hook;
+}
+
+/** 登録済みのプロセス停止フックを呼び出す
+ * @param tsk 停止するプロセス
+ */
+void invoke_stop_hooks(struct task_struct *tsk)
+{
+	for (int i = 0; i < stop_hook_count; i++)
+	{
+		if (stop_hooks[i])
+		{
+			stop_hooks[i](tsk);
 		}
 	}
 }
