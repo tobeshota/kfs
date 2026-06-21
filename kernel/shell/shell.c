@@ -26,6 +26,24 @@ static struct
  */
 static volatile int shell_sigchld_pending;
 
+/* 対話シェル自身が端末ジョブ制御シグナルで停止しないようにする。 */
+static void shell_ignore_job_control_signals(void)
+{
+	signal(SIGINT, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
+	signal(SIGTTIN, SIG_IGN);
+	signal(SIGTTOU, SIG_IGN);
+}
+
+/* forkした子プロセスの端末ジョブ制御シグナルを既定動作へ戻す。 */
+static void shell_restore_job_control_signals(void)
+{
+	signal(SIGINT, SIG_DFL);
+	signal(SIGTSTP, SIG_DFL);
+	signal(SIGTTIN, SIG_DFL);
+	signal(SIGTTOU, SIG_DFL);
+}
+
 /** SIGCHLD シグナルハンドラ
  * @param sig 受信したシグナル番号
  * @brief shell_sigchld_pending フラグをセットする．
@@ -97,8 +115,8 @@ static void execute_external_command(const char *cmd, shell_cmd_fn fn, const cha
 	}
 	else if (pid == 0)
 	{
-		/* 子プロセスではCtrl-Cを通常動作（終了）に戻す */
-		signal(SIGINT, SIG_DFL);
+		/* 子プロセスでは端末ジョブ制御シグナルを通常動作へ戻す */
+		shell_restore_job_control_signals();
 		__exec_fn(cmd, fn, (void *)args);
 	}
 	else
@@ -328,8 +346,8 @@ __attribute__((weak)) void shell_run(void)
 		(void)tcsetpgrp(0, shell_pgrp);
 	}
 
-	/* シェル本体はCtrl-C等により送信されるSIGINTで終了しないようにする */
-	signal(SIGINT, SIG_IGN);
+	/* シェル本体は端末ジョブ制御シグナルでは終了・停止しない */
+	shell_ignore_job_control_signals();
 	/* 子プロセスの状態変化通知は SIGCHLD で受ける。 */
 	signal(SIGCHLD, shell_sigchld_handler);
 
