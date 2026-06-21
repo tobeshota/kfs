@@ -40,12 +40,13 @@ struct signal_struct
 };
 
 /** 保留中シグナル
- * 現在は最小限の情報だけを保持し、詳細なキュー管理は未実装
+ * @note 現在は通常シグナルのみ対応するため，signalビットマスクで管理する．
+ *       listは将来のsiginfo_tおよびリアルタイムシグナルキュー用に予約する．
  */
 struct sigpending
 {
-	struct list_head list; /* シグナルキュー */
-	uint64_t signal;	   /* 保留中シグナルビットマスク */
+	struct list_head list; /* 将来のシグナルキュー用予約フィールド */
+	uint64_t signal;	   /* 通常シグナルの保留状態を表すビットマスク */
 };
 
 /* nice 値の範囲と，CFSのvruntime計算に使用される重み */
