@@ -6,7 +6,9 @@
  */
 #include "../test_reset.h"
 #include "unit_test_framework.h"
+#include <kfs/exit.h>
 #include <kfs/psg.h>
+#include <kfs/sched.h>
 #include <kfs/timer.h>
 
 static void setup_test(void)
@@ -247,6 +249,20 @@ KFS_TEST(test_psg_get_caller_pid)
 }
 
 /**
+ * @brief PSG所有プロセスの停止時に所有権が解放されることを確かめる。
+ */
+KFS_TEST(test_psg_stop_hook_releases_owner)
+{
+	current->pid = 42;
+	do_psg_note(0, 440, 0);
+	KFS_ASSERT_EQ(42, psg_get_caller_pid());
+
+	invoke_stop_hooks(current);
+
+	KFS_ASSERT_EQ(0, psg_get_caller_pid());
+}
+
+/**
  * test_psg_deadline_miss
  * 検証対象: do_psg_note() deadline 超過検出パス
  * 検証項目: deadline 設定→jiffies 進める→再発音で glitch カウントが増加するパスをカバー
@@ -284,6 +300,7 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_psg_glitch_stat_does_not_crash, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_psg_glitch_reset_clears, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_psg_get_caller_pid, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_psg_stop_hook_releases_owner, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_psg_deadline_miss, setup_test, teardown_test),
 };
 

@@ -1,5 +1,6 @@
 #include <asm-i386/ptrace.h>
 #include <kfs/errno.h>
+#include <kfs/exit.h>
 #include <kfs/pid.h>
 #include <kfs/sched.h>
 #include <kfs/signal.h>
@@ -129,6 +130,9 @@ void do_signal_with_regs(struct pt_regs *regs)
 				current->flags |= PF_WAIT_STOP_PENDING;	 /* 停止待ちフラグをセット */
 				current->flags &= ~PF_WAIT_CONT_PENDING; /* 再開待ちフラグをクリア */
 				current->__state = __TASK_STOPPED;		 /* プロセス状態を__TASK_STOPPEDにセット */
+
+				/* 発音など、停止中も継続するデバイス状態を停止する */
+				invoke_stop_hooks(current);
 
 				/* waitpid(WUNTRACED)中の親へ停止を通知して起床させる */
 				notify_parent_of_child_state(current);

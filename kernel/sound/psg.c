@@ -47,8 +47,8 @@ static volatile int psg_current_ch = 0;
  */
 static volatile int psg_slot_remaining = 0;
 
-/** exit hook の登録済みフラグ */
-static int psg_exit_hook_registered = 0;
+/** プロセスライフサイクルフックの登録済みフラグ */
+static int psg_process_hooks_registered = 0;
 
 /** 各チャンネルの連続発音時間 [tick = ms]
  * @note 最低音 G3=196Hz の周期は 5.1ms なので 4 周期 = 20ms 必要。
@@ -87,10 +87,10 @@ void psg_init(void)
 {
 	int i;
 
-	if (!psg_exit_hook_registered)
+	if (!psg_process_hooks_registered)
 	{
-		psg_init_exit_hook();
-		psg_exit_hook_registered = 1;
+		psg_init_process_hooks();
+		psg_process_hooks_registered = 1;
 	}
 
 	for (i = 0; i < PSG_CH_COUNT; i++)
@@ -233,8 +233,11 @@ uint32_t psg_get_caller_pid(void)
 	return psg_caller_pid;
 }
 
-/* 指定 PID のプロセスが PSG を使っていたなら全チャンネルを停止する */
-static void psg_exit_hook(struct task_struct *tsk)
+/**
+ * @brief 指定プロセスが所有するPSGの発音をすべて停止する。
+ * @param tsk 終了または停止するプロセス。
+ */
+static void psg_release_owner(struct task_struct *tsk)
 {
 	if (!tsk || psg_caller_pid != (uint32_t)tsk->pid)
 	{
@@ -245,11 +248,16 @@ static void psg_exit_hook(struct task_struct *tsk)
 	{
 		do_psg_stop(ch);
 	}
+	pcspkr_stop();
+	psg_slot_remaining = 0;
 	psg_caller_pid = 0;
 }
 
-/* PSG の終了フックを登録する */
-void psg_init_exit_hook(void)
+/**
+ * @brief PSG所有プロセスの終了・停止を処理するフックを登録する。
+ */
+void psg_init_process_hooks(void)
 {
-	register_exit_hook(psg_exit_hook);
+	register_exit_hook(psg_release_owner);
+	register_stop_hook(psg_release_owner);
 }
