@@ -50,6 +50,11 @@ static void teardown_test(void)
 {
 }
 
+static void test_signal_handler(int sig)
+{
+	(void)sig;
+}
+
 /* sys_getuid が current->uid.val を返すことを確かめる */
 KFS_TEST(test_sys_getuid_returns_uid)
 {
@@ -330,6 +335,30 @@ static void test_sys_msleep_pending_signal_returns_eintr(void)
 	printk("test_sys_msleep_pending_signal_returns_eintr: OK\n");
 }
 
+/** 既定動作のジョブ制御シグナルはスリープをEINTRで終了させない */
+static void test_job_control_signals_do_not_interrupt_sleep(void)
+{
+	current->pending.signal = (1UL << SIGTSTP) | (1UL << SIGCONT);
+	current->sig_actions[SIGTSTP].sa_handler = SIG_DFL;
+	current->sig_actions[SIGCONT].sa_handler = SIG_DFL;
+
+	KFS_ASSERT_EQ(0, signal_pending_interrupts_sleep());
+
+	current->pending.signal = 0;
+}
+
+/** ユーザハンドラが設定された停止シグナルはスリープを中断する */
+static void test_handled_stop_signal_interrupts_sleep(void)
+{
+	current->pending.signal = (1UL << SIGTSTP);
+	current->sig_actions[SIGTSTP].sa_handler = test_signal_handler;
+
+	KFS_ASSERT_EQ(1, signal_pending_interrupts_sleep());
+
+	current->pending.signal = 0;
+	current->sig_actions[SIGTSTP].sa_handler = SIG_DFL;
+}
+
 /** sys_ioctl(TIOCSCTTY) でカレントプロセスの tty_console が設定される
  * 検証対象: kernel/sys.c sys_ioctl()
  * 検証項目: TIOCSCTTY コマンドで有効なコンソール番号を渡すと 0 が返り tty_console が更新される
@@ -493,6 +522,8 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_tcsetpgrp_rejects_pgrp_from_other_session, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_msleep_zero_returns_immediately, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_msleep_pending_signal_returns_eintr, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_job_control_signals_do_not_interrupt_sleep, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_handled_stop_signal_interrupts_sleep, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tiocsctty_sets_tty_console, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_tiocsctty_invalid_console_returns_einval, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_sys_ioctl_unknown_cmd_returns_enotty, setup_test, teardown_test),

@@ -364,13 +364,13 @@ long sys_msleep(uint32_t ms)
 	{
 		return 0;
 	}
-	if (signal_pending())
+	if (signal_pending_interrupts_sleep())
 	{
 		return -EINTR;
 	}
 
 	remaining = schedule_timeout((long)ms);
-	if (signal_pending())
+	if (signal_pending_interrupts_sleep())
 	{
 		return -EINTR;
 	}

@@ -205,6 +205,40 @@ int signal_pending(void)
 	return current->pending.signal != 0;
 }
 
+/** 保留シグナルにスリープを中断すべきものが含まれるか確認する
+ * @return 中断すべきシグナルがあれば1、なければ0。
+ * @details 無視されるシグナルと、既定動作のジョブ制御シグナルは
+ *          `msleep()`を`-EINTR`で終了させない。停止シグナルはユーザ復帰前に
+ *          タスクを停止し、SIGCONT後に残り時間からスリープを再開できる。
+ */
+int signal_pending_interrupts_sleep(void)
+{
+	for (int sig = 1; sig < _NSIG; sig++)
+	{
+		/* このシグナルが保留中でなければスキップ */
+		if (!(current->pending.signal & (1UL << sig)))
+		{
+			continue;
+		}
+
+		sighandler_t handler = current->sig_actions[sig].sa_handler;
+		/* 無視されるシグナルはスキップ */
+		if (handler == SIG_IGN)
+		{
+			continue;
+		}
+
+		/* デフォルト動作のジョブ制御シグナルはスリープを中断しない */
+		if (handler == SIG_DFL &&
+			(sig == SIGCHLD || sig == SIGCONT || sig == SIGTSTP || sig == SIGSTOP || sig == SIGTTIN || sig == SIGTTOU))
+		{
+			continue;
+		}
+		return 1;
+	}
+	return 0;
+}
+
 /** 特定プロセスへシグナルを送信する
  * @brief 対象プロセスの保留シグナルビットマスクにシグナルをセットする
  * @param sig 送信するシグナル番号

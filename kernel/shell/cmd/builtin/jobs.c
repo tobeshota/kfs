@@ -173,16 +173,18 @@ int shell_jobs_fg(int job_id)
 		return -1;
 	}
 
-	/* ジョブが停止中の場合，再開する */
+	/* 指定ジョブのプロセスグループjob->pgrpを
+	 * 現在の端末のフォアグラウンドプロセスグループに設定する */
+	(void)tcsetpgrp(0, job->pgrp);
+
+	/* 端末制御を渡した後で停止中ジョブを再開する。
+	 * 先にSIGCONTを送ると、再開したジョブが一時的にバックグラウンド状態で
+	 * TTYへアクセスし、SIGTTIN/SIGTTOUで再停止する可能性がある。 */
 	if (job->stopped)
 	{
 		(void)kill(-job->pgrp, SIGCONT);
 		job->stopped = 0;
 	}
-
-	/* 指定ジョブのプロセスグループjob->pgrpを
-	 * 現在の端末のフォアグラウンドプロセスグループに設定する */
-	(void)tcsetpgrp(0, job->pgrp);
 
 	/** job_id指定プロセスの終了または停止を待つ．
 	 * @note バックグラウンド化shell_jobs_bg(); では，
