@@ -7,7 +7,7 @@ IMAGE          ?= kfs-$(ISA)-toolchain
 DOCKER         ?= docker
 ISA	           ?= i386
 ROOT_DIR       := $(shell cd ../.. && pwd)
-DOCKER_RUN     = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -u $(shell id -u):$(shell id -g) -v "$(ROOT_DIR)":/work -w /work/test/unit $(IMAGE)
+DOCKER_RUN     = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(ROOT_DIR)":/work -w /work/test/unit $(IMAGE)
 
 # ===== Toolchain (used inside container) =====
 CROSS          ?= i686-elf
