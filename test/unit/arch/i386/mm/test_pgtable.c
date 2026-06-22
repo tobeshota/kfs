@@ -9,6 +9,7 @@
 #include <asm-i386/page.h>
 #include <asm-i386/pgtable.h>
 #include <kfs/mm.h>
+#include <kfs/string.h>
 
 /* 全テストで共通のセットアップ関数 */
 static void setup_test(void)
@@ -329,13 +330,11 @@ KFS_TEST(test_pde_large_macro)
  */
 KFS_TEST(test_identity_mapping_is_kernel_only)
 {
-	extern pte_t *get_pte(unsigned long vaddr);
-
 	/* テスト対象のアドレス（恒等マッピング範囲内） */
 	unsigned long test_addr = 0x00100000; /* 1MB */
 
 	/* PTEを取得 */
-	pte_t *pte = get_pte(test_addr);
+	pte_t *pte = get_pte(kernel_pgd(), test_addr);
 
 	/* PTEが存在すること */
 	KFS_ASSERT_TRUE(pte != NULL);
@@ -357,14 +356,13 @@ KFS_TEST(test_identity_mapping_is_kernel_only)
  */
 KFS_TEST(test_cpu_sets_accessed_flag)
 {
-	extern pte_t *get_pte(unsigned long vaddr);
 	extern void __flush_tlb(void);
 
 	/* テスト用のアドレス（恒等マッピング範囲内） */
 	unsigned long test_addr = 0x00200000; /* 2MB */
 
 	/* PTEを取得 */
-	pte_t *pte = get_pte(test_addr);
+	pte_t *pte = get_pte(kernel_pgd(), test_addr);
 
 	if (pte == NULL || !pte_present(*pte))
 	{
@@ -399,14 +397,13 @@ KFS_TEST(test_cpu_sets_accessed_flag)
  */
 KFS_TEST(test_cpu_sets_dirty_flag)
 {
-	extern pte_t *get_pte(unsigned long vaddr);
 	extern void __flush_tlb(void);
 
 	/* テスト用のアドレス（恒等マッピング範囲内） */
 	unsigned long test_addr = 0x00300000; /* 3MB */
 
 	/* PTEを取得 */
-	pte_t *pte = get_pte(test_addr);
+	pte_t *pte = get_pte(kernel_pgd(), test_addr);
 
 	if (pte == NULL || !pte_present(*pte) || !pte_write(*pte))
 	{
@@ -444,10 +441,8 @@ KFS_TEST(test_cpu_sets_dirty_flag)
  */
 KFS_TEST(test_clear_accessed_flag_functionality)
 {
-	extern pte_t *get_pte(unsigned long vaddr);
-
 	unsigned long test_addr = 0x00100000;
-	pte_t *pte = get_pte(test_addr);
+	pte_t *pte = get_pte(kernel_pgd(), test_addr);
 
 	if (pte == NULL || !pte_present(*pte))
 	{
@@ -477,10 +472,8 @@ KFS_TEST(test_clear_accessed_flag_functionality)
  */
 KFS_TEST(test_clear_dirty_flag_functionality)
 {
-	extern pte_t *get_pte(unsigned long vaddr);
-
 	unsigned long test_addr = 0x00100000;
-	pte_t *pte = get_pte(test_addr);
+	pte_t *pte = get_pte(kernel_pgd(), test_addr);
 
 	if (pte == NULL || !pte_present(*pte))
 	{
@@ -501,6 +494,96 @@ KFS_TEST(test_clear_dirty_flag_functionality)
 
 	/* 元の値に戻す */
 	*pte = original;
+}
+
+/** 異なるPGDが同じ仮想アドレスに独立したmappingを保持することを確認する */
+KFS_TEST(test_map_page_targets_selected_pgd)
+{
+	static pgd_t pgd_a[PTRS_PER_PGD] __attribute__((aligned(PAGE_SIZE)));
+	static pgd_t pgd_b[PTRS_PER_PGD] __attribute__((aligned(PAGE_SIZE)));
+	static pte_t pt_a[PTRS_PER_PTE] __attribute__((aligned(PAGE_SIZE)));
+	static pte_t pt_b[PTRS_PER_PTE] __attribute__((aligned(PAGE_SIZE)));
+	const unsigned long vaddr = 0x08000000;
+	const unsigned long paddr_a = 0x01000000;
+	const unsigned long paddr_b = 0x02000000;
+	pte_t *pte_a;
+	pte_t *pte_b;
+
+	memset(pgd_a, 0, sizeof(pgd_a));
+	memset(pgd_b, 0, sizeof(pgd_b));
+	memset(pt_a, 0, sizeof(pt_a));
+	memset(pt_b, 0, sizeof(pt_b));
+	set_pde(&pgd_a[pgd_index(vaddr)], __pa(pt_a), _PAGE_USER_RW);
+	set_pde(&pgd_b[pgd_index(vaddr)], __pa(pt_b), _PAGE_USER_RW);
+
+	KFS_ASSERT_EQ(0, map_page(pgd_a, vaddr, paddr_a, _PAGE_USER_RW));
+	KFS_ASSERT_EQ(0, map_page(pgd_b, vaddr, paddr_b, _PAGE_USER_RW));
+
+	pte_a = get_pte(pgd_a, vaddr);
+	pte_b = get_pte(pgd_b, vaddr);
+	KFS_ASSERT_TRUE(pte_a != NULL);
+	KFS_ASSERT_TRUE(pte_b != NULL);
+	KFS_ASSERT_TRUE(pte_a != pte_b);
+	KFS_ASSERT_EQ(paddr_a, pte_page(*pte_a));
+	KFS_ASSERT_EQ(paddr_b, pte_page(*pte_b));
+}
+
+/** unmap_page()が指定PGDのmappingだけを解除することを確認する */
+KFS_TEST(test_unmap_page_targets_selected_pgd)
+{
+	static pgd_t pgd_a[PTRS_PER_PGD] __attribute__((aligned(PAGE_SIZE)));
+	static pgd_t pgd_b[PTRS_PER_PGD] __attribute__((aligned(PAGE_SIZE)));
+	static pte_t pt_a[PTRS_PER_PTE] __attribute__((aligned(PAGE_SIZE)));
+	static pte_t pt_b[PTRS_PER_PTE] __attribute__((aligned(PAGE_SIZE)));
+	const unsigned long vaddr = 0x08400000;
+
+	memset(pgd_a, 0, sizeof(pgd_a));
+	memset(pgd_b, 0, sizeof(pgd_b));
+	memset(pt_a, 0, sizeof(pt_a));
+	memset(pt_b, 0, sizeof(pt_b));
+	set_pde(&pgd_a[pgd_index(vaddr)], __pa(pt_a), _PAGE_USER_RW);
+	set_pde(&pgd_b[pgd_index(vaddr)], __pa(pt_b), _PAGE_USER_RW);
+	KFS_ASSERT_EQ(0, map_page(pgd_a, vaddr, 0x03000000, _PAGE_USER_RW));
+	KFS_ASSERT_EQ(0, map_page(pgd_b, vaddr, 0x04000000, _PAGE_USER_RW));
+
+	KFS_ASSERT_EQ(0, unmap_page(pgd_a, vaddr));
+	KFS_ASSERT_TRUE(!pte_present(*get_pte(pgd_a, vaddr)));
+	KFS_ASSERT_TRUE(pte_present(*get_pte(pgd_b, vaddr)));
+	KFS_ASSERT_EQ(-1, unmap_page(pgd_a, vaddr));
+}
+
+/** page table APIがNULL PGDと非整列アドレスを拒否することを確認する */
+KFS_TEST(test_page_mapping_rejects_invalid_arguments)
+{
+	KFS_ASSERT_TRUE(get_pte(NULL, 0x08000000) == NULL);
+	KFS_ASSERT_EQ(-1, map_page(NULL, 0x08000000, 0x01000000, _PAGE_USER_RW));
+	KFS_ASSERT_EQ(-1, map_page(kernel_pgd(), 0x08000001, 0x01000000, _PAGE_USER_RW));
+	KFS_ASSERT_EQ(-1, map_page(kernel_pgd(), 0x08000000, 0x01000001, _PAGE_USER_RW));
+	KFS_ASSERT_EQ(-1, unmap_page(NULL, 0x08000000));
+	KFS_ASSERT_EQ(-1, unmap_page(kernel_pgd(), 0x08000001));
+}
+
+/** map_page()が指定PGDに不足するpage tableを作成することを確認する */
+KFS_TEST(test_map_page_creates_page_table_in_selected_pgd)
+{
+	static pgd_t pgd[PTRS_PER_PGD] __attribute__((aligned(PAGE_SIZE)));
+	const unsigned long vaddr = 0x08800000;
+	const unsigned long paddr = 0x05000000;
+	pde_t pde;
+	pte_t *pte;
+
+	memset(pgd, 0, sizeof(pgd));
+	KFS_ASSERT_EQ(0, map_page(pgd, vaddr, paddr, _PAGE_USER_RW));
+
+	pde = pgd[pgd_index(vaddr)];
+	KFS_ASSERT_TRUE(pde_present(pde));
+	KFS_ASSERT_TRUE(pde_user(pde));
+	pte = get_pte(pgd, vaddr);
+	KFS_ASSERT_TRUE(pte != NULL);
+	KFS_ASSERT_EQ(paddr, pte_page(*pte));
+
+	free_pages((struct page *)pde_page(pde), 0);
+	pde_clear(&pgd[pgd_index(vaddr)]);
 }
 
 static struct kfs_test_case cases[] = {
@@ -525,6 +608,10 @@ static struct kfs_test_case cases[] = {
 	KFS_REGISTER_TEST_WITH_SETUP(test_cpu_sets_dirty_flag, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_clear_accessed_flag_functionality, setup_test, teardown_test),
 	KFS_REGISTER_TEST_WITH_SETUP(test_clear_dirty_flag_functionality, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_map_page_targets_selected_pgd, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_unmap_page_targets_selected_pgd, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_page_mapping_rejects_invalid_arguments, setup_test, teardown_test),
+	KFS_REGISTER_TEST_WITH_SETUP(test_map_page_creates_page_table_in_selected_pgd, setup_test, teardown_test),
 };
 
 int register_unit_tests_pgtable(struct kfs_test_case **out)
