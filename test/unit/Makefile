@@ -7,7 +7,13 @@ IMAGE          ?= kfs-$(ISA)-toolchain
 DOCKER         ?= docker
 ISA	           ?= i386
 ROOT_DIR       := $(shell cd ../.. && pwd)
-DOCKER_RUN     = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm -v "$(ROOT_DIR)":/work -w /work/test/unit $(IMAGE)
+DOCKER_ROOTLESS := $(shell $(DOCKER) info --format '{{json .SecurityOptions}}' 2>/dev/null | grep -q rootless && echo 1 || echo 0)
+ifeq ($(DOCKER_ROOTLESS),1)
+DOCKER_USER    :=
+else
+DOCKER_USER    := -u $(shell id -u):$(shell id -g)
+endif
+DOCKER_RUN     = $(DOCKER) run --platform $(DOCKER_PLATFORM) --rm $(DOCKER_USER) -v "$(ROOT_DIR)":/work -w /work/test/unit $(IMAGE)
 
 # ===== Toolchain (used inside container) =====
 CROSS          ?= i686-elf
