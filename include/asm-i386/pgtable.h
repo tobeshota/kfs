@@ -235,8 +235,10 @@ static inline void pde_clear(pde_t *pde)
 	*pde = 0;
 }
 
-pte_t *get_pte(unsigned long vaddr);
-int map_page(unsigned long vaddr, unsigned long paddr, unsigned long flags);
+pgd_t *kernel_pgd(void);
+pte_t *get_pte(pgd_t *pgd, unsigned long vaddr);
+int map_page(pgd_t *pgd, unsigned long vaddr, unsigned long paddr, unsigned long flags);
+int unmap_page(pgd_t *pgd, unsigned long vaddr);
 int copy_page_tables(pgd_t *dst_pgd, pgd_t *src_pgd);
 void free_page_tables(pgd_t *pgd);
 

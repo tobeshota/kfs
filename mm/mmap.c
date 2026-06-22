@@ -16,7 +16,7 @@
  *
  * 処理フロー:
  *   get_unmapped_area_user() → alloc_pages() × nr_pages
- *   → map_page_vmalloc(_PAGE_USER) → insert_vm_area()
+ *   → map_page(kernel_pgd(), _PAGE_USER) → insert_vm_area()
  */
 void *do_mmap(void *addr, unsigned long len, int prot, int flags)
 {
@@ -76,7 +76,7 @@ void *do_mmap(void *addr, unsigned long len, int prot, int flags)
 			for (j = 0; j < i; j++)
 			{
 				unsigned long rv = vaddr + (j << PAGE_SHIFT);
-				pte_t *pte = get_pte(rv);
+				pte_t *pte = get_pte(kernel_pgd(), rv);
 				if (pte && pte_present(*pte))
 				{
 					free_pages((struct page *)pte_page(*pte), 0);
@@ -88,7 +88,7 @@ void *do_mmap(void *addr, unsigned long len, int prot, int flags)
 
 		paddr = (unsigned long)page;
 
-		if (map_page_vmalloc(cur_vaddr, paddr, page_flags) != 0)
+		if (map_page(kernel_pgd(), cur_vaddr, paddr, page_flags) != 0)
 		{
 			/* マッピング失敗: このページ含め確保済みを解放 */
 			unsigned long j;
@@ -96,13 +96,13 @@ void *do_mmap(void *addr, unsigned long len, int prot, int flags)
 			for (j = 0; j < i; j++)
 			{
 				unsigned long rv = vaddr + (j << PAGE_SHIFT);
-				pte_t *pte = get_pte(rv);
+				pte_t *pte = get_pte(kernel_pgd(), rv);
 				if (pte && pte_present(*pte))
 				{
 					free_pages((struct page *)pte_page(*pte), 0);
 				}
 			}
-			printk(KERN_WARNING "do_mmap: map_page_vmalloc failed at page %lu/%lu\n", i, nr_pages);
+			printk(KERN_WARNING "do_mmap: map_page failed at page %lu/%lu\n", i, nr_pages);
 			return MAP_FAILED;
 		}
 	}
@@ -115,7 +115,7 @@ void *do_mmap(void *addr, unsigned long len, int prot, int flags)
 		for (j = 0; j < nr_pages; j++)
 		{
 			unsigned long rv = vaddr + (j << PAGE_SHIFT);
-			pte_t *pte = get_pte(rv);
+			pte_t *pte = get_pte(kernel_pgd(), rv);
 			if (pte && pte_present(*pte))
 			{
 				free_pages((struct page *)pte_page(*pte), 0);
@@ -136,7 +136,7 @@ void *do_mmap(void *addr, unsigned long len, int prot, int flags)
 		for (j = 0; j < nr_pages; j++)
 		{
 			unsigned long rv = vaddr + (j << PAGE_SHIFT);
-			pte_t *pte = get_pte(rv);
+			pte_t *pte = get_pte(kernel_pgd(), rv);
 			if (pte && pte_present(*pte))
 			{
 				free_pages((struct page *)pte_page(*pte), 0);
@@ -185,15 +185,13 @@ int do_munmap(unsigned long addr, unsigned long len)
 	for (i = 0; i < nr_pages; i++)
 	{
 		unsigned long va = vma->vm_start + (i << PAGE_SHIFT);
-		pte_t *pte = get_pte(va);
+		pte_t *pte = get_pte(kernel_pgd(), va);
 		if (pte && pte_present(*pte))
 		{
 			free_pages((struct page *)pte_page(*pte), 0);
-			*pte = 0; /* PTE クリア: ダングリングマッピングを防ぐ */
+			unmap_page(kernel_pgd(), va);
 		}
 	}
-	/* PTE を書き換えたので TLB を無効化する */
-	__flush_tlb();
 
 	/* VMA をリストから削除して構造体を解放 */
 	remove_vm_area(addr);

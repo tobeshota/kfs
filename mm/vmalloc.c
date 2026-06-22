@@ -144,7 +144,7 @@ void *vmalloc(unsigned long size)
 		paddr = (unsigned long)page;
 
 		/* 仮想アドレスと物理アドレスをページテーブルでマッピング（カーネル専用） */
-		if (map_page_vmalloc(vaddr, paddr, _PAGE_KERNEL) != 0)
+		if (map_page(kernel_pgd(), vaddr, paddr, _PAGE_KERNEL) != 0)
 		{
 			/* マッピング失敗時は物理ページも含めて解放 */
 			unsigned long j;

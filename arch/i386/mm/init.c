@@ -10,19 +10,59 @@
 /* External page directory set up by boot.S */
 extern pde_t boot_page_directory[];
 
+/** カーネルのbootページディレクトリを取得する
+ * @return カーネルが使用するページディレクトリ
+ */
+pgd_t *kernel_pgd(void)
+{
+	return boot_page_directory;
+}
+
+/** ページディレクトリが現在CR3にロードされているか判定する
+ * @param pgd 判定対象のページディレクトリ
+ * @return 現在有効なら1，それ以外は0
+ */
+static int pgd_is_current(pgd_t *pgd)
+{
+	if (!pgd)
+	{
+		return 0;
+	}
+	return (read_cr3() & PAGE_MASK) == ((unsigned long)pgd & PAGE_MASK);
+}
+
+/** 現在のページディレクトリが更新された場合のみ現在CPUのTLBを無効化する
+ * @param pgd 更新したページディレクトリ
+ * @note ページディレクトリを書き換えた後にCPUのTLBを無効化しないと，
+ *       新しいマッピングがCPUに反映されず予期せぬアクセスが起こる可能性がある．
+ */
+static void flush_tlb_for_pgd(pgd_t *pgd)
+{
+	if (pgd_is_current(pgd))
+	{
+		__flush_tlb();
+	}
+}
+
 /** 仮想アドレスに対応するPTEを取得する
+ * @param pgd 検索対象のページディレクトリ
  * @param vaddr 仮想アドレス
  * @return PTEへのポインタ、エラー時NULL
  */
-pte_t *get_pte(unsigned long vaddr)
+pte_t *get_pte(pgd_t *pgd, unsigned long vaddr)
 {
 	int pde_idx, pte_idx;
 	pde_t *pde;
 	pte_t *pte_table;
 	unsigned long pte_table_phys;
 
+	if (!pgd)
+	{
+		return NULL;
+	}
+
 	pde_idx = pgd_index(vaddr);
-	pde = &boot_page_directory[pde_idx];
+	pde = &pgd[pde_idx];
 
 	/* ページディレクトリエントリが存在するかチェック */
 	if (!pde_present(*pde))
@@ -39,6 +79,7 @@ pte_t *get_pte(unsigned long vaddr)
 }
 
 /** 仮想アドレスから対応するページテーブルを取得または作成する
+ * @param pgd    操作対象のページディレクトリ
  * @param vaddr  仮想アドレス
  * @param flags  マッピングフラグ（_PAGE_USER を含む場合、PDE にも USER ビットを設定する）
  * @return ページテーブルへのポインタ、エラー時NULL
@@ -47,7 +88,7 @@ pte_t *get_pte(unsigned long vaddr)
  *       アクセスできない（PTE の _PAGE_USER に関わらず）。ユーザ空間ページを
  *       マップする場合は flags に _PAGE_USER を含めること。
  */
-static pte_t *get_or_create_page_table(unsigned long vaddr, unsigned long flags)
+static pte_t *get_or_create_page_table(pgd_t *pgd, unsigned long vaddr, unsigned long flags)
 {
 	int pde_idx;
 	pde_t *pde;
@@ -56,8 +97,13 @@ static pte_t *get_or_create_page_table(unsigned long vaddr, unsigned long flags)
 	unsigned long pte_table_phys;
 	unsigned long pde_flags;
 
+	if (!pgd)
+	{
+		return NULL;
+	}
+
 	pde_idx = pgd_index(vaddr);
-	pde = &boot_page_directory[pde_idx];
+	pde = &pgd[pde_idx];
 
 	/* ページテーブルが既に存在する場合 */
 	if (pde_present(*pde))
@@ -68,7 +114,7 @@ static pte_t *get_or_create_page_table(unsigned long vaddr, unsigned long flags)
 		if ((flags & _PAGE_USER) && !pde_user(*pde))
 		{
 			*pde |= _PAGE_USER;
-			__flush_tlb();
+			flush_tlb_for_pgd(pgd);
 		}
 		pte_table_phys = pde_page(*pde);
 		return (pte_t *)__va(pte_table_phys);
@@ -107,14 +153,16 @@ static pte_t *get_or_create_page_table(unsigned long vaddr, unsigned long flags)
 	return pte_table;
 }
 
-/** 仮想アドレスを物理アドレスにマップ
+/** 仮想アドレスを物理アドレスにマップする
+ * @param pgd 操作対象のページディレクトリ
  * @param vaddr 仮想アドレス（4KBアライメント）
  * @param paddr 物理アドレス（4KBアライメント）
  * @param flags ページフラグ
  * @return 0=成功、負数=エラー
  */
-int map_page(unsigned long vaddr, unsigned long paddr, unsigned long flags)
+int map_page(pgd_t *pgd, unsigned long vaddr, unsigned long paddr, unsigned long flags)
 {
+	pte_t *pte_table;
 	pte_t *pte;
 
 	/* アライメントチェック */
@@ -123,72 +171,50 @@ int map_page(unsigned long vaddr, unsigned long paddr, unsigned long flags)
 		return -1;
 	}
 
-	pte = get_pte(vaddr);
-	if (!pte)
-	{
-		printk("Cannot get PTE for vaddr 0x%08lx\n", vaddr);
-		return -1;
-	}
-
-	/* ページをマップ */
-	set_pte(pte, paddr, flags | _PAGE_PRESENT);
-
-	// PTEを書き換えた後にCPUのTLBを無効化しないと，
-	// 新しいマッピングがCPUに反映されず予期せぬアクセスが起こる可能性があるため
-	__flush_tlb();
-
-	return 0;
-}
-
-/** 仮想アドレスと物理アドレスを動的にマップ（vmalloc用）
- * @param vaddr 仮想アドレス（4KBアライメント）
- * @param paddr 物理アドレス（4KBアライメント）
- * @param flags ページフラグ
- * @return 0=成功、負数=エラー
- */
-int map_page_vmalloc(unsigned long vaddr, unsigned long paddr, unsigned long flags)
-{
-	pte_t *pte_table;
-	int pte_idx;
-
-	/** ページ境界（4KB）でアラインされているかを調べる
-	 * @details
-	 * vaddrとpaddrの両方がページサイズの倍数であり，ページ境界に揃っていることを確認する．
-	 * ページテーブルへのエントリ作成や物理フレームへのマッピングはページ単位で行う必要があるため，
-	 * 仮想アドレス・物理アドレスともにページ境界で揃っていることが前提となる．
-	 * @note
-	 * - ~PAGE_MASK: ページ内のオフセットを取り出すマスク
-	 * - vaddr & ~PAGE_MASK: vaddr のページ内のオフセット
-	 *                       これが0のとき，vaddrはページサイズの倍数であり，ページ境界に揃っている
-	 * - paddr & ~PAGE_MASK: paddr のページ内のオフセット
-	 *                       これが0のとき，paddrはページサイズの倍数であり，ページ境界に揃っている
-	 */
-	if ((vaddr & ~PAGE_MASK) || (paddr & ~PAGE_MASK))
+	if (!pgd)
 	{
 		return -1;
 	}
 
 	/* vaddrから対応するページテーブルを取得または作成する
 	 * flags を渡すことで、ユーザページのマップ時に PDE にも USER ビットが設定される */
-	pte_table = get_or_create_page_table(vaddr, flags);
+	pte_table = get_or_create_page_table(pgd, vaddr, flags);
 	if (pte_table == NULL)
 	{
 		return -1;
 	}
 
-	/* PTEインデックスを計算 */
-	pte_idx = pte_index(vaddr);
+	pte = &pte_table[pte_index(vaddr)];
+	set_pte(pte, paddr, flags | _PAGE_PRESENT);
+	flush_tlb_for_pgd(pgd);
 
-	/** ページをマップ
-	 * @details 仮想アドレスvaddrから取得したページテーブルpte_tableのエントリpte_table[pte_idx]と
-	 *          物理アドレスpaddrをマッピングする
-	 */
-	set_pte(&pte_table[pte_idx], paddr, flags | _PAGE_PRESENT);
+	return 0;
+}
 
-	// PTEを書き換えた後にCPUのTLBを無効化しないと，
-	// 新しいマッピングがCPUに反映されず予期せぬアクセスが起こる可能性があるため
-	__flush_tlb();
+/** 仮想アドレスのマッピングを解除する
+ * @param pgd 操作対象のページディレクトリ
+ * @param vaddr 解除する仮想アドレス（4KBアライメント）
+ * @return 0=成功，負数=エラー
+ * @note 物理ページと空になったページテーブルは呼び出し側が解放する。
+ */
+int unmap_page(pgd_t *pgd, unsigned long vaddr)
+{
+	pte_t *pte;
 
+	/* ページ境界でアラインされているかを調べる */
+	if (!pgd || (vaddr & ~PAGE_MASK))
+	{
+		return -1;
+	}
+
+	pte = get_pte(pgd, vaddr);
+	if (!pte || !pte_present(*pte))
+	{
+		return -1;
+	}
+
+	pte_clear(pte);
+	flush_tlb_for_pgd(pgd);
 	return 0;
 }
 
