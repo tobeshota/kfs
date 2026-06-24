@@ -236,6 +236,7 @@ static inline void pde_clear(pde_t *pde)
 }
 
 pgd_t *kernel_pgd(void);
+unsigned long pgd_physical_address(pgd_t *pgd);
 pte_t *get_pte(pgd_t *pgd, unsigned long vaddr);
 int map_page(pgd_t *pgd, unsigned long vaddr, unsigned long paddr, unsigned long flags);
 int unmap_page(pgd_t *pgd, unsigned long vaddr);

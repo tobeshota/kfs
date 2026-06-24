@@ -7,6 +7,7 @@
 /* 物理アドレスと仮想アドレスの変換マクロ */
 /* PAGE_OFFSETはasm-i386/page.hで定義済み */
 #include <asm-i386/page.h>
+#include <asm-i386/pgtable.h>
 
 #define virt_to_phys(addr) __pa(addr)
 #define phys_to_virt(addr) __va(addr)
@@ -19,6 +20,7 @@ typedef unsigned long pfn_t;
 
 /* struct page型定義（Linux 2.6.11互換、簡略版） */
 struct page;
+struct mm_struct;
 
 /* 仮想メモリ領域フラグ (Linux 2.6.11のvm_flagsに相当) */
 #define VM_READ 0x00000001	/* 読み取り可能 */
@@ -39,11 +41,19 @@ struct page *alloc_pages(unsigned int gfp_mask, unsigned int order);
 void free_pages(struct page *page, unsigned int order);
 
 /* 仮想メモリ管理関数 (mm/memory.c) */
-struct vm_area_struct *find_vma(unsigned long addr);
-int insert_vm_area(struct vm_area_struct *vma);
-void remove_vm_area(unsigned long addr);
+struct vm_area_struct *find_vma(struct mm_struct *mm, unsigned long addr);
+int insert_vm_area(struct mm_struct *mm, struct vm_area_struct *vma);
+struct vm_area_struct *remove_vm_area(struct mm_struct *mm, unsigned long addr);
 unsigned long get_unmapped_area(size_t len);
-unsigned long get_unmapped_area_user(size_t len);
+unsigned long get_unmapped_area_user(struct mm_struct *mm, size_t len);
+int clone_vm_areas(struct mm_struct *dst, const struct mm_struct *src);
+void free_vm_areas(struct mm_struct *mm);
+void mm_init(struct mm_struct *mm, pgd_t *pgd);
+struct mm_struct *mm_alloc(pgd_t *source_pgd);
+void mm_destroy(struct mm_struct *mm);
+struct vm_area_struct *find_kernel_vma(unsigned long addr);
+int insert_kernel_vm_area(struct vm_area_struct *vma);
+struct vm_area_struct *remove_kernel_vm_area(unsigned long addr);
 
 /* メモリ初期化関数 */
 void mem_init(void);
