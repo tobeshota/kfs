@@ -95,7 +95,7 @@ __attribute__((noreturn)) void do_exit(int code)
 	/* do_mmap で確保したユーザスタックを解放（物理ページ＋VMAノード） */
 	if (tsk->user_stack_vm_start != 0)
 	{
-		do_munmap(tsk->user_stack_vm_start, tsk->user_stack_vm_len);
+		do_munmap_mm(tsk->mm, tsk->user_stack_vm_start, tsk->user_stack_vm_len);
 		tsk->user_stack_vm_start = 0;
 		tsk->user_stack_vm_len = 0;
 	}
@@ -103,13 +103,20 @@ __attribute__((noreturn)) void do_exit(int code)
 	/* メモリ記述子を解放（mm_struct） */
 	if (tsk->mm)
 	{
+		/* 現在のプロセスが終了するプロセスであり，
+		 * かつそのページディレクトリがカーネルのページディレクトリでない場合，
+		 * カーネルのページディレクトリに切り替える */
+		if (tsk == current && tsk->mm->pgd != kernel_pgd())
+		{
+			load_cr3(pgd_physical_address(kernel_pgd()));
+		}
+
 		/* 参照カウントを減らす */
 		tsk->mm->mm_count.counter--;
 		if (tsk->mm->mm_count.counter == 0)
 		{
-			/* 最後の参照ならページテーブルとmm_structを解放 */
-			free_page_tables(tsk->mm->pgd);
-			kfree(tsk->mm);
+			/* 最後の参照ならVMAメタデータとページテーブルを解放する */
+			mm_destroy(tsk->mm);
 		}
 		tsk->mm = NULL;
 	}

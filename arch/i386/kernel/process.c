@@ -39,7 +39,7 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next)
 	}
 
 	/* CR3 レジスタに次プロセスのページディレクトリをロード */
-	load_cr3((unsigned long)next->pgd);
+	load_cr3(pgd_physical_address(next->pgd));
 }
 
 /** 子プロセスのカーネルスタック上に初期スタックフレームを積む

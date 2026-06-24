@@ -267,7 +267,7 @@ unsigned long __alloc_pages(unsigned int gfp_mask)
 			/* GFP_ZEROフラグが設定されている場合はゼロクリア */
 			if (gfp_mask & GFP_ZERO)
 			{
-				memset((void *)phys_addr, 0, PAGE_SIZE);
+				memset((void *)__va(phys_addr), 0, PAGE_SIZE);
 			}
 
 			return phys_addr;

@@ -108,11 +108,9 @@ extern unsigned long __data_end;
 extern unsigned long __bss_start;
 extern unsigned long __bss_end;
 
-/** カーネルセクション境界を mm_struct に記録する
- * @brief copy_mm() 内のカーネルコンテキストから呼ばれる。
- *        Linux では binfmt_elf.c の load_elf_binary() が ELF ヘッダから設定するが、
- *        kfs には ELF ローダがなく全プロセスが同一バイナリを共有するため
- *        linker シンボルで静的に設定する。
+/** カーネルImageのセクション境界をmm_structへ記録する
+ * @param mm 記録先のメモリディスクリプタ
+ * @note ELFローダがない互換経路では，全プロセスが同じImage内のコードを実行するため，リンカシンボルを境界として使う
  */
 static void mm_set_kernel_sections(struct mm_struct *mm)
 {
@@ -128,53 +126,42 @@ static void mm_set_kernel_sections(struct mm_struct *mm)
 	mm->end_bss = (unsigned long)&__bss_end;
 }
 
+/** mm_structをプロセス単位で複製する
+ * @param tsk コピー先のtask_struct
+ * @param oldmm コピー元のメモリディスクリプタ
+ * @return 成功時0，失敗時は負のエラーコード
+ */
 static int copy_mm(struct task_struct *tsk, struct mm_struct *oldmm)
 {
 	struct mm_struct *mm;
-	pgd_t *new_pgd;
-	int ret;
 
-	/* カーネルスレッド（mm == NULL）の場合はコピー不要 */
 	if (!oldmm)
 	{
 		tsk->mm = NULL;
 		return 0;
 	}
 
-	/* 新しいmm_structを割り当て */
-	mm = kmalloc(sizeof(*mm));
+	mm = mm_alloc(oldmm->pgd);
 	if (!mm)
 	{
 		return -ENOMEM;
 	}
 
-	/* mm_structのメタデータをコピー */
-	memcpy(mm, oldmm, sizeof(*mm));
-
-	/* BSS/data/text セクション境界を設定 */
+	mm->brk = oldmm->brk;
+	mm->start_stack = oldmm->start_stack;
+	mm->start_code = oldmm->start_code;
+	mm->end_code = oldmm->end_code;
+	mm->start_data = oldmm->start_data;
+	mm->end_data = oldmm->end_data;
+	mm->start_bss = oldmm->start_bss;
+	mm->end_bss = oldmm->end_bss;
 	mm_set_kernel_sections(mm);
 
-	/* ページテーブルを複製（子プロセスのメモリ空間を親から分離） */
-	if (oldmm->pgd)
+	if (clone_vm_areas(mm, oldmm) != 0)
 	{
-		new_pgd = (pgd_t *)alloc_pages(GFP_KERNEL | GFP_ZERO, 0);
-		if (!new_pgd)
-		{
-			kfree(mm);
-			return -ENOMEM;
-		}
-		ret = copy_page_tables(new_pgd, oldmm->pgd);
-		if (ret < 0)
-		{
-			free_pages((struct page *)new_pgd, 0);
-			kfree(mm);
-			return ret;
-		}
-		mm->pgd = new_pgd;
+		mm_destroy(mm);
+		return -ENOMEM;
 	}
-
-	/* 参照カウントを初期化 */
-	mm->mm_count.counter = 1;
 
 	tsk->mm = mm;
 	return 0;
@@ -259,7 +246,7 @@ struct task_struct *copy_process(struct task_struct *orig)
 	{
 		if (p->mm)
 		{
-			kfree(p->mm);
+			mm_destroy(p->mm);
 		}
 		put_pid(pid);
 		if (p->stack)
@@ -293,12 +280,10 @@ struct task_struct *copy_process(struct task_struct *orig)
 }
 
 /** プロセスを誕生させる
- * @param user_eip 子が ring-3 で実行を開始するアドレス（0 なら親の pt_regs をコピー）
- * @return 新しいプロセスのPID（成功）、負のエラーコード（失敗）
- * @note Linux 6.18のkernel_clone()相当。
- *       sys_fork() からは do_fork(0) で呼ぶ（親の pt_regs をコピー）。
- *       cmd_sched() 等からは do_fork(eip) で呼ぶ（ring-3 直接起動）。
- *       ユーザスタックは内部で do_mmap(MAP_ANONYMOUS) により動的確保する。
+ * @param user_eip 子がring-3で実行を開始するアドレス，0なら親のpt_regsをコピーする
+ * @param arg user_eipへ渡す第1引数
+ * @return 新しいプロセスのPID，失敗時は負のエラーコード
+ * @note Linux 6.18のkernel_clone()相当
  */
 pid_t do_fork(unsigned long user_eip, unsigned long arg)
 {
@@ -307,6 +292,20 @@ pid_t do_fork(unsigned long user_eip, unsigned long arg)
 	unsigned long user_esp = 0;
 	void *ustack = MAP_FAILED;
 	const unsigned long STACK_SIZE = PAGE_SIZE; /* 4KB */
+	struct mm_struct bootstrap_mm; /* カーネルがユーザ空間を持たない場合にcopy_process()で一時的に使用するmm_struct */
+	struct mm_struct *saved_mm = current->mm;
+	int using_bootstrap_mm = 0;
+
+	/* カーネルがユーザ空間を持たない場合，
+	 * copy_process()で一時的に使用するためにbootstrap_mmをcurrent->mmに設定する
+	 */
+	if (user_eip != 0 && current->mm == NULL)
+	{
+		mm_init(&bootstrap_mm, kernel_pgd());
+		mm_set_kernel_sections(&bootstrap_mm);
+		current->mm = &bootstrap_mm;
+		using_bootstrap_mm = 1;
+	}
 
 	/* user_eip が指定された場合はユーザスタックを動的確保 */
 	if (user_eip != 0)
@@ -314,6 +313,11 @@ pid_t do_fork(unsigned long user_eip, unsigned long arg)
 		ustack = do_mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE);
 		if (ustack == MAP_FAILED)
 		{
+			/* ユーザスタックの確保に失敗した場合はbootstrap_mmを元に戻す */
+			if (using_bootstrap_mm)
+			{
+				current->mm = saved_mm;
+			}
 			printk(KERN_WARNING "do_fork: failed to allocate user stack\n");
 			return -ENOMEM;
 		}
@@ -346,6 +350,10 @@ pid_t do_fork(unsigned long user_eip, unsigned long arg)
 		ustack = do_mmap(NULL, src_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE);
 		if (ustack == MAP_FAILED)
 		{
+			if (using_bootstrap_mm)
+			{
+				current->mm = saved_mm;
+			}
 			printk(KERN_WARNING "do_fork: failed to copy user stack\n");
 			return -ENOMEM;
 		}
@@ -368,7 +376,18 @@ pid_t do_fork(unsigned long user_eip, unsigned long arg)
 			unsigned long sz = current->user_stack_vm_len ? current->user_stack_vm_len : STACK_SIZE;
 			do_munmap((unsigned long)ustack, sz);
 		}
+		if (using_bootstrap_mm)
+		{
+			current->mm = saved_mm;
+		}
 		return -EAGAIN;
+	}
+
+	/* bootstrap_mmを解放して元のmmに戻す */
+	if (using_bootstrap_mm)
+	{
+		free_vm_areas(&bootstrap_mm);
+		current->mm = saved_mm;
 	}
 
 	/* 子プロセスにユーザスタック情報を記録（exit 時に do_munmap で解放するため） */
@@ -467,10 +486,10 @@ void __init fork_init(void)
 
 /** 指定した関数をカーネル空間のプロセスとして実行する
  * @brief copy_thread_with_fn() が fork_frame.ebx = fn を設定することで
- *        ret_from_fork がカーネルスレッドパス（call *%%ebx）へ分岐する。
+ *        ret_from_fork がカーネルスレッドパス（call *%%ebx）へ分岐する
  * @param fn 新プロセスで実行するカーネル関数
  * @param name プロセス名（NULLの場合はデフォルト名が使用される）
- * @return 子PID（成功）、負数（失敗）
+ * @return 子PID（成功），負数（失敗）
  */
 pid_t kernel_thread(void (*fn)(void), const char *name)
 {

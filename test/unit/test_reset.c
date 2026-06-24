@@ -73,6 +73,7 @@ void reset_all_state_for_test(void)
 	init_task.se.run_node.rb_right = NULL;
 	/* thread.sp=0 にして「cpu_idle_loop がまだ動いていない」状態にする。
 	 * schedule() の init_task フォールバックはこれが 0 の間は無効になる。 */
+	init_task.mm = NULL;
 	init_task.thread.sp = 0;
 	init_task.pid = 0;
 	init_task.parent = &init_task;

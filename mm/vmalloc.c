@@ -106,7 +106,7 @@ void *vmalloc(unsigned long size)
 	vma->vm_next = NULL;
 
 	/* VMAをリストに挿入 */
-	if (insert_vm_area(vma) != 0)
+	if (insert_kernel_vm_area(vma) != 0)
 	{
 		kfree(vma);
 		kfree(vm);
@@ -133,7 +133,7 @@ void *vmalloc(unsigned long size)
 				struct page *free_page = (struct page *)virt_to_phys((void *)free_vaddr);
 				free_pages(free_page, 0);
 			}
-			remove_vm_area(addr);
+			remove_kernel_vm_area(addr);
 			kfree(vma);
 			kfree(vm);
 			printk(KERN_WARNING "vmalloc: failed to allocate page %lu/%lu\n", i, nr_pages);
@@ -155,7 +155,7 @@ void *vmalloc(unsigned long size)
 				struct page *free_page = (struct page *)virt_to_phys((void *)free_vaddr);
 				free_pages(free_page, 0);
 			}
-			remove_vm_area(addr);
+			remove_kernel_vm_area(addr);
 			kfree(vma);
 			kfree(vm);
 			printk(KERN_WARNING "vmalloc: failed to map page %lu/%lu\n", i, nr_pages);
@@ -216,7 +216,7 @@ void vfree(void *addr)
 	}
 
 	/* VMAをリストから削除 */
-	remove_vm_area(vaddr);
+	remove_kernel_vm_area(vaddr);
 
 	/* vmlistから削除 */
 	if (prev == NULL)

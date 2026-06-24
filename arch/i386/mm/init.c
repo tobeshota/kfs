@@ -7,7 +7,7 @@
 #include <kfs/printk.h>
 #include <kfs/string.h>
 
-/* External page directory set up by boot.S */
+/* boot.Sが用意するカーネルページディレクトリ */
 extern pde_t boot_page_directory[];
 
 /** カーネルのbootページディレクトリを取得する
@@ -16,6 +16,47 @@ extern pde_t boot_page_directory[];
 pgd_t *kernel_pgd(void)
 {
 	return boot_page_directory;
+}
+
+/** PGDをカーネルから参照可能な仮想アドレスへ変換する
+ * @param pgd 物理アドレスまたは高位カーネル仮想アドレスで表されたPGD
+ * @return PGDのカーネル仮想アドレス
+ */
+static pgd_t *pgd_kernel_address(pgd_t *pgd)
+{
+	unsigned long addr = (unsigned long)pgd;
+
+	if (addr == 0)
+	{
+		return NULL;
+	}
+	/* 高位カーネル仮想アドレスの場合はそのまま返す */
+	if (addr >= PAGE_OFFSET)
+	{
+		return pgd;
+	}
+	return (pgd_t *)__va(addr);
+}
+
+/** PGDをCR3へ設定する物理アドレスへ変換する
+ * @param pgd 物理アドレスまたは高位カーネル仮想アドレスで表されたPGD
+ * @return PGDの物理アドレス
+ */
+unsigned long pgd_physical_address(pgd_t *pgd)
+{
+	unsigned long addr = (unsigned long)pgd; /* PGDの物理アドレス */
+
+	/* PGDがNULLの場合は物理アドレスも0とする */
+	if (addr == 0)
+	{
+		return 0;
+	}
+	/* 高位カーネル仮想アドレスの場合は物理アドレスに変換する */
+	if (addr >= PAGE_OFFSET)
+	{
+		return __pa(addr);
+	}
+	return addr;
 }
 
 /** ページディレクトリが現在CR3にロードされているか判定する
@@ -28,7 +69,7 @@ static int pgd_is_current(pgd_t *pgd)
 	{
 		return 0;
 	}
-	return (read_cr3() & PAGE_MASK) == ((unsigned long)pgd & PAGE_MASK);
+	return (read_cr3() & PAGE_MASK) == (pgd_physical_address(pgd) & PAGE_MASK);
 }
 
 /** 現在のページディレクトリが更新された場合のみ現在CPUのTLBを無効化する
@@ -47,24 +88,25 @@ static void flush_tlb_for_pgd(pgd_t *pgd)
 /** 仮想アドレスに対応するPTEを取得する
  * @param pgd 検索対象のページディレクトリ
  * @param vaddr 仮想アドレス
- * @return PTEへのポインタ、エラー時NULL
+ * @return PTEへのポインタ，エラー時NULL
  */
 pte_t *get_pte(pgd_t *pgd, unsigned long vaddr)
 {
-	int pde_idx, pte_idx;
+	int pde_idx;
+	int pte_idx;
 	pde_t *pde;
 	pte_t *pte_table;
 	unsigned long pte_table_phys;
+	pgd_t *pgd_kva;
 
-	if (!pgd)
+	pgd_kva = pgd_kernel_address(pgd);
+	if (pgd_kva == NULL)
 	{
 		return NULL;
 	}
 
 	pde_idx = pgd_index(vaddr);
-	pde = &pgd[pde_idx];
-
-	/* ページディレクトリエントリが存在するかチェック */
+	pde = &pgd_kva[pde_idx];
 	if (!pde_present(*pde))
 	{
 		return NULL;
@@ -74,19 +116,14 @@ pte_t *get_pte(pgd_t *pgd, unsigned long vaddr)
 	pte_table_phys = pde_page(*pde);
 	pte_table = (pte_t *)__va(pte_table_phys);
 	pte_idx = pte_index(vaddr);
-
 	return &pte_table[pte_idx];
 }
 
 /** 仮想アドレスから対応するページテーブルを取得または作成する
- * @param pgd    操作対象のページディレクトリ
- * @param vaddr  仮想アドレス
- * @param flags  マッピングフラグ（_PAGE_USER を含む場合、PDE にも USER ビットを設定する）
- * @return ページテーブルへのポインタ、エラー時NULL
- *
- * @note x86 ページング仕様: PDE に _PAGE_USER がないと ring-3 はその 4MB 範囲全体に
- *       アクセスできない（PTE の _PAGE_USER に関わらず）。ユーザ空間ページを
- *       マップする場合は flags に _PAGE_USER を含めること。
+ * @param pgd 操作対象のページディレクトリ
+ * @param vaddr 仮想アドレス
+ * @param flags マッピングフラグ
+ * @return ページテーブルへのポインタ，エラー時NULL
  */
 static pte_t *get_or_create_page_table(pgd_t *pgd, unsigned long vaddr, unsigned long flags)
 {
@@ -97,20 +134,16 @@ static pte_t *get_or_create_page_table(pgd_t *pgd, unsigned long vaddr, unsigned
 	unsigned long pte_table_phys;
 	unsigned long pde_flags;
 
-	if (!pgd)
+	pgd_t *pgd_kva = pgd_kernel_address(pgd); /* カーネルから参照可能なPGDの仮想アドレス */
+	if (pgd_kva == NULL)
 	{
 		return NULL;
 	}
 
 	pde_idx = pgd_index(vaddr);
-	pde = &pgd[pde_idx];
-
-	/* ページテーブルが既に存在する場合 */
+	pde = &pgd_kva[pde_idx];
 	if (pde_present(*pde))
 	{
-		/* 既存 PDE に USER ビットが不足していれば補完する
-		 * （同じ 4MB 範囲に先にカーネルページが作成された後でユーザページを
-		 *   追加する場合を想定） */
 		if ((flags & _PAGE_USER) && !pde_user(*pde))
 		{
 			*pde |= _PAGE_USER;
@@ -128,11 +161,6 @@ static pte_t *get_or_create_page_table(pgd_t *pgd, unsigned long vaddr, unsigned
 		return NULL;
 	}
 
-	/*
-	 * alloc_pages() は物理アドレスを返す。
-	 * - memset / PTE 操作には仮想アドレス(__va)を使う
-	 * - PDE への登録には物理アドレスをそのまま使う
-	 */
 	pte_table_phys = (unsigned long)page;
 	pte_table = (pte_t *)__va(pte_table_phys);
 
@@ -149,7 +177,6 @@ static pte_t *get_or_create_page_table(pgd_t *pgd, unsigned long vaddr, unsigned
 
 	/* ページディレクトリエントリを設定（物理アドレスを使用） */
 	set_pde(pde, pte_table_phys, pde_flags);
-
 	return pte_table;
 }
 
@@ -158,26 +185,18 @@ static pte_t *get_or_create_page_table(pgd_t *pgd, unsigned long vaddr, unsigned
  * @param vaddr 仮想アドレス（4KBアライメント）
  * @param paddr 物理アドレス（4KBアライメント）
  * @param flags ページフラグ
- * @return 0=成功、負数=エラー
+ * @return 0=成功，負数=エラー
  */
 int map_page(pgd_t *pgd, unsigned long vaddr, unsigned long paddr, unsigned long flags)
 {
 	pte_t *pte_table;
 	pte_t *pte;
 
-	/* アライメントチェック */
-	if ((vaddr & ~PAGE_MASK) || (paddr & ~PAGE_MASK))
+	if ((vaddr & ~PAGE_MASK) || (paddr & ~PAGE_MASK) || pgd == NULL)
 	{
 		return -1;
 	}
 
-	if (!pgd)
-	{
-		return -1;
-	}
-
-	/* vaddrから対応するページテーブルを取得または作成する
-	 * flags を渡すことで、ユーザページのマップ時に PDE にも USER ビットが設定される */
 	pte_table = get_or_create_page_table(pgd, vaddr, flags);
 	if (pte_table == NULL)
 	{
@@ -187,7 +206,6 @@ int map_page(pgd_t *pgd, unsigned long vaddr, unsigned long paddr, unsigned long
 	pte = &pte_table[pte_index(vaddr)];
 	set_pte(pte, paddr, flags | _PAGE_PRESENT);
 	flush_tlb_for_pgd(pgd);
-
 	return 0;
 }
 
@@ -195,13 +213,11 @@ int map_page(pgd_t *pgd, unsigned long vaddr, unsigned long paddr, unsigned long
  * @param pgd 操作対象のページディレクトリ
  * @param vaddr 解除する仮想アドレス（4KBアライメント）
  * @return 0=成功，負数=エラー
- * @note 物理ページと空になったページテーブルは呼び出し側が解放する。
  */
 int unmap_page(pgd_t *pgd, unsigned long vaddr)
 {
 	pte_t *pte;
 
-	/* ページ境界でアラインされているかを調べる */
 	if (!pgd || (vaddr & ~PAGE_MASK))
 	{
 		return -1;
@@ -218,21 +234,25 @@ int unmap_page(pgd_t *pgd, unsigned long vaddr)
 	return 0;
 }
 
-/** ページテーブルをコピー（fork用）
+/** ページテーブルをコピーする
  * @param dst_pgd コピー先のページディレクトリ
  * @param src_pgd コピー元のページディレクトリ
- * @return 0=成功、負数=エラー
- * @note プロセスごとにページディレクトリを分離する。
- * @note COW（Copy On Write）は未実装
+ * @return 0=成功，負数=エラー
  */
 int copy_page_tables(pgd_t *dst_pgd, pgd_t *src_pgd)
 {
 	int pde_idx;
-	pde_t src_pde, *dst_pde;
-	pte_t *src_pt, *dst_pt;
+	pde_t src_pde;
+	pde_t *dst_pde;
+	pte_t *src_pt;
+	pte_t *dst_pt;
 	struct page *new_pt_page;
+	pgd_t *dst_pgd_kva;
+	pgd_t *src_pgd_kva;
 
-	if (!dst_pgd || !src_pgd)
+	dst_pgd_kva = pgd_kernel_address(dst_pgd);
+	src_pgd_kva = pgd_kernel_address(src_pgd);
+	if (!dst_pgd_kva || !src_pgd_kva)
 	{
 		return -ENOMEM;
 	}
@@ -240,9 +260,7 @@ int copy_page_tables(pgd_t *dst_pgd, pgd_t *src_pgd)
 	/* 全ページディレクトリエントリを走査 */
 	for (pde_idx = 0; pde_idx < PTRS_PER_PGD; pde_idx++)
 	{
-		src_pde = src_pgd[pde_idx];
-
-		/* ソースのPDEが存在しない場合はスキップ */
+		src_pde = src_pgd_kva[pde_idx];
 		if (!pde_present(src_pde))
 		{
 			continue;
@@ -252,35 +270,32 @@ int copy_page_tables(pgd_t *dst_pgd, pgd_t *src_pgd)
 		new_pt_page = alloc_pages(GFP_KERNEL | GFP_ZERO, 0);
 		if (!new_pt_page)
 		{
-			/* TODO: 既に割り当てたページテーブルをクリーンアップ */
 			return -ENOMEM;
 		}
 
-		dst_pt = (pte_t *)new_pt_page;
-		src_pt = (pte_t *)pde_page(src_pde);
-
-		/* ページテーブル全体をコピーする。COW 最適化は未実装 */
+		dst_pt = (pte_t *)__va((unsigned long)new_pt_page);
+		src_pt = (pte_t *)__va(pde_page(src_pde));
 		memcpy(dst_pt, src_pt, PAGE_SIZE);
 
-		/* 新しいページテーブルをページディレクトリに設定 */
-		dst_pde = &dst_pgd[pde_idx];
-		set_pde(dst_pde, (unsigned long)dst_pt, pde_val(src_pde) & ~PAGE_MASK);
+		dst_pde = &dst_pgd_kva[pde_idx];
+		set_pde(dst_pde, (unsigned long)new_pt_page, pde_val(src_pde) & ~PAGE_MASK);
 	}
-
 	return 0;
 }
 
-/** ページテーブルを解放（プロセス終了時）
+/** ページテーブルを解放する
  * @param pgd 解放するページディレクトリ
- * @note プロセスメモリ分離のためにページディレクトリを切り替える
  */
 void free_page_tables(pgd_t *pgd)
 {
 	int pde_idx;
 	pde_t pde;
-	pte_t *pt;
+	pgd_t *pgd_kva;
+	unsigned long pgd_phys;
 
-	if (!pgd)
+	pgd_phys = pgd_physical_address(pgd);
+	pgd_kva = pgd_kernel_address(pgd);
+	if (!pgd_kva)
 	{
 		return;
 	}
@@ -288,19 +303,16 @@ void free_page_tables(pgd_t *pgd)
 	/* 全ページディレクトリエントリを走査 */
 	for (pde_idx = 0; pde_idx < PTRS_PER_PGD; pde_idx++)
 	{
-		pde = pgd[pde_idx];
-
 		/* PDEが存在しない場合はスキップ */
+		pde = pgd_kva[pde_idx];
 		if (!pde_present(pde))
 		{
 			continue;
 		}
-
 		/* ページテーブルを解放 */
-		pt = (pte_t *)pde_page(pde);
-		free_pages((struct page *)pt, 0);
+		free_pages((struct page *)pde_page(pde), 0);
 	}
 
 	/* ページディレクトリ自体を解放 */
-	free_pages((struct page *)pgd, 0);
+	free_pages((struct page *)pgd_phys, 0);
 }
